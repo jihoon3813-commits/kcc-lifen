@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { db } from '../db/index.js';
 import { config } from '../config.js';
+import { serializeUser } from '../utils/menuPermissions.js';
 
 export function authenticate(req, res, next) {
   let token = null;
@@ -20,7 +21,7 @@ export function authenticate(req, res, next) {
   try {
     const decoded = jwt.verify(token, config.jwtSecret);
     let user = db.prepare(`
-      SELECT u.id, u.org_id, u.username, u.name, u.email, u.phone, u.role, u.active,
+      SELECT u.id, u.org_id, u.username, u.name, u.email, u.phone, u.role, u.allowed_menus, u.active, u.created_at,
              o.name as org_name, o.type as org_type
       FROM users u
       JOIN organizations o ON u.org_id = o.id
@@ -29,7 +30,7 @@ export function authenticate(req, res, next) {
 
     if (!user && decoded.username) {
       user = db.prepare(`
-        SELECT u.id, u.org_id, u.username, u.name, u.email, u.phone, u.role, u.active,
+        SELECT u.id, u.org_id, u.username, u.name, u.email, u.phone, u.role, u.allowed_menus, u.active, u.created_at,
                o.name as org_name, o.type as org_type
         FROM users u
         JOIN organizations o ON u.org_id = o.id
@@ -42,7 +43,7 @@ export function authenticate(req, res, next) {
       return next();
     }
 
-    req.user = user;
+    req.user = serializeUser(user);
     next();
   } catch (err) {
     req.user = null;
@@ -70,6 +71,21 @@ export function requireRole(...allowedRoles) {
       return res.status(403).json({ error: '해당 기능에 접근 권한이 없습니다.' });
     }
     next();
+  };
+}
+
+export function requireMenu(menuKey) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: '로그인이 필요합니다.' });
+    }
+    if (req.user.role === 'hq_admin') {
+      return next();
+    }
+    if (Array.isArray(req.user.allowed_menus) && req.user.allowed_menus.includes(menuKey)) {
+      return next();
+    }
+    return res.status(403).json({ error: '해당 메뉴에 대한 접근 권한이 없습니다.' });
   };
 }
 

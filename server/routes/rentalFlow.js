@@ -889,7 +889,8 @@ function getAdminScopedApplication(appId, user) {
 }
 
 function canViewOriginalDocuments(user) {
-  // ADMIN_PLAN.md Section 5: Only screening/contract/authorized HQ roles may access raw ID/signature after re-auth
+  // Only authorized HQ roles (hq_admin, accountant) may access raw ID/signature
+  if (!user) return false;
   return ['hq_admin', 'accountant'].includes(user.role);
 }
 
@@ -1034,10 +1035,12 @@ adminRentalRouter.get('/:id', requireAuth, (req, res) => {
     try { snapshot = JSON.parse(app.quote_snapshot_json); } catch {}
   }
 
-  // Document metadata WITHOUT private_object_key!
+  const canView = canViewOriginalDocuments(req.user);
+
+  // Document metadata + direct dataUrl for authorized users
   const documents = db.prepare(`
     SELECT id, kind, version_no, mime_type, byte_size, width, height, sha256_digest,
-           scan_status, is_active, retention_until, deleted_at, created_at
+           scan_status, is_active, retention_until, deleted_at, created_at, private_object_key
     FROM rental_document_versions
     WHERE application_id = ?
     ORDER BY kind ASC, version_no DESC
@@ -1116,21 +1119,36 @@ adminRentalRouter.get('/:id', requireAuth, (req, res) => {
       receivedAt: app.created_at,
       updatedAt: app.updated_at
     },
-    documents: documents.map(d => ({
-      id: d.id,
-      kind: d.kind,
-      versionNo: d.version_no,
-      mimeType: d.mime_type,
-      byteSize: d.byte_size,
-      width: d.width,
-      height: d.height,
-      digestPrefix: d.sha256_digest ? d.sha256_digest.slice(0, 16) : '',
-      scanStatus: d.scan_status,
-      isActive: Boolean(d.is_active),
-      retentionUntil: d.retention_until,
-      deletedAt: d.deleted_at,
-      createdAt: d.created_at
-    })),
+    documents: documents.map(d => {
+      let dataUrl = null;
+      if (canView && !d.deleted_at && d.private_object_key) {
+        try {
+          const plainBuffer = readEncryptedObject(d.private_object_key);
+          if (plainBuffer && plainBuffer.length > 0) {
+            dataUrl = `data:${d.mime_type || 'image/png'};base64,${plainBuffer.toString('base64')}`;
+          }
+        } catch (e) {
+          console.error('Failed to decrypt document object:', d.id, e.message);
+        }
+      }
+      return {
+        id: d.id,
+        kind: d.kind,
+        versionNo: d.version_no,
+        mimeType: d.mime_type,
+        byteSize: d.byte_size,
+        width: d.width,
+        height: d.height,
+        digestPrefix: d.sha256_digest ? d.sha256_digest.slice(0, 16) : '',
+        scanStatus: d.scan_status,
+        isActive: Boolean(d.is_active),
+        retentionUntil: d.retention_until,
+        deletedAt: d.deleted_at,
+        createdAt: d.created_at,
+        dataUrl,
+        viewUrl: `/api/admin/rental-applications/${encodeURIComponent(app.id)}/documents/${d.id}/view`
+      };
+    }),
     consents: consents.map(c => ({
       itemId: c.item_id,
       title: c.title,
@@ -1149,6 +1167,47 @@ adminRentalRouter.get('/:id', requireAuth, (req, res) => {
       canPurgeDocs: req.user.role === 'hq_admin'
     }
   });
+});
+
+// 2-1. GET /api/admin/rental-applications/:id/documents/:docId/view (Direct Verified Document View)
+adminRentalRouter.get('/:id/documents/:docId/view', (req, res) => {
+  let user = null;
+  const token = req.query.token || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
+  if (token) {
+    try {
+      user = jwt.verify(token, config.jwtSecret);
+    } catch {}
+  }
+  if (!user && req.user) user = req.user;
+  if (!user) {
+    return res.status(401).json({ error: '인증이 필요합니다.' });
+  }
+
+  const { app, errorStatus, error } = getAdminScopedApplication(req.params.id, user);
+  if (error) return res.status(errorStatus).json({ error });
+
+  if (!canViewOriginalDocuments(user)) {
+    return res.status(403).json({ error: '서류 열람 권한이 없습니다.' });
+  }
+
+  const doc = db.prepare(`
+    SELECT * FROM rental_document_versions
+    WHERE id = ? AND application_id = ? AND deleted_at IS NULL
+  `).get(Number(req.params.docId), app.id);
+
+  if (!doc) {
+    return res.status(404).json({ error: '요청한 서류를 찾을 수 없거나 파기되었습니다.' });
+  }
+
+  try {
+    const plainBuffer = readEncryptedObject(doc.private_object_key);
+    res.setHeader('Content-Type', doc.mime_type || 'image/png');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.send(plainBuffer);
+  } catch (err) {
+    return res.status(500).json({ error: '서류 복호화에 실패했습니다.' });
+  }
 });
 
 // 3. POST /api/admin/rental-applications/:id/document-access (Re-Auth + Reason + Audit -> Short-Lived Stream URL)

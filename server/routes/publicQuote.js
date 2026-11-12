@@ -15,7 +15,8 @@ const router = express.Router();
 function getPublishedQuoteQuery(whereClause) {
   return `
     SELECT q.id, q.project_id, q.version, q.title, q.quote_type, q.status,
-           q.sale_price, q.vat, q.total_price, q.discount_amount, q.access_token, q.published_at,
+           q.material_subtotal, q.extra_subtotal, q.sale_price, q.vat, q.original_price,
+           q.total_price, q.discount_amount, q.meta_json, q.access_token, q.published_at,
            c.name as customer_name, c.phone as customer_phone, c.address as customer_address,
            p.product, p.drawing_url, p.owner_name, p.partner_name,
            u.phone as manager_phone, o.phone as org_phone

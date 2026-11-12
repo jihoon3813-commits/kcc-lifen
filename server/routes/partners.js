@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../db/index.js';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth, requireMenu } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -30,7 +30,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // Register new partner
-router.post('/', requireAuth, requireRole('hq_admin'), (req, res) => {
+router.post('/', requireAuth, requireMenu('partners'), (req, res) => {
   const { name, person, email, phone, type = '인테리어' } = req.body;
   if (!name) return res.status(400).json({ error: '파트너사명을 입력해 주세요.' });
 

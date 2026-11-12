@@ -87,8 +87,11 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
     title,
     quoteType = '가견적',
     items,
-    marginRate = 20.0,
+    marginRate = 100.0,
     discountAmount = 0,
+    supplyCost = 0,
+    excelSubtotal = 0,
+    meta = null,
     memo,
     isPublish = true
   } = req.body;
@@ -106,8 +109,17 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
     return res.status(403).json({ error: '접근 권한이 없습니다.' });
   }
 
-  const calculated = calculateQuote(items, marginRate);
   const safeDiscount = Math.max(0, Math.round(Number(discountAmount) || 0));
+  const parsedMeta = meta && typeof meta === 'object' ? meta : null;
+  const resolvedSupplyCost = Math.max(0, Math.round(Number(supplyCost || parsedMeta?.excel_grand_total || 0) || 0));
+  const resolvedExcelSub = Math.max(0, Math.round(Number(excelSubtotal || parsedMeta?.excel_subtotal || 0) || 0));
+
+  const calculated = calculateQuote(items, {
+    defaultMarginRate: marginRate,
+    discountAmount: safeDiscount,
+    supplyCost: resolvedSupplyCost,
+    excelSubtotal: resolvedExcelSub
+  });
   const safeType = ['가견적', '최종견적', '비교안'].includes(quoteType) ? quoteType : '가견적';
 
   const maxVerRow = db.prepare('SELECT MAX(version) as max_ver FROM quotes WHERE project_id = ?').get(pId);
@@ -117,33 +129,63 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
   const status = isPublish ? 'published' : 'draft';
   const publishedAt = isPublish ? new Date().toISOString() : null;
   const quoteTitle = title || `${project.title || '고객'} 견적서 (v${nextVer})`;
+  const metaJsonStr = parsedMeta ? JSON.stringify(parsedMeta) : null;
 
   const insertQuote = db.prepare(`
     INSERT INTO quotes (
-      project_id, version, title, quote_type, status, total_cost, margin_rate, sale_price,
-      vat, total_price, discount_amount, memo, access_token, published_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      project_id, version, title, quote_type, status,
+      total_cost, supply_cost, margin_rate, material_subtotal, extra_subtotal,
+      sale_price, vat, original_price, total_price, discount_amount,
+      meta_json, memo, access_token, published_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const quoteResult = insertQuote.run(
-    pId, nextVer, quoteTitle, safeType, status, calculated.total_cost, calculated.margin_rate,
-    calculated.sale_price, calculated.vat, calculated.total_price, safeDiscount, memo || '',
-    accessToken, publishedAt
+    pId,
+    nextVer,
+    quoteTitle,
+    safeType,
+    status,
+    calculated.total_cost,
+    calculated.supply_cost,
+    calculated.margin_rate,
+    calculated.material_subtotal,
+    calculated.extra_subtotal,
+    calculated.sale_price,
+    calculated.vat,
+    calculated.original_price,
+    calculated.total_price,
+    calculated.discount_amount,
+    metaJsonStr,
+    memo || '',
+    accessToken,
+    publishedAt
   );
 
   const quoteId = quoteResult.lastInsertRowid;
 
   const insertItem = db.prepare(`
     INSERT INTO quote_items (
-      quote_id, sort_order, name, spec, category, detail_json, quantity, cost_unit_price, cost_total,
+      quote_id, sort_order, name, spec, category, detail_json,
+      quantity, margin_rate, cost_unit_price, cost_total,
       sale_unit_price, sale_total
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   for (const item of calculated.items) {
     insertItem.run(
-      quoteId, item.sort_order, item.name, item.spec, item.category || 'window', item.detail_json || null,
-      item.quantity, item.cost_unit_price, item.cost_total, item.sale_unit_price, item.sale_total
+      quoteId,
+      item.sort_order,
+      item.name,
+      item.spec,
+      item.category || 'window',
+      item.detail_json || null,
+      item.quantity,
+      item.margin_rate ?? 100,
+      item.cost_unit_price,
+      item.cost_total,
+      item.sale_unit_price,
+      item.sale_total
     );
   }
 
@@ -167,7 +209,7 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
   recordAuditLog({
     projectId: pId,
     action: isPublish ? `${safeType} 발행` : '가견적 임시저장',
-    detail: `견적 v${nextVer} (${quoteTitle}): 공급원가 ${calculated.total_cost.toLocaleString()}원, 마진율 ${calculated.margin_rate}%, 총 견적 ${calculated.total_price.toLocaleString()}원`,
+    detail: `견적 v${nextVer} (${quoteTitle}): 공급원가 ${calculated.supply_cost.toLocaleString()}원, 절삭총액 ${calculated.original_price.toLocaleString()}원, 일시불할인 ${calculated.discount_amount.toLocaleString()}원, 최종합계 ${calculated.total_price.toLocaleString()}원 (마진 ${calculated.margin_amount.toLocaleString()}원)`,
     req
   });
 
@@ -179,11 +221,16 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
     public_url: publicUrl,
     summary: {
       total_cost: calculated.total_cost,
+      supply_cost: calculated.supply_cost,
       margin_rate: calculated.margin_rate,
+      material_subtotal: calculated.material_subtotal,
+      extra_subtotal: calculated.extra_subtotal,
       sale_price: calculated.sale_price,
       vat: calculated.vat,
+      original_price: calculated.original_price,
+      discount_amount: calculated.discount_amount,
       total_price: calculated.total_price,
-      discount_amount: safeDiscount
+      margin_amount: calculated.margin_amount
     }
   });
 });

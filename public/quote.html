@@ -4,7 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#ffffff"><meta name="description" content="고객님의 창호 교체 견적과 결제 방법을 한눈에 확인하세요. KCC홈씨씨 모바일 견적서.">
   <title>KCC홈씨씨 · 나의 창호 견적</title>
-  <link rel="stylesheet" href="quote.css?v=20261112b">
+  <link rel="stylesheet" href="quote.css?v=20261112j">
+  <link rel="stylesheet" href="rental.css?v=20261112j">
 </head>
 <body>
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -103,9 +104,22 @@
   <div class="quote-top"><span id="quote-top-label">일시불 할인 적용 예상금액</span><span class="small muted">부가세 포함</span></div>
   <div class="quote-price" id="quote-price">0<span>원</span></div>
   <div class="discount" id="quote-discount"><del id="quote-original-price">0원</del><span id="quote-discount-badge"><svg><use href="#i-down"/></svg> 0원 할인</span></div>
+  <div class="quote-subtotals-mini" id="quote-subtotals-mini">
+    <div><span>자재 총액 <small>(VAT별도)</small></span><b id="top-material-subtotal">0원</b></div>
+    <div><span>기타견적 <small>(VAT별도)</small></span><b id="top-extra-subtotal">0원</b></div>
+    <div><span>부가세 포함 총액 <small>(절삭기준)</small></span><b id="top-original-total">0원</b></div>
+  </div>
   <div class="split-pay"><span><svg><use href="#i-check"/></svg> 선금 50% · 잔금 50%</span><span id="split-pay-amount">각 0원</span></div>
   <button class="primary large" data-consult="총비용과 추가 비용">내 견적 상담하기<svg><use href="#i-arrow"/></svg></button>
   <p class="soft-help">궁금한 항목만 편하게 물어보세요.</p>
+ </section>
+ <section class="kcc-meta-card" id="kcc-meta-card" aria-label="견적서 기본정보" hidden>
+  <div class="kcc-meta-head">
+    <strong>견적 기본정보</strong>
+    <span id="kcc-meta-no"></span>
+  </div>
+  <dl class="kcc-meta-grid" id="kcc-meta-grid"></dl>
+  <div class="kcc-site-notes" id="kcc-site-notes" hidden></div>
  </section>
  <div class="quote-meta"><span id="quote-date">견적일 -</span><button class="text-button" data-scroll="faq">견적 안내 <svg><use href="#i-info"/></svg></button></div>
  <p class="estimate-note" id="estimate-note">현장 확인 및 최종 시공 사양에 따라 금액이 달라질 수 있습니다.</p>
@@ -117,34 +131,45 @@
  <div class="section-kicker">01 <span>PAYMENT OPTIONS</span></div>
  <h2>어떤 결제 방법이<br>편하신가요?</h2>
  <p class="section-description">먼저 낼 금액과 매월 낼 금액을 함께 비교해보세요.</p>
+ <div id="rental-active-banner" class="rental-active-banner" hidden></div>
  <div class="payment-list" role="radiogroup" aria-label="결제 방법 선택">
   <button class="pay-card selected" type="button" role="radio" aria-checked="true" data-plan="cash">
-   <div class="pay-heading"><span class="radio-mark"></span><span>총 납부금액을 줄이고 싶다면</span><span class="pay-tag">일시불</span></div>
+   <div class="pay-heading"><span class="radio-mark"></span><span>총 납부금액을 줄이고 싶다면</span><span class="pay-tag" id="cash-pay-tag">일시불</span></div>
    <div class="pay-main"><span id="cash-main-label">할인 적용 금액</span><strong id="cash-main-amount">0<small>원</small></strong></div>
+   <div class="pay-discount-banner" id="cash-discount-banner" hidden>
+     <span>절삭 기준 총액 <del id="cash-orig-amount">0원</del></span>
+     <b id="cash-discount-amount">-0원 일시불 할인</b>
+   </div>
    <div class="pay-facts"><span>선금 <b id="cash-deposit">0원</b></span><span>잔금 <b id="cash-balance">0원</b></span></div>
    <div class="pay-footer"><span>카드 또는 현금 결제</span><b id="cash-total">총 0원</b></div>
   </button>
-  <button class="pay-card" type="button" role="radio" aria-checked="false" data-plan="lowupfront">
-   <div class="pay-heading"><span class="radio-mark"></span><span>처음 내는 금액을 줄이고 싶다면</span><span class="pay-tag">60개월 렌탈</span></div>
-   <div class="pay-main"><span>월 납부금액</span><strong id="lowup-monthly">0<small>원</small></strong></div>
-   <div class="pay-facts"><span>초기 납입액 <b id="lowup-upfront">0원</b></span><span>납부기간 <b>60개월</b></span></div>
-   <div class="pay-footer"><span>초기 납입액 + 월 납부액 합계</span><b id="lowup-total">총 0원</b></div>
-  </button>
-  <button class="pay-card" type="button" role="radio" aria-checked="false" data-plan="lowmonthly">
-   <div class="pay-heading"><span class="radio-mark"></span><span>매월 내는 금액을 줄이고 싶다면</span><span class="pay-tag">60개월 렌탈</span></div>
-   <div class="pay-main"><span>월 납부금액</span><strong id="lowmo-monthly">0<small>원</small></strong></div>
-   <div class="pay-facts"><span>초기 납입액 <b id="lowmo-upfront">0원</b></span><span>납부기간 <b>60개월</b></span></div>
-   <div class="pay-footer"><span>초기 납입액 + 월 납부액 합계</span><b id="lowmo-total">총 0원</b></div>
-  </button>
+  <div class="rental-option">
+   <button class="pay-card" type="button" role="radio" aria-checked="false" data-plan="lowupfront">
+    <div class="pay-heading"><span class="radio-mark"></span><span>처음 내는 금액을 줄이고 싶다면</span><span class="pay-tag">60개월 렌탈</span></div>
+    <div class="pay-main"><span>월 납부금액</span><strong id="lowup-monthly">0<small>원</small></strong></div>
+    <div class="pay-facts"><span>초기 납입액 <b id="lowup-upfront">0원</b></span><span>납부기간 <b>60개월</b></span></div>
+    <div class="pay-footer"><span>초기 납입액 + 월 납부액 합계</span><b id="lowup-total">총 0원</b></div>
+   </button>
+   <div class="rental-actions" data-plan-actions="lowupfront" hidden>
+    <button type="button" class="rental-consult" data-rental-consult="lowupfront">상담하기</button>
+    <button type="button" class="rental-apply" data-rental-open="lowupfront">렌탈 신청하기 <span aria-hidden="true">→</span></button>
+   </div>
+  </div>
+  <div class="rental-option">
+   <button class="pay-card" type="button" role="radio" aria-checked="false" data-plan="lowmonthly">
+    <div class="pay-heading"><span class="radio-mark"></span><span>매월 내는 금액을 줄이고 싶다면</span><span class="pay-tag">60개월 렌탈</span></div>
+    <div class="pay-main"><span>월 납부금액</span><strong id="lowmo-monthly">0<small>원</small></strong></div>
+    <div class="pay-facts"><span>초기 납입액 <b id="lowmo-upfront">0원</b></span><span>납부기간 <b>60개월</b></span></div>
+    <div class="pay-footer"><span>초기 납입액 + 월 납부액 합계</span><b id="lowmo-total">총 0원</b></div>
+   </button>
+   <div class="rental-actions" data-plan-actions="lowmonthly" hidden>
+    <button type="button" class="rental-consult" data-rental-consult="lowmonthly">상담하기</button>
+    <button type="button" class="rental-apply" data-rental-open="lowmonthly">렌탈 신청하기 <span aria-hidden="true">→</span></button>
+   </div>
+  </div>
  </div>
  <button class="primary full" id="plan-cta">일시불 결제 상담하기<svg><use href="#i-arrow"/></svg></button>
  <p class="fineprint">렌탈 총 납부액은 초기 납입액과 60개월 월 납부액의 합계입니다. 계약 조건은 상담 시 확인해주세요.</p>
- <div class="more-methods">
-  <details class="method"><summary><span class="method-icon">S</span><span><strong>스마트 구독</strong><small>내 선납금에 맞는 구독 조건 확인</small></span><svg><use href="#i-plus"/></svg></summary>
-   <div class="method-body"><p>먼저 낼 금액과 구독으로 전환할 금액을 정해보세요. 월 구독료와 총 납부금액은 상담에서 안내해드립니다.</p><label for="deposit">먼저 낼 금액</label><div class="money-input"><input id="deposit" type="number" min="0" max="10500000" step="10000" value="5250000" inputmode="numeric"><span>원</span></div><div class="range-label"><span>구독 전환 대상 금액</span><strong id="balance">5,250,000원</strong></div><p id="deposit-error" class="error" hidden>0원부터 10,500,000원 사이로 입력해주세요.</p><button class="outline full" id="subscription-cta" type="button">이 조건으로 구독 상담하기<svg><use href="#i-arrow"/></svg></button></div>
-  </details>
-  <details class="method"><summary><span class="method-icon green">G</span><span><strong>그린리모델링</strong><small>우리 집 정부 이자지원 대상 확인</small></span><svg><use href="#i-plus"/></svg></summary><div class="method-body"><p>창호 교체를 위한 정부 이자지원 사업의 신청 대상 여부와 이용 조건을 확인해보세요. 지원 여부와 월 납부금액은 심사 및 금융기관 조건에 따라 달라집니다.</p><button class="outline full" type="button" data-consult="그린리모델링 지원 대상 확인">우리 집 지원 대상 상담하기<svg><use href="#i-arrow"/></svg></button></div></details>
- </div>
  <button class="help-link" type="button" data-consult="결제 방식 비교">아직 고민되세요? <b>결제 방법 함께 비교하기</b><svg><use href="#i-arrow"/></svg></button>
 </section>
 
@@ -162,12 +187,28 @@
 
 <section class="section" id="details">
  <div class="section-kicker">03 <span>YOUR WINDOWS</span></div>
- <div class="section-title-row"><h2>어느 공간을<br>어떻게 바꾸나요?</h2><span class="count-badge" id="window-count-badge">창호 0</span></div>
- <p class="section-description">항목을 누르면 크기와 세부 사양을 볼 수 있어요.</p>
+ <div class="section-title-row"><h2>어느 공간을<br>어떻게 바꾸나요?</h2><span class="count-badge" id="window-count-badge">자재 0</span></div>
+ <p class="section-description">항목을 누르면 크기와 세부 사양을 볼 수 있어요. <span class="vat-basis-pill">각 항목 부가세 별도 · 10원단위 절삭</span></p>
+ <div class="detail-group-header"><span>자재 내역</span><strong id="material-group-subtotal">소계 0원</strong></div>
  <div id="window-list" class="window-list"></div>
- <div class="extra-costs" id="extra-costs-box"><h3>부대 작업 <span id="extra-costs-count">0개 항목</span></h3><dl id="extra-costs-list"></dl></div>
- <div class="item-total"><span>견적 합계 <small>부가세 포함</small></span><strong id="item-total-amount">0원</strong></div>
- <p class="fineprint" id="item-diff-note" hidden>개별 항목 표시금액 합계와 원본 견적 총액 간 단수 차이가 있어, 최종 견적에서 정산 기준을 확인합니다.</p>
+ <div class="extra-costs" id="extra-costs-box">
+  <div class="extra-costs-head">
+   <h3>기타견적 <span id="extra-costs-count">0개 항목</span></h3>
+   <strong id="extra-group-subtotal">소계 0원</strong>
+  </div>
+  <dl id="extra-costs-list"></dl>
+ </div>
+ <div class="quote-breakdown-card" aria-label="견적 소계 및 부가세 포함 총액">
+  <div class="qb-row"><span>자재 총액 <small>(부가세 별도)</small></span><strong id="qb-material">0원</strong></div>
+  <div class="qb-row" id="qb-extra-row"><span>기타견적 <small>(부가세 별도)</small></span><strong id="qb-extra">0원</strong></div>
+  <div class="qb-divider"></div>
+  <div class="qb-row muted-row"><span>절삭 공급가액 합계 <small>(부가세 별도)</small></span><span id="qb-sale">0원</span></div>
+  <div class="qb-row muted-row"><span>부가세 <small>(10%)</small></span><span id="qb-vat">0원</span></div>
+  <div class="qb-row total-vat-row"><span>부가세 포함 총액 <small>(절삭 기준)</small></span><strong id="item-total-amount">0원</strong></div>
+  <div class="qb-row discount-row" id="qb-discount-row" hidden><span>일시불 특별 할인</span><strong id="qb-discount">-0원</strong></div>
+  <div class="qb-row final-pay-row" id="qb-final-row" hidden><span>일시불 할인 적용 최종 합계 <small>(부가세 포함)</small></span><strong id="qb-final">0원</strong></div>
+ </div>
+ <p class="fineprint" id="item-diff-note" hidden>개별 항목은 고객 편의를 위해 10원단위 절삭된 부가세 별도 금액으로 표시됩니다.</p>
  <button class="outline full" type="button" data-consult="제품이나 시공 범위 변경">제품 사양 상담하기<svg><use href="#i-arrow"/></svg></button>
 </section>
 
@@ -191,5 +232,6 @@
 
 <dialog id="consult-dialog" aria-labelledby="consult-title"><div class="sheet-grip"></div><button class="close-dialog icon-btn" type="button" aria-label="상담 화면 닫기"><svg><use href="#i-close"/></svg></button><div id="consult-content"><span class="mini-label">PERSONAL CONSULTATION</span><h2 id="consult-title">궁금한 점을 남겨주세요.</h2><p class="dialog-sub" id="dialog-sub">고객님의 견적을 기준으로 안내해드립니다.</p><div class="selected-plan" id="selected-plan"></div><form id="consult-form"><fieldset><legend>어떤 부분이 궁금하신가요? <span>복수 선택</span></legend><div id="topic-options" class="topic-options"></div></fieldset><fieldset><legend>연락받기 편한 시간 <span>선택</span></legend><div class="time-options"><label><input type="radio" name="time" value="오전"><span>오전</span></label><label><input type="radio" name="time" value="오후"><span>오후</span></label><label><input type="radio" name="time" value="상관없음" checked><span>상관없음</span></label></div></fieldset><label class="field-label" for="memo">추가로 궁금한 점 <span>선택</span></label><textarea id="memo" placeholder="변경하고 싶은 창호나 궁금한 점을 남겨주세요." rows="3" maxlength="500"></textarea><div class="contact-confirm"><span>연락처 확인</span><strong id="dialog-masked-phone">010-****-0000</strong><small>이름과 연락처를 다시 입력할 필요가 없어요.</small></div><div class="preview-notice" id="consult-preview-notice" hidden><svg><use href="#i-info"/></svg><span>관리자 미리보기 화면입니다. 버튼을 누르면 접수 완료 화면을 확인할 수 있으며, 실제 상담은 저장되지 않습니다.</span></div><button class="primary full large" type="submit" id="consult-submit-btn"><span>상담 요청 접수하기</span><svg><use href="#i-arrow"/></svg></button></form></div><div id="success-content" hidden><div class="success-icon"><svg><use href="#i-check"/></svg></div><span class="mini-label" id="success-eyebrow">CONSULTATION REQUESTED</span><h2 id="success-heading">상담 요청이<br>접수되었어요.</h2><p>담당 상담사가 고객님의 견적과<br>문의 내용을 확인한 뒤 연락드립니다.</p><div id="success-summary"></div><p class="fineprint" id="success-foot">접수된 내용은 담당 상담사에게 즉시 전달됩니다.</p><button class="primary full close-success" type="button">내 견적 다시 보기<svg><use href="#i-arrow"/></svg></button></div></dialog>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="quote.js?v=20261112b"></script>
+<script src="quote.js?v=20261112j"></script>
+<script src="rental.js?v=20261112j"></script>
 </body></html>

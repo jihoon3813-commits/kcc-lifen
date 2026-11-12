@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
-import { db, initDatabase, ensureApprovedRentalTerms, hydrateLegacyRentalApplication } from './index.js';
+import { db, initDatabase, ensureApprovedRentalTerms, ensureDefaultContractStatuses, hydrateLegacyRentalApplication } from './index.js';
+import { getDefaultMenusForRole } from '../utils/menuPermissions.js';
 
 export function seedDatabase() {
   initDatabase();
@@ -23,8 +24,8 @@ export function seedDatabase() {
   insertOrg.run(4, '온유하우스', 'partner', 'P003', '031-111-2222', '경기 일산서구');
 
   const insertUser = db.prepare(`
-    INSERT INTO users (id, org_id, username, password_hash, name, phone, email, role, active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+    INSERT INTO users (id, org_id, username, password_hash, name, phone, email, role, allowed_menus, active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `);
 
   const saltRounds = 10;
@@ -32,12 +33,12 @@ export function seedDatabase() {
   const userHash = bcrypt.hashSync('user123!', saltRounds);
   const partnerHash = bcrypt.hashSync('partner123!', saltRounds);
 
-  insertUser.run(1, 1, 'admin', adminHash, '김지훈', '010-1111-2222', 'admin@example.com', 'hq_admin');
-  insertUser.run(2, 1, 'youngjin', userHash, '오영진', '010-2222-3333', 'youngjin@example.com', 'consultant');
-  insertUser.run(3, 1, 'jeongyeon', userHash, '김정연', '010-3333-4444', 'jeongyeon@example.com', 'estimator');
-  insertUser.run(4, 1, 'jihee', userHash, '마지희', '010-4444-5555', 'jihee@example.com', 'accountant');
-  insertUser.run(5, 2, 'partner_hanbit', partnerHash, '이현우', '010-5555-6666', 'hanbit@example.com', 'partner');
-  insertUser.run(6, 3, 'partner_rium', partnerHash, '박수진', '010-6666-7777', 'rium@example.com', 'partner');
+  insertUser.run(1, 1, 'admin', adminHash, '김지훈', '010-1111-2222', 'admin@example.com', 'hq_admin', JSON.stringify(getDefaultMenusForRole('hq_admin')));
+  insertUser.run(2, 1, 'youngjin', userHash, '오영진', '010-2222-3333', 'youngjin@example.com', 'consultant', JSON.stringify(getDefaultMenusForRole('consultant')));
+  insertUser.run(3, 1, 'jeongyeon', userHash, '김정연', '010-3333-4444', 'jeongyeon@example.com', 'estimator', JSON.stringify(getDefaultMenusForRole('estimator')));
+  insertUser.run(4, 1, 'jihee', userHash, '마지희', '010-4444-5555', 'jihee@example.com', 'accountant', JSON.stringify(getDefaultMenusForRole('accountant')));
+  insertUser.run(5, 2, 'partner_hanbit', partnerHash, '이현우', '010-5555-6666', 'hanbit@example.com', 'partner', JSON.stringify(getDefaultMenusForRole('partner')));
+  insertUser.run(6, 3, 'partner_rium', partnerHash, '박수진', '010-6666-7777', 'rium@example.com', 'partner', JSON.stringify(getDefaultMenusForRole('partner')));
 
   // Labels
   const insertLabel = db.prepare('INSERT INTO system_labels (name, color) VALUES (?, ?)');
@@ -50,6 +51,9 @@ export function seedDatabase() {
   const insertStage = db.prepare('INSERT INTO system_stages (name, sort_order, is_active) VALUES (?, ?, 1)');
   const stages = ['신규접수', '상담중', '가견적요청', '견적안내', '실측예정', '실측완료', '계약진행', '계약완료', '시공예정', '시공완료', '보류'];
   stages.forEach((st, idx) => insertStage.run(st, idx + 1));
+
+  // Contract & Payment Statuses
+  ensureDefaultContractStatuses();
 
   // Products
   const insertProduct = db.prepare('INSERT INTO products (name, code, price_text, category, url) VALUES (?, ?, ?, ?, ?)');

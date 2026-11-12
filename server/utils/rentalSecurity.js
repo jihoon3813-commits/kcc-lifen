@@ -625,7 +625,9 @@ function makePngChunk(type, data) {
   return Buffer.concat([lenBuf, typeBuf, data, crcBuf]);
 }
 
-export function createSamplePngBuffer({ width = 320, height = 180, kind = 'signature' } = {}) {
+export function createSamplePngBuffer(opts = {}) {
+  const normalizedOpts = typeof opts === 'string' ? { kind: opts } : (opts || {});
+  const { width = 320, height = 180, kind = 'signature' } = normalizedOpts;
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);

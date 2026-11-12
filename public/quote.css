@@ -300,3 +300,330 @@
     max-width: 520px;
   }
 }
+
+/* === KCC Excel Metadata, Subtotals Breakdown & Discount Highlights === */
+.quote-subtotals-mini {
+  margin-top: 14px;
+  padding: 11px 13px;
+  background: #f8f9fb;
+  border: 1px solid #eaedf0;
+  border-radius: 10px;
+  display: grid;
+  gap: 5px;
+}
+.quote-subtotals-mini > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #65727e;
+}
+.quote-subtotals-mini > div small {
+  font-size: 10px;
+  color: #939ea8;
+}
+.quote-subtotals-mini > div b {
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.quote-subtotals-mini > div:last-child {
+  padding-top: 5px;
+  margin-top: 2px;
+  border-top: 1px dashed #dde2e7;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.kcc-meta-card {
+  margin-top: 12px;
+  background: #ffffff;
+  border: 1px solid #e4e8ec;
+  border-radius: 13px;
+  padding: 15px 18px;
+}
+.kcc-meta-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eef1f4;
+  margin-bottom: 10px;
+}
+.kcc-meta-head strong {
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--ink);
+}
+.kcc-meta-head span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2b4870;
+  background: #edf3fa;
+  border: 1px solid #d4e0ef;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.kcc-meta-grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px 14px;
+  font-size: 11px;
+}
+.kcc-meta-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.kcc-meta-grid > div.full-span {
+  grid-column: 1 / -1;
+}
+.kcc-meta-grid dt {
+  font-size: 10px;
+  color: #8c97a1;
+}
+.kcc-meta-grid dd {
+  margin: 0;
+  font-weight: 550;
+  color: #354656;
+  word-break: keep-all;
+}
+.kcc-site-notes {
+  margin-top: 10px;
+  padding: 9px 11px;
+  background: #fff9f3;
+  border: 1px solid #f4e2cf;
+  border-radius: 8px;
+  font-size: 11px;
+  color: #7c512d;
+  line-height: 1.6;
+}
+.kcc-site-notes strong {
+  display: block;
+  font-size: 10px;
+  color: #b85d19;
+  margin-bottom: 2px;
+}
+
+.pay-discount-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff4eb;
+  border: 1px solid #f7d9c0;
+  border-radius: 7px;
+  padding: 6px 10px;
+  margin-bottom: 11px;
+  font-size: 11px;
+}
+.pay-discount-banner span {
+  color: #7d8790;
+}
+.pay-discount-banner del {
+  color: #8c969f;
+}
+.pay-discount-banner b {
+  color: #d95d14;
+  font-weight: 750;
+}
+
+.vat-basis-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #4f6474;
+  background: #eff3f6;
+  border-radius: 4px;
+  padding: 2px 7px;
+  margin-left: 4px;
+}
+
+.detail-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 0;
+  font-size: 12px;
+  color: #556573;
+  font-weight: 650;
+}
+.detail-group-header strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.window-amount-wrap {
+  text-align: right;
+  flex-shrink: 0;
+}
+.window-amount-wrap .window-amount {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.window-amount-wrap small {
+  display: block;
+  font-size: 9px;
+  color: #96a0a8;
+  margin-top: 1px;
+}
+
+.extra-costs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.extra-costs-head strong {
+  font-size: 12px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-breakdown-card {
+  margin-top: 16px;
+  background: #f8fafb;
+  border: 1px solid #e2e7ec;
+  border-radius: 12px;
+  padding: 15px 17px;
+  display: grid;
+  gap: 8px;
+}
+.qb-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #455563;
+  font-variant-numeric: tabular-nums;
+}
+.qb-row small {
+  font-size: 10px;
+  color: #8d98a3;
+  font-weight: 400;
+}
+.qb-row.muted-row {
+  font-size: 11px;
+  color: #77838f;
+}
+.qb-divider {
+  border-top: 1px dashed #d8dfe6;
+  margin: 2px 0;
+}
+.qb-row.total-vat-row {
+  padding-top: 6px;
+  border-top: 1px solid #dce2e8;
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 13px;
+}
+.qb-row.total-vat-row strong {
+  font-size: 16px;
+  letter-spacing: -0.03em;
+}
+.qb-row.discount-row {
+  color: #d95d14;
+  font-weight: 700;
+}
+.qb-row.final-pay-row {
+  padding: 10px 12px;
+  margin-top: 2px;
+  background: #fff4eb;
+  border: 1px solid #f5d3b6;
+  border-radius: 8px;
+  color: var(--ink);
+  font-weight: 750;
+}
+.qb-row.final-pay-row strong {
+  font-size: 18px;
+  color: var(--orange);
+  letter-spacing: -0.04em;
+}
+
+/* Insulation (단열) Yellow Highlight & Detailed Specs */
+.badge-insulation {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  background: #fff8bf;
+  border: 1.5px solid #f6cf36;
+  border-radius: 5px;
+  color: #8c5800;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  box-shadow: 0 1px 3px rgba(246, 207, 54, 0.35);
+  vertical-align: middle;
+  margin-left: 6px;
+}
+.window-item.is-insulation {
+  border-color: #f7d573;
+  background: #fffef9;
+}
+.window-item.is-insulation > summary {
+  background: #fffdf2;
+}
+.window-insulation-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff9db;
+  border: 1px solid #fae188;
+  border-radius: 8px;
+  padding: 8px 11px;
+  margin-bottom: 12px;
+  color: #7b5100;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.window-insulation-banner strong {
+  color: #633f00;
+  font-weight: 800;
+  text-decoration: underline;
+}
+.window-spec-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 10px;
+  font-size: 11.5px;
+}
+.window-spec-table tr {
+  border-bottom: 1px solid #edf1f5;
+}
+.window-spec-table tr:last-child {
+  border-bottom: 0;
+}
+.window-spec-table th {
+  width: 95px;
+  padding: 6px 8px;
+  text-align: left;
+  color: #6c7c90;
+  font-weight: 600;
+  background: #f8fafc;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.window-spec-table td {
+  padding: 6px 9px;
+  color: #1e2d42;
+  font-weight: 500;
+  vertical-align: top;
+}
+.window-spec-table td b {
+  color: #112035;
+  font-weight: 700;
+}
+.window-spec-table td .is-highlight {
+  color: #b86200;
+  font-weight: 750;
+}
+
+@media (max-width: 480px) {
+  .kcc-meta-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}

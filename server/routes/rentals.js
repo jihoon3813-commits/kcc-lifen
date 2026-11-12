@@ -12,6 +12,19 @@ import {
 
 const router = express.Router();
 
+function nowKstSql() {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return d.toISOString().replace('T', ' ').slice(0, 19);
+}
+
+function toKstIso(ts) {
+  if (!ts) return '';
+  const s = String(ts).trim();
+  if (s.includes('T') && (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s))) return s;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s}T09:00:00+09:00`;
+  return s.replace(' ', 'T') + '+09:00';
+}
+
 // 1. List Rental Applications (CRM Workspace Sync)
 router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
   const { status } = req.query;
@@ -72,8 +85,11 @@ router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
         consent: Boolean(r.check_consent)
       },
       consent: true,
+      product: r.product_name || '창호',
       review: r.review_note || '',
-      date: String(r.created_at || '').slice(0, 10)
+      date: String(r.created_at || '').slice(0, 10),
+      createdAt: toKstIso(r.created_at),
+      createdAtText: String(r.created_at || '').slice(0, 16)
     };
   });
 
@@ -121,7 +137,7 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
   if (quoteId) {
     quote = db.prepare('SELECT * FROM quotes WHERE id = ?').get(quoteId);
   } else {
-    quote = db.prepare('SELECT * FROM quotes WHERE project_id = ? AND status = "published" ORDER BY version DESC LIMIT 1').get(pId);
+    quote = db.prepare("SELECT * FROM quotes WHERE project_id = ? AND status = 'published' ORDER BY version DESC LIMIT 1").get(pId);
   }
 
   const months = parseInt(plan, 10) || 60;
@@ -129,23 +145,38 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
   const monthly = Math.round((quoteTotal * 1.2) / months / 1000) * 1000;
   const totalFee = monthly * months;
 
-  const todayStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+  const nowKst = nowKstSql();
+  const todayStr = nowKst.slice(2, 10).replace(/-/g, '');
   const countRow = db.prepare("SELECT COUNT(*) as cnt FROM rental_applications WHERE id LIKE ?").get(`R-${todayStr}%`);
-  const seq = String((countRow?.cnt || 0) + 1).padStart(3, '0');
-  const rentalId = `R-${todayStr}-${seq}`;
+  let seqNum = (countRow?.cnt || 0) + 1;
+  let rentalId = `R-${todayStr}-${String(seqNum).padStart(3, '0')}`;
+  while (db.prepare('SELECT id FROM rental_applications WHERE id = ?').get(rentalId)) {
+    seqNum += 1;
+    rentalId = `R-${todayStr}-${String(seqNum).padStart(3, '0')}`;
+  }
 
   db.prepare(`
     INSERT INTO rental_applications (
       id, project_id, quote_id, quote_version, customer_name, customer_phone, product_name,
-      period_months, monthly_fee, total_fee, status, status_code, assigned_to, doc_signature
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '접수완료', 'received', ?, ?)
+      period_months, monthly_fee, total_fee, status, status_code, assigned_to, doc_signature, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '접수완료', 'received', ?, ?, ?, ?)
   `).run(
     rentalId, pId, quote?.id || null, quote?.version || 1, name, maskPhone(phone || ''), project.product || '창호',
-    months, monthly, totalFee, project.owner_name || '미배정', signature || name
+    months, monthly, totalFee, project.owner_name || '미배정', signature || name, nowKst, nowKst
   );
 
   const inserted = db.prepare('SELECT * FROM rental_applications WHERE id = ?').get(rentalId);
   hydrateLegacyRentalApplication(inserted);
+
+  db.prepare(`
+    UPDATE projects
+    SET status = CASE
+          WHEN status IN ('신규접수', '상담중', '가견적요청', '견적안내', '실측예정', '실측완료', '최종견적') THEN '계약진행'
+          ELSE status
+        END,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(pId);
 
   recordAuditLog({
     projectId: pId,
@@ -154,7 +185,7 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
     req
   });
 
-  res.status(201).json({ id: rentalId, monthly, total: totalFee, status: '접수완료' });
+  res.status(201).json({ id: rentalId, monthly, total: totalFee, status: '접수완료', createdAt: toKstIso(nowKst) });
 });
 
 // 4. Update Rental Status & Review Note (CRM Backward Compatibility + Sync)

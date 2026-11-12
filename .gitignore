@@ -20,3 +20,9 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Uploaded & generated files
+uploads/quotes/*
+!uploads/quotes/.gitkeep
+data/private_vault/*.enc
+!data/private_vault/.gitkeep

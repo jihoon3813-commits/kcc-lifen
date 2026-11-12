@@ -1,9 +1,23 @@
 import express from 'express';
-import { db } from '../db/index.js';
+import { db, hydrateLegacyRentalApplication } from '../db/index.js';
 import { requireAuth, checkPartnerAccess } from '../middleware/auth.js';
 import { recordAuditLog } from '../middleware/audit.js';
+import { maskPhone } from '../utils/mobileQuoteFormatter.js';
 
 const router = express.Router();
+
+function nowKstSql() {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return d.toISOString().replace('T', ' ').slice(0, 19);
+}
+
+function toKstIso(ts) {
+  if (!ts) return '';
+  const s = String(ts).trim();
+  if (s.includes('T') && (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s))) return s;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s}T09:00:00+09:00`;
+  return s.replace(' ', 'T') + '+09:00';
+}
 
 // 1. Get Contracts List
 router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
@@ -13,10 +27,25 @@ router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
     SELECT
       c.*,
       p.product, p.partner_name, p.status as project_status,
-      cust.name as customer_name, cust.phone as customer_phone
+      cust.name as customer_name, cust.phone as customer_phone,
+      ra.id as rental_app_id,
+      ra.plan_title as rental_plan_title,
+      ra.period_months as rental_period_months,
+      ra.monthly_fee as rental_monthly_fee,
+      ra.total_fee as rental_total_fee,
+      ra.upfront_fee as rental_upfront_fee,
+      ra.status as rental_status,
+      ra.status_code as rental_status_code
     FROM contracts c
     JOIN projects p ON c.project_id = p.id
     JOIN customers cust ON p.customer_id = cust.id
+    LEFT JOIN rental_applications ra ON ra.id = (
+      SELECT id FROM rental_applications
+      WHERE (contract_reference = c.id OR (c.type = '렌탈' AND project_id = c.project_id))
+        AND status NOT IN ('반려', '부결')
+      ORDER BY CASE WHEN contract_reference = c.id THEN 0 ELSE 1 END, created_at DESC
+      LIMIT 1
+    )
     WHERE 1=1
   `;
   const params = [];
@@ -40,23 +69,42 @@ router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
 
   const rows = db.prepare(sql).all(...params);
 
-  const contracts = rows.map(r => ({
-    id: r.id,
-    cid: r.project_id,
-    customerName: r.customer_name,
-    customerPhone: r.customer_phone,
-    partner: r.partner_name,
-    product: r.product,
-    type: r.type,
-    amount: r.amount,
-    deposit: r.deposit_amount,
-    balance: r.balance_amount,
-    paid: r.paid_amount,
-    status: r.status,
-    date: r.created_at.slice(0, 10),
-    quoteId: r.quote_id,
-    quoteVersion: r.quote_version
-  }));
+  const contracts = rows.map(r => {
+    const isRental = r.type === '렌탈';
+    const rentalMonths = r.rental_period_months || (isRental ? 60 : null);
+    const rentalMonthly = r.rental_monthly_fee || (isRental && r.amount ? Math.round((r.amount * 1.2) / (rentalMonths || 60) / 1000) * 1000 : null);
+    const rentalTotal = r.rental_total_fee || (isRental && rentalMonthly ? rentalMonthly * (rentalMonths || 60) : (isRental ? r.amount : null));
+    const rentalUpfront = r.rental_upfront_fee || 0;
+
+    return {
+      id: r.id,
+      cid: r.project_id,
+      customerName: r.customer_name,
+      customerPhone: r.customer_phone,
+      partner: r.partner_name,
+      product: r.product,
+      type: r.type,
+      amount: r.amount,
+      deposit: r.deposit_amount,
+      balance: r.balance_amount,
+      paid: r.paid_amount,
+      status: r.status,
+      note: r.note || '',
+      date: String(r.created_at || '').slice(0, 10),
+      createdAt: toKstIso(r.created_at),
+      createdAtText: String(r.created_at || '').slice(0, 16),
+      quoteId: r.quote_id,
+      quoteVersion: r.quote_version,
+      rentalAppId: r.rental_app_id || null,
+      rentalPlanTitle: r.rental_plan_title || (isRental ? '60개월 렌탈' : null),
+      rentalPeriodMonths: rentalMonths,
+      rentalMonthlyFee: rentalMonthly,
+      rentalTotalFee: rentalTotal,
+      rentalUpfrontFee: rentalUpfront,
+      rentalStatus: r.rental_status || null,
+      rentalStatusCode: r.rental_status_code || null
+    };
+  });
 
   res.json({ contracts });
 });
@@ -81,6 +129,14 @@ router.get('/:id', requireAuth, checkPartnerAccess, (req, res) => {
     return res.status(403).json({ error: '접근 권한이 없습니다.' });
   }
 
+  const rentalApplication = db.prepare(`
+    SELECT * FROM rental_applications
+    WHERE (contract_reference = ? OR (? = '렌탈' AND project_id = ?))
+      AND status NOT IN ('반려', '부결')
+    ORDER BY CASE WHEN contract_reference = ? THEN 0 ELSE 1 END, created_at DESC
+    LIMIT 1
+  `).get(contract.id, contract.type, contract.project_id, contract.id) || null;
+
   const receipts = db.prepare(`
     SELECT * FROM cash_receipts WHERE contract_id = ? ORDER BY paid_date ASC
   `).all(contract.id);
@@ -91,17 +147,24 @@ router.get('/:id', requireAuth, checkPartnerAccess, (req, res) => {
 
   res.json({
     contract,
+    rentalApplication,
     receipts,
     paymentOrders
   });
 });
 
-// 3. Create Contract (Bound to specific quote version)
+// 3. Create Contract (Bound to specific quote version or direct amount)
 router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
-  const { projectId, quoteId, type = '일시불(현금)', title, amount, depositAmount, balanceAmount, note } = req.body;
+  const { projectId, quoteId, type = '일시불(현금)', title, amount, depositAmount, balanceAmount, status, note, createRentalApp } = req.body;
 
   const pId = parseInt(projectId, 10);
-  const project = db.prepare('SELECT id, org_id, title FROM projects WHERE id = ?').get(pId);
+  const project = db.prepare(`
+    SELECT p.id, p.org_id, p.title, p.product, p.owner_name,
+           c.name as customer_name, c.phone as customer_phone
+    FROM projects p
+    JOIN customers c ON p.customer_id = c.id
+    WHERE p.id = ?
+  `).get(pId);
   if (!project) {
     return res.status(404).json({ error: '공사건을 찾을 수 없습니다.' });
   }
@@ -115,30 +178,71 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
     quote = db.prepare('SELECT id, version, total_price FROM quotes WHERE id = ?').get(quoteId);
   } else {
     // Pick latest published quote
-    quote = db.prepare('SELECT id, version, total_price FROM quotes WHERE project_id = ? AND status = "published" ORDER BY version DESC LIMIT 1').get(pId);
+    quote = db.prepare("SELECT id, version, total_price FROM quotes WHERE project_id = ? AND status = 'published' ORDER BY version DESC LIMIT 1").get(pId);
   }
 
-  const contractAmount = quote ? quote.total_price : (parseInt(amount, 10) || 0);
-  const deposit = depositAmount !== undefined ? parseInt(depositAmount, 10) : Math.round(contractAmount * 0.3);
+  const hasExplicitAmount = amount !== undefined && amount !== null && String(amount).trim() !== '';
+  const parsedAmount = hasExplicitAmount ? Math.max(0, parseInt(String(amount).replace(/[^\d-]/g, ''), 10) || 0) : null;
+  const contractAmount = parsedAmount !== null ? parsedAmount : (quote ? quote.total_price : 0);
+  const deposit = depositAmount !== undefined ? parseInt(depositAmount, 10) : (type === '렌탈' ? 0 : Math.round(contractAmount * 0.3));
   const balance = balanceAmount !== undefined ? parseInt(balanceAmount, 10) : (contractAmount - deposit);
+  const initialStatus = (status && String(status).trim()) ? String(status).trim() : (type === '렌탈' ? '약정대기' : '계약체결');
 
-  // Generate Contract ID: C-YYMMDD-XXX
-  const todayStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+  const nowKst = nowKstSql();
+  const todayStr = nowKst.slice(2, 10).replace(/-/g, '');
   const countRow = db.prepare("SELECT COUNT(*) as cnt FROM contracts WHERE id LIKE ?").get(`C-${todayStr}%`);
-  const seq = String((countRow?.cnt || 0) + 1).padStart(3, '0');
-  const contractId = `C-${todayStr}-${seq}`;
+  let seqNum = (countRow?.cnt || 0) + 1;
+  let contractId = `C-${todayStr}-${String(seqNum).padStart(3, '0')}`;
+  while (db.prepare('SELECT id FROM contracts WHERE id = ?').get(contractId)) {
+    seqNum += 1;
+    contractId = `C-${todayStr}-${String(seqNum).padStart(3, '0')}`;
+  }
 
   const contractTitle = title || `${project.title || '고객'} 시공 계약서`;
 
   db.prepare(`
     INSERT INTO contracts (
       id, project_id, quote_id, quote_version, title, type, amount,
-      deposit_amount, balance_amount, paid_amount, status, note
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '계약체결', ?)
+      deposit_amount, balance_amount, paid_amount, status, note, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
   `).run(
     contractId, pId, quote?.id || null, quote?.version || null,
-    contractTitle, type, contractAmount, deposit, balance, note || ''
+    contractTitle, type, contractAmount, deposit, balance, initialStatus, note || '', nowKst, nowKst
   );
+
+  // If rental contract is registered and no active rental application exists yet, auto-register rental application
+  let rentalApplicationId = null;
+  if (type === '렌탈' && createRentalApp !== false) {
+    const existingApp = db.prepare(
+      "SELECT id FROM rental_applications WHERE project_id = ? AND status NOT IN ('반려', '부결')"
+    ).get(pId);
+    if (!existingApp) {
+      const rCountRow = db.prepare("SELECT COUNT(*) as cnt FROM rental_applications WHERE id LIKE ?").get(`R-${todayStr}%`);
+      let rSeq = (rCountRow?.cnt || 0) + 1;
+      let rId = `R-${todayStr}-${String(rSeq).padStart(3, '0')}`;
+      while (db.prepare('SELECT id FROM rental_applications WHERE id = ?').get(rId)) {
+        rSeq += 1;
+        rId = `R-${todayStr}-${String(rSeq).padStart(3, '0')}`;
+      }
+      const basePrice = contractAmount > 0 ? contractAmount : 10000000;
+      const months = 60;
+      const monthly = Math.round((basePrice * 1.2) / months / 1000) * 1000;
+      const totalFee = monthly * months;
+      db.prepare(`
+        INSERT INTO rental_applications (
+          id, project_id, quote_id, quote_version, customer_name, customer_phone, product_name,
+          period_months, monthly_fee, total_fee, status, status_code, assigned_to, doc_signature, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '접수완료', 'received', ?, ?, ?, ?)
+      `).run(
+        rId, pId, quote?.id || null, quote?.version || 1,
+        project.customer_name, maskPhone(project.customer_phone || ''), project.product || '창호',
+        months, monthly, totalFee, project.owner_name || '미배정', project.customer_name, nowKst, nowKst
+      );
+      const insertedRental = db.prepare('SELECT * FROM rental_applications WHERE id = ?').get(rId);
+      hydrateLegacyRentalApplication(insertedRental);
+      rentalApplicationId = rId;
+    }
+  }
 
   // Update project status to '계약진행'
   db.prepare("UPDATE projects SET status = '계약진행', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(pId);
@@ -146,16 +250,87 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
   recordAuditLog({
     projectId: pId,
     action: '계약 체결',
-    detail: `계약 번호 ${contractId} 등록 (${type}, 금액 ${contractAmount.toLocaleString()}원${quote ? `, 견적 v${quote.version} 바인딩` : ''})`,
+    detail: `계약 번호 ${contractId} 등록 (${type}, 상태: ${initialStatus}, 금액 ${contractAmount.toLocaleString()}원${quote ? `, 견적 v${quote.version} 바인딩` : ''}) · 고객 상태 [계약진행] 자동 변경`,
     req
   });
 
   res.status(201).json({
     id: contractId,
+    contractId,
+    rentalApplicationId,
+    status: initialStatus,
+    projectStatus: '계약진행',
     amount: contractAmount,
     deposit,
     balance,
+    createdAt: toKstIso(nowKst),
     message: '계약이 성공적으로 등록되었습니다.'
+  });
+});
+
+// 3b. Update Contract Status / Type / Note
+router.patch('/:id', requireAuth, checkPartnerAccess, (req, res) => {
+  const contractId = req.params.id;
+  const contract = db.prepare(`
+    SELECT c.*, p.org_id
+    FROM contracts c
+    JOIN projects p ON c.project_id = p.id
+    WHERE c.id = ?
+  `).get(contractId);
+
+  if (!contract) {
+    return res.status(404).json({ error: '계약을 찾을 수 없습니다.' });
+  }
+  if (req.partnerOrgId && contract.org_id !== req.partnerOrgId) {
+    return res.status(403).json({ error: '접근 권한이 없습니다.' });
+  }
+
+  const { status, type, note } = req.body || {};
+  const updates = [];
+  const params = [];
+  const logParts = [];
+
+  if (status !== undefined && String(status).trim() && String(status).trim() !== contract.status) {
+    const cleanStatus = String(status).trim();
+    updates.push('status = ?');
+    params.push(cleanStatus);
+    logParts.push(`계약·수납 상태 변경: ${contract.status} → ${cleanStatus}`);
+  }
+  if (type !== undefined && String(type).trim() && String(type).trim() !== contract.type) {
+    const cleanType = String(type).trim();
+    updates.push('type = ?');
+    params.push(cleanType);
+    logParts.push(`결제방식 변경: ${contract.type} → ${cleanType}`);
+  }
+  if (note !== undefined && String(note) !== String(contract.note || '')) {
+    updates.push('note = ?');
+    params.push(String(note));
+    logParts.push('계약 메모 수정');
+  }
+
+  if (updates.length > 0) {
+    updates.push('updated_at = ?');
+    params.push(nowKstSql());
+    params.push(contractId);
+    db.prepare(`UPDATE contracts SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+
+    if (logParts.length > 0) {
+      recordAuditLog({
+        projectId: contract.project_id,
+        action: '계약 정보 수정',
+        detail: `${contractId} · ${logParts.join(' / ')}`,
+        req
+      });
+    }
+  }
+
+  const updated = db.prepare('SELECT * FROM contracts WHERE id = ?').get(contractId);
+  res.json({
+    success: true,
+    status: updated.status,
+    type: updated.type,
+    note: updated.note || '',
+    message: '계약 정보가 저장되었습니다.'
   });
 });
 
@@ -264,7 +439,7 @@ router.post('/:id/pg-approve', requireAuth, checkPartnerAccess, (req, res) => {
   const newPaid = contract.paid_amount + order.amount;
   const newStatus = newPaid >= contract.amount ? '수납완료' : '선금완료';
 
-  db.prepare('UPDATE contracts SET paid_amount = ?, status = ?, type = "카드할부", updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  db.prepare("UPDATE contracts SET paid_amount = ?, status = ?, type = '카드할부', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
     .run(newPaid, newStatus, contractId);
 
   recordAuditLog({

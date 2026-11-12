@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone TEXT,
   email TEXT,
   role TEXT NOT NULL CHECK(role IN ('hq_admin', 'consultant', 'estimator', 'partner', 'accountant')),
+  allowed_menus TEXT,
   active INTEGER NOT NULL DEFAULT 1,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -100,9 +101,13 @@ CREATE TABLE IF NOT EXISTS quotes (
   quote_type TEXT NOT NULL DEFAULT '가견적',
   status TEXT NOT NULL CHECK(status IN ('draft', 'published')),
   total_cost INTEGER NOT NULL DEFAULT 0,
-  margin_rate REAL NOT NULL DEFAULT 20.0,
+  supply_cost INTEGER NOT NULL DEFAULT 0,
+  margin_rate REAL NOT NULL DEFAULT 100.0,
+  material_subtotal INTEGER NOT NULL DEFAULT 0,
+  extra_subtotal INTEGER NOT NULL DEFAULT 0,
   sale_price INTEGER NOT NULL DEFAULT 0,
   vat INTEGER NOT NULL DEFAULT 0,
+  original_price INTEGER NOT NULL DEFAULT 0,
   total_price INTEGER NOT NULL DEFAULT 0,
   discount_amount INTEGER NOT NULL DEFAULT 0,
   meta_json TEXT,
@@ -123,6 +128,7 @@ CREATE TABLE IF NOT EXISTS quote_items (
   category TEXT NOT NULL DEFAULT 'window',
   detail_json TEXT,
   quantity REAL NOT NULL DEFAULT 1,
+  margin_rate REAL NOT NULL DEFAULT 100.0,
   cost_unit_price INTEGER NOT NULL DEFAULT 0,
   cost_total INTEGER NOT NULL DEFAULT 0,
   sale_unit_price INTEGER NOT NULL DEFAULT 0,
@@ -375,6 +381,14 @@ CREATE TABLE IF NOT EXISTS system_labels (
 CREATE TABLE IF NOT EXISTS system_stages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS system_contract_statuses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  color TEXT NOT NULL DEFAULT 'blue',
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_active INTEGER NOT NULL DEFAULT 1
 );

@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KCC 홈씨씨 · 렌탈 신청 운영 콘솔</title>
+  <link rel="stylesheet" href="quote.css?v=20261112e">
+  <link rel="stylesheet" href="admin.css?v=20261112e">
+</head>
+<body class="admin-body">
+  <!-- 1. 관리자 인증 게이트 (미인증 시 데이터·화면 차단) -->
+  <section id="admin-login-screen" class="admin-auth-gate" hidden>
+    <div class="admin-auth-card">
+      <div class="admin-auth-logo">
+        <img src="assets/logo.png" alt="KCC 홈씨씨">
+      </div>
+      <span class="admin-auth-eyebrow">RENTAL OPERATIONS CONSOLE</span>
+      <h1>렌탈 신청 관리 로그인</h1>
+      <p>접수 검토 및 민감 서류 열람은 인가된 운영·심사 담당자 계정으로만 접근할 수 있습니다.</p>
+      <form id="admin-login-form" autocomplete="off">
+        <label class="admin-auth-field">
+          <span>로그인 아이디</span>
+          <input id="admin-login-id" name="username" required autocomplete="username" placeholder="아이디 입력">
+        </label>
+        <label class="admin-auth-field">
+          <span>비밀번호</span>
+          <input id="admin-login-pw" name="password" type="password" required autocomplete="current-password" placeholder="비밀번호 입력">
+        </label>
+        <p id="admin-login-error" class="admin-auth-error" role="alert"></p>
+        <button type="submit" id="admin-login-submit" class="admin-primary-btn">운영 콘솔 로그인</button>
+      </form>
+      <div class="admin-auth-foot">
+        <a href="/">← 통합 CRM 워크스페이스로 이동</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 운영 콘솔 본문 -->
+  <div id="admin-app-shell" class="admin-layout" hidden>
+    <aside class="admin-side">
+      <a href="/" class="admin-logo" title="통합 CRM으로 이동">
+        <img src="assets/logo.png" alt="KCC 홈씨씨">
+      </a>
+      <div class="admin-workspace">
+        RENTAL OPERATIONS
+        <span>렌탈 접수 · 심사 관리</span>
+      </div>
+      <nav>
+        <a href="/admin.html" aria-current="page">
+          <span>▤</span> 렌탈 신청 현황 <b id="side-count">0</b>
+        </a>
+        <a href="/">
+          <span>↗</span> 통합 CRM 워크스페이스
+        </a>
+      </nav>
+      <div class="admin-side-bottom">
+        <span class="admin-avatar" id="side-user-avatar">관</span>
+        <div class="admin-side-user">
+          <strong id="side-user-name">-</strong>
+          <small id="side-user-role">-</small>
+        </div>
+        <button type="button" id="admin-logout-btn" class="admin-logout-btn" title="로그아웃">로그아웃</button>
+      </div>
+    </aside>
+
+    <main class="admin-main">
+      <header class="admin-header">
+        <div>
+          <div class="admin-breadcrumb">운영 관리 <span>/</span> 렌탈 신청 · 심사</div>
+          <h1>좋은 시작을, 꼼꼼하게.</h1>
+          <p>모바일 견적에서 접수된 60개월 렌탈 신청의 서류 확인·보완 요청·계약 확정을 안전하게 처리합니다.</p>
+        </div>
+        <div class="admin-header-right">
+          <span class="admin-live-badge" id="admin-scope-badge">운영 서버 연결됨</span>
+          <button type="button" id="admin-refresh-btn" class="admin-ghost-btn">새로고침 ↻</button>
+        </div>
+      </header>
+
+      <div class="admin-security-notice">
+        <strong>민감정보 보호 정책 적용 중</strong>
+        <span id="admin-security-desc">신분증·서명 원본은 비공개 암호화 저장소에 격리 보관되며, 권한 보유자의 비밀번호 재인증 및 사유 기록 후 3분간 워터마크 스트림으로만 표시됩니다.</span>
+      </div>
+
+      <section class="admin-stats" id="admin-stats" aria-label="접수 현황"></section>
+
+      <section class="admin-inbox">
+        <div class="inbox-title">
+          <h2>렌탈 신청 목록 <span id="result-count">0건</span></h2>
+          <small>행을 클릭하면 신청 스냅샷 · 동의 원문 · 감사 로그를 확인할 수 있습니다.</small>
+        </div>
+
+        <div class="admin-filters">
+          <div class="admin-filter-tabs" role="group" aria-label="상태 필터">
+            <button type="button" data-filter="all" class="active">전체</button>
+            <button type="button" data-filter="received">신규 접수</button>
+            <button type="button" data-filter="review">서류 확인 중</button>
+            <button type="button" data-filter="needs_info">보완 요청</button>
+            <button type="button" data-filter="screening">심사 중</button>
+            <button type="button" data-filter="confirmed">계약 확정</button>
+            <button type="button" data-filter="rejected">진행 불가</button>
+            <button type="button" data-filter="cancelled">취소</button>
+          </div>
+          <div class="admin-filter-controls">
+            <select id="admin-assignee-filter" class="admin-select-sm" aria-label="담당자 필터">
+              <option value="all">담당자 전체</option>
+              <option value="미배정">미배정</option>
+              <option value="오영진">오영진</option>
+              <option value="김정연">김정연</option>
+              <option value="마지희">마지희</option>
+              <option value="김지훈">김지훈</option>
+            </select>
+            <label class="admin-search">
+              <span>⌕</span>
+              <input id="admin-search" placeholder="접수번호 · 고객명 · 견적번호 검색" aria-label="접수번호 또는 고객명 검색" autocomplete="off">
+            </label>
+          </div>
+        </div>
+
+        <div class="admin-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>접수번호 / 접수일시</th>
+                <th>계약자 (마스킹)</th>
+                <th>선택 렌탈 조건</th>
+                <th>보관 자료</th>
+                <th>진행 상태</th>
+                <th>담당자 / 소속</th>
+                <th><span class="sr-only">상세</span></th>
+              </tr>
+            </thead>
+            <tbody id="applications"></tbody>
+          </table>
+          <p id="empty-results" hidden>조회 조건에 맞는 렌탈 신청 내역이 없습니다.</p>
+        </div>
+
+        <div class="inbox-bottom">
+          <span>기본 화면에는 마스킹된 연락처·생년월일만 표시됩니다.</span>
+          <div class="inbox-bottom-right">
+            <button type="button" id="admin-load-more" class="admin-ghost-btn" hidden>이전 신청 더 보기</button>
+            <span id="inbox-scope-label">-</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-principles">
+        <div>
+          <span>01</span>
+          <h3>누락 없이 확인</h3>
+          <p>신분증 · 필수 동의 · 자필 서명을<br>각각 대조하고 심사 단계로 이동합니다.</p>
+        </div>
+        <div>
+          <span>02</span>
+          <h3>근거 기반 계약 확정</h3>
+          <p>체크박스만으로는 확정되지 않으며<br>렌탈사 승인·계약번호를 함께 기록합니다.</p>
+        </div>
+        <div>
+          <span>03</span>
+          <h3>재인증 · 감사 추적</h3>
+          <p>모든 원본 열람(성공·실패)과 상태 변경은<br>불변 감사 이벤트로 영구 기록됩니다.</p>
+        </div>
+      </section>
+
+      <footer class="admin-foot">
+        <span>KCC HOMECC · RENTAL OPERATIONS</span>
+        <span>비공개 암호화 볼트 · RBAC &amp; 감사 로그 연동</span>
+      </footer>
+    </main>
+  </div>
+
+  <!-- 3. 신청 상세 슬라이드 드로어 -->
+  <dialog id="admin-detail" aria-labelledby="detail-title">
+    <header class="detail-head">
+      <div>
+        <span class="admin-breadcrumb" id="detail-id"></span>
+        <h2 id="detail-title"></h2>
+      </div>
+      <button type="button" id="detail-close" aria-label="신청 상세 닫기">×</button>
+    </header>
+
+    <div class="detail-scroll">
+      <div class="detail-hero">
+        <div>
+          <span>현재 상태</span>
+          <strong id="detail-status"></strong>
+        </div>
+        <div>
+          <span>담당자 · 소속</span>
+          <strong id="detail-owner"></strong>
+        </div>
+        <div>
+          <span>리비전</span>
+          <strong id="detail-revision"></strong>
+        </div>
+      </div>
+
+      <div id="detail-quote-diff" class="detail-alert-box" hidden></div>
+
+      <div class="detail-tabs" role="tablist" aria-label="상세 메뉴">
+        <button type="button" role="tab" aria-selected="true" data-tab="info">신청·서류 검토</button>
+        <button type="button" role="tab" aria-selected="false" data-tab="supplement">보완 요청 발송</button>
+        <button type="button" role="tab" aria-selected="false" data-tab="consent">동의·무결성</button>
+        <button type="button" role="tab" aria-selected="false" data-tab="history">감사 이력</button>
+      </div>
+
+      <!-- 탭 1: 신청·서류 검토 -->
+      <section id="detail-info" role="tabpanel">
+        <h3>계약자 및 연결 견적 정보</h3>
+        <dl id="applicant-info" class="detail-dl"></dl>
+
+        <h3>신청 시점 확정 금액 스냅샷</h3>
+        <div id="admin-amount" class="detail-price"></div>
+
+        <h3>제출 서류 <small id="detail-doc-perm-hint">재인증 후 열람 가능</small></h3>
+        <div id="detail-docs" class="detail-docs"></div>
+
+        <div class="detail-checks">
+          <label><input type="checkbox" id="check-id"> 신분증 진위·식별 확인</label>
+          <label><input type="checkbox" id="check-signature"> 계약자 자필 서명 확인</label>
+          <label><input type="checkbox" id="check-consent"> 필수 동의 3종 고정본 확인</label>
+        </div>
+        <p class="detail-help">심사 중 및 계약 확정 단계로 변경하려면 위 3개 확인 항목이 모두 체크되어야 합니다.</p>
+
+        <section class="admin-processing" id="admin-processing-box">
+          <h3>검토 상태 및 담당자 반영</h3>
+          <div class="processing-grid">
+            <div>
+              <label for="admin-assignee-select">담당자 지정</label>
+              <select id="admin-assignee-select"></select>
+            </div>
+            <div>
+              <label for="admin-status-select">변경할 진행 상태</label>
+              <select id="admin-status-select"></select>
+            </div>
+          </div>
+
+          <div id="admin-contract-ref-wrap" hidden>
+            <label for="admin-contract-ref">렌탈사 승인번호 / 계약번호 (필수) *</label>
+            <input id="admin-contract-ref" type="text" maxlength="100" placeholder="예: KCC-RNT-20261112-0091">
+            <p class="detail-help">단순 체크박스 확인만으로 계약 확정을 완료할 수 없습니다. 승인·약정 증빙 번호를 입력해 주세요.</p>
+          </div>
+
+          <label for="admin-memo">처리 메모 / 상태 변경 사유</label>
+          <textarea id="admin-memo" rows="3" maxlength="500" placeholder="검토 결과, 심사 전달 사항, 취소·반려·확정 근거를 기록해 주세요."></textarea>
+
+          <label id="admin-force-wrap" class="force-check" hidden>
+            <input type="checkbox" id="admin-force-correction">
+            <span>본사 관리자 직권 상태 보정 (예외 전이 허용 · 사유 필수)</span>
+          </label>
+
+          <p id="admin-feedback" class="admin-feedback" role="status"></p>
+          <button type="button" class="admin-save" id="admin-save">검토 내용 서버에 저장하기</button>
+        </section>
+
+        <!-- 취소·진행불가 건 민감 서류 즉시 파기 (본사 관리자 전용) -->
+        <section id="admin-purge-box" class="admin-purge-box" hidden>
+          <h3>민감 서류 비공개 원본 즉시 파기 (보존 정책)</h3>
+          <p>취소 또는 진행 불가 상태인 신청 건의 암호화된 신분증·서명 원본 파일을 즉시 영구 삭제하고 파기 감사 로그를 남깁니다.</p>
+          <div class="processing-grid">
+            <div>
+              <label for="purge-password">관리자 비밀번호 확인</label>
+              <input id="purge-password" type="password" autocomplete="off" placeholder="비밀번호 입력">
+            </div>
+            <div>
+              <label for="purge-reason">파기 사유 (4자 이상)</label>
+              <input id="purge-reason" type="text" maxlength="200" placeholder="예: 고객 신청 취소에 따른 즉시 파기 요청">
+            </div>
+          </div>
+          <p id="purge-feedback" class="admin-feedback" role="status"></p>
+          <button type="button" id="admin-purge-btn" class="admin-danger-btn">암호화 서류 원본 영구 파기</button>
+        </section>
+      </section>
+
+      <!-- 탭 2: 보완 요청 발송 -->
+      <section id="detail-supplement" role="tabpanel" hidden>
+        <h3>고객 서류 보완 요청 발송</h3>
+        <p class="detail-help">내부 검토 근거(고객 비노출)와 고객 안내 문구를 분리하여 관리하며, 72시간 유효한 1회용 보완 등록 링크를 발급합니다.</p>
+
+        <div id="supplement-form-wrap" class="supplement-box">
+          <div class="processing-grid">
+            <div>
+              <label for="sup-type">보완 요청 유형</label>
+              <select id="sup-type">
+                <option value="blurry_id">흐린 신분증 (빛 반사·초점 흐림)</option>
+                <option value="cropped_id">신분증 일부 잘림</option>
+                <option value="info_mismatch">계약자 정보 불일치 확인</option>
+                <option value="signature_redo">자필 서명 재작성 요청</option>
+                <option value="other">기타 서류 보완</option>
+              </select>
+            </div>
+            <div>
+              <label for="sup-channel">안내 발송 채널</label>
+              <select id="sup-channel">
+                <option value="kakao">카카오 알림톡</option>
+                <option value="sms">문자 메시지 (LMS)</option>
+              </select>
+            </div>
+          </div>
+
+          <label for="sup-basis">내부 검토 근거 (담당자 전용 · 고객 미노출) *</label>
+          <input id="sup-basis" type="text" maxlength="300" placeholder="예: 신분증 우측 하단 발급일자 빛 반사로 식별 불가">
+
+          <label for="sup-message">고객 안내 문구 (알림톡·보완 화면에 표시) *</label>
+          <textarea id="sup-message" rows="3" maxlength="400"></textarea>
+
+          <p id="sup-feedback" class="admin-feedback" role="status"></p>
+          <button type="button" id="sup-send-btn" class="admin-save">보완 요청 전환 및 전용 링크 발급</button>
+
+          <div id="sup-result-box" class="sup-result-box" hidden>
+            <strong>1회용 서류 보완 링크가 발급되었습니다 (72시간 유효)</strong>
+            <div class="sup-link-row">
+              <input id="sup-result-url" type="text" readonly>
+              <button type="button" id="sup-copy-url" class="admin-ghost-btn">링크 복사</button>
+            </div>
+            <pre id="sup-result-preview"></pre>
+          </div>
+        </div>
+
+        <h3>과거 보완 요청 내역</h3>
+        <div id="sup-history-list"></div>
+      </section>
+
+      <!-- 탭 3: 동의·무결성 -->
+      <section id="detail-consent" role="tabpanel" hidden>
+        <h3>접수 시점 고정 필수 동의 스냅샷</h3>
+        <div id="admin-consents"></div>
+
+        <h3>전자서명 무결성 증빙 해시</h3>
+        <div id="admin-evidence" class="consent-card"></div>
+      </section>
+
+      <!-- 탭 4: 감사 이력 -->
+      <section id="detail-history" role="tabpanel" hidden>
+        <h3>불변 감사 타임라인 (접수 · 열람 · 상태 변경)</h3>
+        <ol id="admin-history"></ol>
+      </section>
+    </div>
+  </dialog>
+
+  <!-- 4. 비밀번호 재인증 기반 민감 문서 열람 모달 -->
+  <dialog id="doc-viewer" aria-labelledby="doc-title">
+    <header class="detail-head">
+      <div>
+        <span class="admin-breadcrumb" id="doc-Sub">민감 서류 보안 열람</span>
+        <h2 id="doc-title">문서 열람</h2>
+      </div>
+      <button type="button" id="doc-close" aria-label="문서 열람 닫기">×</button>
+    </header>
+
+    <div class="doc-body">
+      <!-- 권한 부족 안내 -->
+      <div id="doc-no-perm" class="doc-auth-box" hidden>
+        <strong>원본 서류 열람 권한이 없습니다.</strong>
+        <p>개인정보 보호 기준에 따라 신분증 및 전자 서명 원본은 심사·계약 담당자 또는 본사 관리자 계정에서만 열람할 수 있습니다.</p>
+      </div>
+
+      <!-- 재인증 + 사유 입력 폼 -->
+      <form id="doc-auth-form" class="doc-auth-box" autocomplete="off">
+        <strong>관리자 비밀번호 재인증 및 열람 사유 기록</strong>
+        <p>열람 승인 즉시 열람자명·시각·사유가 감사 로그에 기록되며 3분간 유효한 보안 스트림으로 표시됩니다.</p>
+        <div class="doc-reason-chips">
+          <button type="button" class="reason-chip" data-reason="신분증 진위 및 성함·생년월일 대조">신분증 진위 대조</button>
+          <button type="button" class="reason-chip" data-reason="계약자 본인 자필 서명 확인">자필 서명 확인</button>
+          <button type="button" class="reason-chip" data-reason="보완 재제출 서류 정상 여부 검토">보완 서류 검토</button>
+        </div>
+        <label class="admin-auth-field">
+          <span>열람 사유 (4자 이상 필수)</span>
+          <input id="doc-auth-reason" type="text" required minlength="4" maxlength="200" placeholder="구체적인 열람 목적을 입력하세요">
+        </label>
+        <label class="admin-auth-field">
+          <span>현재 로그인 관리자 비밀번호</span>
+          <input id="doc-auth-password" type="password" required autocomplete="current-password" placeholder="비밀번호 재입력">
+        </label>
+        <p id="doc-auth-error" class="admin-auth-error" role="alert"></p>
+        <button type="submit" id="doc-auth-submit" class="admin-primary-btn">재인증 후 원본 열람하기</button>
+      </form>
+
+      <!-- 스트리밍 뷰어 영역 (워터마크 + 줌/회전 + 다운로드 비제공) -->
+      <div id="doc-stream-wrap" hidden>
+        <div class="doc-toolbar">
+          <div class="doc-switch-group">
+            <button type="button" data-doc-switch="id_card" class="doc-tool-btn">신분증</button>
+            <button type="button" data-doc-switch="signature" class="doc-tool-btn">전자 서명</button>
+          </div>
+          <div class="doc-zoom-group">
+            <button type="button" id="doc-zoom-out" class="doc-tool-btn" aria-label="축소">−</button>
+            <button type="button" id="doc-zoom-reset" class="doc-tool-btn">100%</button>
+            <button type="button" id="doc-zoom-in" class="doc-tool-btn" aria-label="확대">+</button>
+            <button type="button" id="doc-rotate" class="doc-tool-btn">↻ 90° 회전</button>
+          </div>
+          <span id="doc-timer" class="doc-timer">유효시간 03:00</span>
+        </div>
+
+        <div class="doc-preview" id="doc-canvas-stage">
+          <div class="doc-watermark-banner" id="doc-watermark-top"></div>
+          <div class="doc-stage-inner">
+            <img id="doc-stream-img" alt="보안 문서 스트림" draggable="false">
+            <div class="doc-watermark-overlay" id="doc-watermark-overlay" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="doc-access-note">
+          <strong>보안 열람 정책 안내</strong>
+          <p>본 화면은 브라우저 캐시에 저장되지 않으며(no-store) 다운로드 기능을 제공하지 않습니다. 창을 닫거나 3분이 경과하면 메모리 객체가 즉시 해제됩니다.</p>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="admin.js?v=20261112e"></script>
+</body>
+</html>

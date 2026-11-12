@@ -13,6 +13,7 @@ import {
   createSamplePngBuffer
 } from '../utils/rentalSecurity.js';
 import { maskPhone, buildRentalPlans } from '../utils/mobileQuoteFormatter.js';
+import { getDefaultMenusForRole, parseAllowedMenus } from '../utils/menuPermissions.js';
 
 // Ensure data, uploads, and private vault directories exist
 const dataDir = path.dirname(config.dbPath);
@@ -29,6 +30,30 @@ ensurePrivateVaultDir();
 export const db = new Database(config.dbPath);
 db.pragma('foreign_keys = ON');
 db.pragma('journal_mode = WAL');
+
+export const DEFAULT_CONTRACT_STATUSES = [
+  { name: '계약체결', color: 'blue', sort_order: 1 },
+  { name: '미수납', color: 'red', sort_order: 2 },
+  { name: '약정대기', color: 'orange', sort_order: 3 },
+  { name: '선금완료', color: 'blue', sort_order: 4 },
+  { name: '잔금대기', color: 'orange', sort_order: 5 },
+  { name: '수납완료', color: 'green', sort_order: 6 },
+  { name: '정산완료', color: 'green', sort_order: 7 },
+  { name: '계약보류', color: 'gray', sort_order: 8 },
+  { name: '계약취소', color: 'red', sort_order: 9 }
+];
+
+export function ensureDefaultContractStatuses() {
+  const cnt = db.prepare('SELECT COUNT(*) as cnt FROM system_contract_statuses').get()?.cnt || 0;
+  if (cnt > 0) return;
+  const insertStatus = db.prepare(`
+    INSERT OR IGNORE INTO system_contract_statuses (name, color, sort_order, is_active)
+    VALUES (?, ?, ?, 1)
+  `);
+  for (const st of DEFAULT_CONTRACT_STATUSES) {
+    insertStatus.run(st.name, st.color, st.sort_order);
+  }
+}
 
 export function ensureApprovedRentalTerms() {
   const upsert = db.prepare(`
@@ -50,7 +75,7 @@ export function hydrateLegacyRentalApplication(appRow) {
 
   const quote = appRow.quote_id
     ? db.prepare('SELECT * FROM quotes WHERE id = ?').get(appRow.quote_id)
-    : db.prepare('SELECT * FROM quotes WHERE project_id = ? AND status = "published" ORDER BY version DESC LIMIT 1').get(appRow.project_id);
+    : db.prepare("SELECT * FROM quotes WHERE project_id = ? AND status = 'published' ORDER BY version DESC LIMIT 1").get(appRow.project_id);
 
   const proj = db.prepare('SELECT * FROM projects WHERE id = ?').get(appRow.project_id);
   const cashPrice = quote ? Number(quote.total_price) : 13200000;
@@ -218,6 +243,18 @@ export function initDatabase() {
   if (!quoteCols.includes('quote_type')) {
     db.exec("ALTER TABLE quotes ADD COLUMN quote_type TEXT NOT NULL DEFAULT '가견적'");
   }
+  if (!quoteCols.includes('supply_cost')) {
+    db.exec("ALTER TABLE quotes ADD COLUMN supply_cost INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!quoteCols.includes('material_subtotal')) {
+    db.exec("ALTER TABLE quotes ADD COLUMN material_subtotal INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!quoteCols.includes('extra_subtotal')) {
+    db.exec("ALTER TABLE quotes ADD COLUMN extra_subtotal INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!quoteCols.includes('original_price')) {
+    db.exec("ALTER TABLE quotes ADD COLUMN original_price INTEGER NOT NULL DEFAULT 0");
+  }
   if (!quoteCols.includes('discount_amount')) {
     db.exec("ALTER TABLE quotes ADD COLUMN discount_amount INTEGER NOT NULL DEFAULT 0");
   }
@@ -233,7 +270,26 @@ export function initDatabase() {
     db.exec("ALTER TABLE quote_items ADD COLUMN detail_json TEXT");
   }
 
+  const userCols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+  if (!userCols.includes('allowed_menus')) {
+    db.exec("ALTER TABLE users ADD COLUMN allowed_menus TEXT");
+  }
+
+  // Backfill allowed_menus for existing users that do not have explicit menu permissions yet
+  const existingUsers = db.prepare('SELECT id, username, role, allowed_menus FROM users').all();
+  const updateUserMenus = db.prepare('UPDATE users SET allowed_menus = ? WHERE id = ?');
+  for (const u of existingUsers) {
+    if (!u.allowed_menus) {
+      const defaults = parseAllowedMenus(getDefaultMenusForRole(u.role), u.role, u.username);
+      updateUserMenus.run(JSON.stringify(defaults), u.id);
+    }
+  }
+  if (!itemCols.includes('margin_rate')) {
+    db.exec("ALTER TABLE quote_items ADD COLUMN margin_rate REAL NOT NULL DEFAULT 100.0");
+  }
+
   // Ensure approved rental consent forms exist if consent_forms table has data
+  ensureDefaultContractStatuses();
   const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get().cnt;
   if (userCount > 0) {
     ensureApprovedRentalTerms();

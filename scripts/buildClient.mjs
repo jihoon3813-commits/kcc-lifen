@@ -1262,6 +1262,168 @@ mustReplace(
   'openDialog closes mobileNav'
 );
 
+// 15. Live Rental Operations Integration in CRM (contractsPage + openApplication + submit application)
+mustReplace(
+  `const stageColor=s=>({'신규접수':'','상담중':'purple','가견적요청':'orange','견적안내':'','실측예정':'green','최종견적':'purple','계약진행':'green','시공완료':'gray','보류':'gray','서류검토':'orange','보완요청':'red','심사중':'purple','승인':'green','반려':'red','약정대기':'orange','선금완료':'','수납완료':'green'}[s]||'');`,
+  `const stageColor=s=>({'신규접수':'','상담중':'purple','가견적요청':'orange','견적안내':'','실측예정':'green','최종견적':'purple','계약진행':'green','계약완료':'green','시공완료':'gray','보류':'gray','접수완료':'','서류검토':'orange','서류보완':'red','보완요청':'red','심사중':'purple','승인':'green','약정완료':'green','반려':'gray','부결':'red','약정대기':'orange','선금완료':'','수납완료':'green'}[s]||'');`,
+  'stageColor rental statuses'
+);
+
+mustReplace(
+  `return pageHead('계약관리','공사계약, 렌탈 접수, 수납 현황을 함께 확인하세요.',btn('계약 등록','new-contract','plus','primary'),'CONTRACT & PAYMENT')`,
+  `return pageHead('계약관리','공사계약, 모바일 렌탈 접수·심사, 수납 현황을 함께 확인하세요.','<a class="btn soft" href="/admin.html" target="_blank" rel="noopener noreferrer">'+icon('external')+'렌탈 운영 콘솔</a>'+btn('계약 등록','new-contract','plus','primary'),'CONTRACT & PAYMENT')`,
+  'contractsPage console button'
+);
+
+mustReplace(
+  `<div class="panel-caption">렌탈 신청 접수, 심사 승인, 약정 완료, 정산 완료를 각각 관리합니다. 표시 금액은 예시입니다.</div>`,
+  `<div class="panel-caption">렌탈 신청 접수, 서류 검토·보완 요청, 심사, 약정 확정을 실시간 DB 및 감사 로그와 연동해 관리합니다.</div>`,
+  'contractsPage live caption'
+);
+
+mustReplace(
+  `<td class="card-actions">\${btn('신청서 확인','application','file','sm soft',\`data-id="\${a.id}"\`)}</td>`,
+  `<td class="card-actions"><div class="actions">\${btn('신청서 검토','application','file','sm soft',\`data-id="\${a.id}"\`)}<a class="btn sm" href="/admin.html?id=\${encodeURIComponent(a.id)}" target="_blank" rel="noopener noreferrer">\${icon('external')}콘솔</a></div></td>`,
+  'contractsPage rental row console link'
+);
+
+const oldOpenApplication = `function openApplication(id){const a=db.applications.find(x=>x.id===id);if(!a||!accessibleC(a.cid))return;const c=findC(a.cid);openDialog('렌탈 신청 상세',\`<div class="dialog-body"><div class="timeline-strip">\${['신청접수','서류검토','심사','약정'].map((s,i)=>\`<span class="\${i<2?'done':''}">\${s}</span>\`).join('')}</div><div class="info-grid"><div><label>고객명</label><b>\${esc(c.name)}</b></div><div><label>신청번호</label><b>\${a.id}</b></div><div><label>희망 기간</label><b>\${a.plan}</b></div><div><label>월 납부금 · 예시</label><b>\${won(a.monthly)}</b></div></div><div class="divider"></div><div class="file-card">\${icon('shield')}<div><b>신분확인 서류</b><small>화면 설계용 영역 · 실제 신분증 미보관</small></div>\${badge('확인 대상','orange')}</div><div class="file-card">\${icon('edit')}<div><b>개인정보 동의 · 서명</b><small>양식 버전 및 제출 시각 관리 영역</small></div>\${badge(a.consent?'체험 동의':'예시','gray')}</div><form data-submit="application" data-id="\${a.id}">\${selectField('처리 상태','app-status',['서류검토','보완요청','심사중','승인','반려','약정완료'],a.status)}<div class="field"><label>검토 내용 / 보완 요청 사유</label><textarea name="review" placeholder="확인한 내용과 보완할 항목을 기록하세요.">\${esc(a.review||'')}</textarea></div><button class="btn primary block" type="submit">검토 결과 저장</button></form><p class="field-hint">상태 변경은 체험 데이터에만 반영됩니다. 실제 심사 결과를 대신하지 않습니다.</p></div>\`,'','','신청서·제출서류·처리 이력을 한곳에서 확인합니다.')}`;
+
+const newOpenApplication = `const RENTAL_STATUS_MAP = {
+  received: '신규 접수',
+  review: '서류 확인 중',
+  needs_info: '보완 요청',
+  screening: '심사 중',
+  confirmed: '계약 확정',
+  rejected: '진행 불가',
+  cancelled: '취소'
+};
+async function openApplication(id) {
+  try {
+    const [res, audRes] = await Promise.all([
+      apiFetch('/api/admin/rental-applications/' + encodeURIComponent(id)),
+      apiFetch('/api/admin/rental-applications/' + encodeURIComponent(id) + '/audit')
+    ]);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast(err.error || '렌탈 신청 상세를 불러올 수 없습니다.');
+      return;
+    }
+    const detail = await res.json();
+    const aud = audRes.ok ? await audRes.json() : { events: [] };
+    const app = detail.application;
+    const sp = app.snapshotPricing || {};
+    const perms = detail.permissions || {};
+    const stepIdx = { received: 1, review: 2, needs_info: 2, screening: 3, confirmed: 4 }[app.status] || 1;
+    const allowed = (app.allowedNextStatuses || [app.status]).filter(
+      st => st !== 'confirmed' || perms.canConfirmContract || st === app.status
+    );
+    const idDoc = (detail.documents || []).find(d => d.kind === 'id_card' && d.isActive && !d.deletedAt);
+    const sigDoc = (detail.documents || []).find(d => d.kind === 'signature' && d.isActive && !d.deletedAt);
+
+    const bodyHtml = '<div class="dialog-body">' +
+      '<div class="timeline-strip">' +
+        [['신청접수', 1], ['서류검토', 2], ['심사중', 3], ['계약확정', 4]].map(([lbl, idx]) =>
+          '<span class="' + (idx <= stepIdx ? 'done' : '') + '">' + lbl + '</span>'
+        ).join('') +
+      '</div>' +
+      '<div class="info-grid">' +
+        '<div><label>계약자 (마스킹 연락처)</label><b>' + esc(app.customerName) + ' (' + esc(app.maskedPhone) + ')</b></div>' +
+        '<div><label>접수번호 / 생년월일</label><b>' + esc(app.id) + ' · ' + esc(app.maskedBirthDate) + '</b></div>' +
+        '<div><label>선택 렌탈 플랜</label><b>' + esc(sp.planTitle || '60개월 렌탈') + '</b></div>' +
+        '<div><label>신청 스냅샷 금액</label><b>초기 ' + won(sp.upfront || 0) + ' / 월 ' + won(sp.monthly || 0) + '</b></div>' +
+      '</div>' +
+      '<div class="divider"></div>' +
+      '<div class="file-card">' + icon('shield') +
+        '<div style="flex:1"><b>신분증 암호화 보관본 ' + (idDoc ? '(v' + idDoc.versionNo + ')' : '') + '</b><small>' +
+          (idDoc ? (esc(idDoc.mimeType) + ' · SHA256 ' + esc(idDoc.digestPrefix) + '…') : '제출본 없음 또는 파기 완료') +
+        '</small></div>' +
+        (idDoc ? '<a class="btn sm soft" href="/admin.html?id=' + encodeURIComponent(app.id) + '" target="_blank" rel="noopener noreferrer">재인증 열람 ↗</a>' : badge('없음', 'gray')) +
+      '</div>' +
+      '<div class="file-card">' + icon('edit') +
+        '<div style="flex:1"><b>전자 서명 및 필수 동의 (' + (detail.consents || []).length + '종 고정)</b><small>' +
+          (sigDoc ? ('서명 v' + sigDoc.versionNo + ' · SHA256 ' + esc(sigDoc.digestPrefix) + '…') : '서명 보관본 없음') +
+        '</small></div>' +
+        badge('동의 고정됨', 'green') +
+      '</div>' +
+      (role === '본사 관리자' ? (
+        '<form data-submit="application" data-id="' + esc(app.id) + '" style="margin-top:14px">' +
+          '<input type="hidden" name="expectedVersion" value="' + Number(app.revision || 1) + '">' +
+          '<div style="display:flex;gap:12px;flex-wrap:wrap;margin:10px 0 14px;padding:10px 12px;background:#f6f9fc;border-radius:8px;font-size:12px">' +
+            '<label style="display:flex;align-items:center;gap:5px"><input type="checkbox" name="checkId" ' + (app.checks?.id ? 'checked' : '') + '> 신분증 확인</label>' +
+            '<label style="display:flex;align-items:center;gap:5px"><input type="checkbox" name="checkSig" ' + (app.checks?.signature ? 'checked' : '') + '> 서명 확인</label>' +
+            '<label style="display:flex;align-items:center;gap:5px"><input type="checkbox" name="checkConsent" ' + (app.checks?.consent ? 'checked' : '') + '> 필수동의 확인</label>' +
+          '</div>' +
+          '<div class="field-grid">' +
+            '<div class="field"><label for="crm-app-status">변경할 진행 상태</label><select class="input" id="crm-app-status" name="nextStatus">' +
+              allowed.map(st => '<option value="' + esc(st) + '" ' + (st === app.status ? 'selected' : '') + '>' + esc(RENTAL_STATUS_MAP[st] || st) + '</option>').join('') +
+            '</select></div>' +
+            '<div class="field"><label for="crm-app-ref">렌탈사 승인·계약번호 (계약확정 시 필수)</label><input class="input" id="crm-app-ref" name="contractReference" value="' + esc(app.contractReference || '') + '" placeholder="예: KCC-RNT-20261112-01"></div>' +
+          '</div>' +
+          '<div class="field"><label>검토 메모 / 상태 변경 사유</label><textarea name="review" placeholder="검토 결과, 확정 승인 근거 또는 취소·보완 사유를 입력하세요.">' + esc(app.reviewNote || '') + '</textarea></div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+            '<button class="btn primary" style="flex:1" type="submit">검토 결과 서버 저장</button>' +
+            '<a class="btn soft" href="/admin.html?id=' + encodeURIComponent(app.id) + '" target="_blank" rel="noopener noreferrer">' + icon('external') + '보완링크 발송 · 원본열람 콘솔</a>' +
+          '</div>' +
+        '</form>'
+      ) : '<div class="notice-text">파트너 계정은 마스킹된 진행 상태만 조회할 수 있습니다.</div>') +
+      ((aud.events && aud.events.length)
+        ? '<div class="divider"></div><h4 style="margin:0 0 8px;font-size:12px">최근 감사 이력 (' + aud.events.length + '건)</h4>' +
+          aud.events.slice(0, 4).map(ev =>
+            '<div class="mini-stat"><span>' + esc(ev.action) + ' · ' + esc(ev.actorName) + '</span><b>' + esc((ev.eventTime || '').slice(0, 16).replace('T', ' ')) + '</b></div>'
+          ).join('')
+        : '') +
+    '</div>';
+
+    openDialog(
+      '렌탈 신청 상세 · ' + esc(app.statusLabel),
+      bodyHtml,
+      '',
+      '',
+      esc(app.customerName) + ' 고객 · 총 납부 예정 ' + won(sp.total || 0) + ' (Rev.' + (app.revision || 1) + ')'
+    );
+  } catch (err) {
+    toast('렌탈 상세 조회 실패: ' + err.message);
+  }
+}`;
+
+mustReplace(oldOpenApplication, newOpenApplication, 'openApplication live API');
+
+mustReplace(
+  `case'application':{const a=db.applications.find(x=>x.id===id);a.status=d['app-status'];a.review=d.review;audit(a.cid,\`렌탈 신청 검토: \${a.status} · \${d.review||''}\`);render();openApplication(id);toast('검토 결과를 저장했습니다.');break}`,
+  `case'application':{
+    try {
+      const res = await apiFetch('/api/admin/rental-applications/' + encodeURIComponent(id) + '/review', {
+        method: 'PATCH',
+        body: {
+          expectedVersion: Number(d.expectedVersion || 1),
+          status: d.nextStatus,
+          contractReference: (d.contractReference || '').trim() || undefined,
+          checks: {
+            id: Boolean(d.checkId),
+            signature: Boolean(d.checkSig),
+            consent: Boolean(d.checkConsent)
+          },
+          memo: (d.review || '').trim()
+        }
+      });
+      const rData = await res.json();
+      if (!res.ok) {
+        toast(rData.error || '검토 결과 저장에 실패했습니다.');
+        if (res.status === 409) await openApplication(id);
+        return;
+      }
+      await syncFromServer();
+      await openApplication(id);
+      toast('렌탈 신청 검토 결과가 서버에 저장되었습니다. (' + rData.statusLabel + ')');
+    } catch (err) {
+      toast('렌탈 검토 저장 오류: ' + err.message);
+    }
+    break;
+  }`,
+  'submit application live API'
+);
+
 // Mobile-friendly tabs & quick strip inside Customer Detail Drawer (상태·링크 & 히스토리 accessible on mobile!)
 mustReplace(
   `const body=\`<div class="customer-detail"><aside class="detail-side"><div class="detail-box"><h4>\${icon('settings')}상태 및 담당자</h4>\${selectField('진행구분','detail-status',stages,c.status)}\${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}\${selectField('담당 상담사','detail-owner',['미배정','오영진','김정연','마지희'],c.owner)}\${field('유입채널','detail-source',c.source)}</div><div class="detail-box"><h4>\${icon('calendar')}일정 관리</h4>\${field('실측 예정일','detail-measure',c.measure,'date')}\${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>\${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">\${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,Boolean(c.quote))}\${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,Boolean(c.quote))}\${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div>\${btn('변경사항 저장','save-customer','check','primary block',\`data-id="\${id}"\`)}</aside><section class="detail-center"><div class="tabs">\${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>\`<button class="tab \${tab===v?'active':''}" data-action="detail-tab" data-value="\${v}" data-id="\${id}">\${l}</button>\`).join('')}</div><div class="detail-content">\${content}</div>\${['notes','feedback'].includes(tab)?\`<form class="note-compose" data-submit="note" data-id="\${id}" data-type="\${tab}"><div class="compose-top"><span>작성자 \${role==='본사 관리자'?'김지훈':'파트너 관리자'}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="\${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">\${icon('send')}</button></div></form>\`:''}</section><aside class="detail-history"><h4>\${icon('history')}변경 히스토리</h4>\${[...(db.history[id]||[]),{date:c.date.slice(5)+' 09:30',text:'고객 접수 · '+c.source,by:'시스템'},{date:c.date.slice(5)+' 09:30',text:'담당자 '+c.owner,by:'운영관리자'}].map(h=>\`<div class="history-item"><time>\${esc(h.date)}</time><p>\${esc(h.text)}</p><small>\${esc(h.by)}</small></div>\`).join('')}</aside></div>\`;`,
