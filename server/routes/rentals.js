@@ -141,4 +141,73 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '접수완료', 'received', ?, ?)
   `).run(
     rentalId, pId, quote?.id || null, quote?.version || 1, name, maskPhone(phone || ''), project.product || '창호',
-    months, monthly, totalFee, project.owner_name || '미배정', signature || n
+    months, monthly, totalFee, project.owner_name || '미배정', signature || name
+  );
+
+  const inserted = db.prepare('SELECT * FROM rental_applications WHERE id = ?').get(rentalId);
+  hydrateLegacyRentalApplication(inserted);
+
+  recordAuditLog({
+    projectId: pId,
+    action: '렌탈 접수',
+    detail: `렌탈 신청 ${rentalId}: ${name} (${plan}, 월 ${monthly.toLocaleString()}원)`,
+    req
+  });
+
+  res.status(201).json({ id: rentalId, monthly, total: totalFee, status: '접수완료' });
+});
+
+// 4. Update Rental Status & Review Note (CRM Backward Compatibility + Sync)
+router.patch('/:id/status', requireAuth, checkPartnerAccess, (req, res) => {
+  const rentalId = req.params.id;
+  const { status, review } = req.body;
+
+  const app = db.prepare(`
+    SELECT r.*, p.org_id
+    FROM rental_applications r
+    JOIN projects p ON r.project_id = p.id
+    WHERE r.id = ?
+  `).get(rentalId);
+
+  if (!app) return res.status(404).json({ error: '렌탈 신청을 찾을 수 없습니다.' });
+  if (req.partnerOrgId && app.org_id !== req.partnerOrgId) {
+    return res.status(403).json({ error: '접근 권한이 없습니다.' });
+  }
+
+  const prevCode = normalizeStatusCode(app.status_code || app.status);
+  const nextCode = status ? normalizeStatusCode(status) : prevCode;
+  const nextKr = STATUS_CODE_TO_KR[nextCode] || status || app.status;
+
+  db.prepare(`
+    UPDATE rental_applications
+    SET status = ?, status_code = ?, revision = COALESCE(revision, 1) + 1,
+        review_note = COALESCE(?, review_note), updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(nextKr, nextCode, review !== undefined ? review : null, rentalId);
+
+  db.prepare(`
+    INSERT INTO rental_audit_events (
+      application_id, actor_id, actor_name, actor_role, action, reason, previous_state, new_state, ip_masked
+    ) VALUES (?, ?, ?, ?, '상태/심사메모 변경', ?, ?, ?, ?)
+  `).run(
+    rentalId,
+    req.user.id,
+    req.user.name,
+    req.user.role,
+    review || STATUS_LABELS[nextCode] || nextKr,
+    prevCode,
+    nextCode,
+    maskIp(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')
+  );
+
+  recordAuditLog({
+    projectId: app.project_id,
+    action: '렌탈 상태 변경',
+    detail: `렌탈 ${rentalId} 상태: ${STATUS_LABELS[nextCode] || nextKr} (심사메모: ${review || ''})`,
+    req
+  });
+
+  res.json({ success: true, status: status || app.status, statusCode: nextCode });
+});
+
+export default router;

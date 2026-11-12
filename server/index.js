@@ -40,6 +40,8 @@ app.use('/api/quotes', quoteRoutes);
 app.use('/api/public/quotes', publicQuoteRoutes);
 app.use('/api/contracts', contractRoutes);
 app.use('/api/rentals', rentalRoutes);
+app.use('/api/rental', customerRentalRouter);
+app.use('/api/admin/rental-applications', adminRentalRouter);
 app.use('/api/products', productRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/analytics', analyticsRoutes);
@@ -88,4 +90,8 @@ const server = app.listen(config.port, config.host, () => {
   console.log(` Operator: (주)라이프앤조이`);
   console.log(` Database: ${config.dbPath}`);
   console.log(`======================================================`);
-}
+});
+
+server.on('error', err => {
+  console.error('Server listen error:', err);
+});
