@@ -7,11 +7,14 @@
     "dev": "node server/index.js",
     "start": "node server/index.js",
     "seed": "node server/db/seed.js",
-    "check": "node --check server/index.js"
+    "check": "node --check server/index.js",
+    "convex:dev": "convex dev",
+    "convex:sync": "node scripts/syncToConvex.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.6.2",
+    "convex": "^1.49.0",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",

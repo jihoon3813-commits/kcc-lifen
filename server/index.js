@@ -18,6 +18,7 @@ import productRoutes from './routes/products.js';
 import partnerRoutes from './routes/partners.js';
 import analyticsRoutes from './routes/analytics.js';
 import settingsRoutes from './routes/settings.js';
+import landingRoutes from './routes/landing.js';
 
 // 1. Initialize DB & Seed if empty
 initDatabase();
@@ -46,6 +47,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/landing', landingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -62,6 +64,9 @@ if (fs.existsSync(config.publicDir)) {
   app.use(express.static(config.publicDir));
   app.use((req, res, next) => {
     if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      if (req.path === '/landing' || req.path.startsWith('/landing/')) {
+        return res.sendFile(path.join(config.publicDir, 'landing', 'index.html'));
+      }
       return res.sendFile(path.join(config.publicDir, 'index.html'));
     }
     next();

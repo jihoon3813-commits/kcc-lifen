@@ -169,24 +169,27 @@ export function buildRentalPlans(cashPrice, discountAmount = 0, originalPrice = 
   const splitDeposit = Math.round(total / 2);
   const splitBalance = total - splitDeposit;
 
-  // Rental Plan A: Low upfront (default 500,000 KRW when total >= 1,500,000)
-  const upfrontA = total >= 1500000
-    ? 500000
-    : Math.max(0, Math.floor((total * 0.1) / 100000) * 100000);
-  const financedA = Math.max(0, total - upfrontA);
-  const monthlyA = Math.max(1000, Math.round((financedA * 0.0222) / 1000) * 1000);
-  const totalA = upfrontA + monthlyA * 60;
+  // -------------------------------------------------------------
+  // [렌탈금액 산정기준] (할인된 일시불 금액 기준)
+  // 1) 월 111,000원 플랜: 할인 일시불금액 - 5,000,000원 = 초회납입금
+  // 2) 월 222,000원 플랜: 할인 일시불금액 - 10,000,000원 = 초회납입금
+  // 3) 월 333,000원 플랜: 할인 일시불금액 - 15,000,000원 = 초회납입금
+  // ※ 모바일 견적서 렌탈금액표에서는 고객 부담 완화를 위해 '총액'을 노출하지 않음
+  // -------------------------------------------------------------
+  const upfront111 = Math.max(0, total - 5000000);
+  const monthly111 = 111000;
+  const total111 = upfront111 + monthly111 * 60;
 
-  // Rental Plan B: Low monthly (~52.38% upfront rounded to 500,000 KRW)
-  let upfrontB = Math.round((total * 0.52381) / 500000) * 500000;
-  if (upfrontB <= upfrontA || upfrontB >= total) {
-    upfrontB = Math.round((total * 0.5) / 100000) * 100000;
-  }
-  const financedB = Math.max(0, total - upfrontB);
-  const monthlyB = Math.max(1000, Math.round((financedB * 0.0222) / 1000) * 1000);
-  const totalB = upfrontB + monthlyB * 60;
+  const upfront222 = Math.max(0, total - 10000000);
+  const monthly222 = 222000;
+  const total222 = upfront222 + monthly222 * 60;
+
+  const upfront333 = Math.max(0, total - 15000000);
+  const monthly333 = 333000;
+  const total333 = upfront333 + monthly333 * 60;
 
   const fmtMan = v => {
+    if (v <= 0) return '0원';
     if (v >= 10000 && v % 10000 === 0) {
       const man = v / 10000;
       return `${man.toLocaleString('ko-KR')}만원`;
@@ -197,6 +200,48 @@ export function buildRentalPlans(cashPrice, discountAmount = 0, originalPrice = 
       return `${man > 0 ? man + '만' : ''}${chun}천원`;
     }
     return v.toLocaleString('ko-KR') + '원';
+  };
+
+  const plan111Obj = {
+    key: 'plan111',
+    tag: '월 111,000원',
+    heading: '월 부담을 최소화하고 싶다면',
+    mainLabel: '월 렌탈료',
+    mainAmount: monthly111,
+    upfront: upfront111,
+    months: 60,
+    total: total111,
+    name: '월 111,000원 렌탈 플랜',
+    detail: `초회납입금 ${upfront111.toLocaleString('ko-KR')}원 + 월 111,000원 (60개월)`,
+    button: '월 111,000원 조건 상담하기'
+  };
+
+  const plan222Obj = {
+    key: 'plan222',
+    tag: '월 222,000원',
+    heading: '초기비용과 월납부의 균형을 원한다면',
+    mainLabel: '월 렌탈료',
+    mainAmount: monthly222,
+    upfront: upfront222,
+    months: 60,
+    total: total222,
+    name: '월 222,000원 렌탈 플랜',
+    detail: `초회납입금 ${upfront222.toLocaleString('ko-KR')}원 + 월 222,000원 (60개월)`,
+    button: '월 222,000원 조건 상담하기'
+  };
+
+  const plan333Obj = {
+    key: 'plan333',
+    tag: '월 333,000원',
+    heading: '처음 내는 목돈을 최소화하고 싶다면',
+    mainLabel: '월 렌탈료',
+    mainAmount: monthly333,
+    upfront: upfront333,
+    months: 60,
+    total: total333,
+    name: '월 333,000원 렌탈 플랜',
+    detail: `초회납입금 ${upfront333.toLocaleString('ko-KR')}원 + 월 333,000원 (60개월)`,
+    button: '월 333,000원 조건 상담하기'
   };
 
   return {
@@ -217,32 +262,14 @@ export function buildRentalPlans(cashPrice, discountAmount = 0, originalPrice = 
         : `총 ${total.toLocaleString('ko-KR')}원 · 선금 50% / 잔금 50%`,
       button: '일시불 결제 상담하기'
     },
-    lowupfront: {
-      key: 'lowupfront',
-      tag: '60개월 렌탈',
-      heading: '처음 내는 금액을 줄이고 싶다면',
-      mainLabel: '월 납부금액',
-      mainAmount: monthlyA,
-      upfront: upfrontA,
-      months: 60,
-      total: totalA,
-      name: '초기 부담을 줄이는 렌탈',
-      detail: `초기 ${upfrontA.toLocaleString('ko-KR')}원 + 월 ${monthlyA.toLocaleString('ko-KR')}원 × 60개월`,
-      button: `초기 ${fmtMan(upfrontA)} 조건 상담하기`
-    },
-    lowmonthly: {
-      key: 'lowmonthly',
-      tag: '60개월 렌탈',
-      heading: '매월 내는 금액을 줄이고 싶다면',
-      mainLabel: '월 납부금액',
-      mainAmount: monthlyB,
-      upfront: upfrontB,
-      months: 60,
-      total: totalB,
-      name: '월 부담을 줄이는 렌탈',
-      detail: `초기 ${upfrontB.toLocaleString('ko-KR')}원 + 월 ${monthlyB.toLocaleString('ko-KR')}원 × 60개월`,
-      button: `월 ${fmtMan(monthlyB)} 조건 상담하기`
-    }
+    plan111: plan111Obj,
+    plan222: plan222Obj,
+    plan333: plan333Obj,
+    // 하위 호환 매핑:
+    // lowmonthly(월부담 최소) -> plan111 (월 111,000원)
+    // lowupfront(초기부담 최소) -> plan222 (월 222,000원)
+    lowmonthly: { ...plan111Obj, key: 'lowmonthly' },
+    lowupfront: { ...plan222Obj, key: 'lowupfront' }
   };
 }
 

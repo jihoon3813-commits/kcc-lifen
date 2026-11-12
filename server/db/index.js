@@ -24,12 +24,97 @@ if (!fs.existsSync(config.uploadsDir)) {
   fs.mkdirSync(config.uploadsDir, { recursive: true });
   fs.mkdirSync(path.join(config.uploadsDir, 'quotes'), { recursive: true });
   fs.mkdirSync(path.join(config.uploadsDir, 'drawings'), { recursive: true });
+  fs.mkdirSync(path.join(config.uploadsDir, 'forms'), { recursive: true });
+} else if (!fs.existsSync(path.join(config.uploadsDir, 'forms'))) {
+  fs.mkdirSync(path.join(config.uploadsDir, 'forms'), { recursive: true });
 }
 ensurePrivateVaultDir();
 
 export const db = new Database(config.dbPath);
 db.pragma('foreign_keys = ON');
 db.pragma('journal_mode = WAL');
+
+export const DEFAULT_RENTAL_FIELDS_CONFIG = {
+  date: {
+    key: 'date',
+    label: '날짜',
+    x: 58.0,
+    y: 78.5,
+    w: 32.0,
+    h: 3.6,
+    fontSize: 14,
+    color: '#1a202c',
+    align: 'center',
+    format: 'YYYY년 MM월 DD일',
+    enabled: true
+  },
+  name: {
+    key: 'name',
+    label: '성명',
+    x: 62.0,
+    y: 83.2,
+    w: 16.0,
+    h: 3.6,
+    fontSize: 15,
+    color: '#1a202c',
+    align: 'center',
+    fontWeight: 'bold',
+    enabled: true
+  },
+  signature: {
+    key: 'signature',
+    label: '서명',
+    x: 78.5,
+    y: 81.2,
+    w: 16.0,
+    h: 6.8,
+    color: '#1a202c',
+    enabled: true
+  },
+  birthDate: {
+    key: 'birthDate',
+    label: '생년월일',
+    x: 18.0,
+    y: 83.2,
+    w: 28.0,
+    h: 3.6,
+    fontSize: 14,
+    color: '#1a202c',
+    align: 'center',
+    format: 'YYYY-MM-DD',
+    enabled: true
+  },
+  phone: {
+    key: 'phone',
+    label: '연락처',
+    x: 18.0,
+    y: 87.5,
+    w: 28.0,
+    h: 3.6,
+    fontSize: 14,
+    color: '#1a202c',
+    align: 'center',
+    enabled: true
+  }
+};
+
+export const DEFAULT_RENTAL_PRIVACY_CONTENT = `[필수] 렌탈 개인정보 수집·이용 및 제공 동의서 (KCC홈씨씨)
+
+1. 수집 및 이용 목적
+- KCC 홈씨씨 창호·인테리어 렌탈 서비스 신청 접수, 적격 확인, 본인 확인
+- 렌탈 계약 체결 및 유지 관리, 월 렌탈료 정산 및 청구
+- 시공 현장 실측, 일정 조율 및 사후 품질보증(A/S) 제공
+
+2. 수집하는 개인정보 항목
+- 기본 식별정보: 고객 성명, 연락처(휴대전화번호), 생년월일, 시공 주소
+- 계약 및 서명정보: 모바일 전자서명 이미지, 신청일자, 선택 렌탈 조건
+
+3. 보유 및 이용 기간
+- 렌탈 계약 성립 시: 상법 및 전자상거래법 등 관계 법령에 따른 5년간 보존 후 파기
+- 미체결 또는 취소 시: 처리 완료일로부터 즉시 안전하게 영구 파기
+
+4. 동의 거부 권리 및 불이익
+- 귀하는 상기 개인정보 수집 및 이용에 대한 동의를 거부할 권리가 있습니다. 단, 필수 정보 수집에 동의하지 않으실 경우 렌탈 신청 및 계약 체결이 불가능합니다.`;
 
 export const DEFAULT_CONTRACT_STATUSES = [
   { name: '계약체결', color: 'blue', sort_order: 1 },
@@ -56,13 +141,36 @@ export function ensureDefaultContractStatuses() {
 }
 
 export function ensureApprovedRentalTerms() {
-  const upsert = db.prepare(`
-    INSERT INTO consent_forms (id, title, version, content)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(id) DO NOTHING
-  `);
-  for (const t of APPROVED_RENTAL_TERMS_DEFAULTS) {
-    upsert.run(t.id, t.title, t.version, t.content);
+  // 사용자 요청: '(렌탈) 개인정보 동의서'만 유지하고 나머지 양식은 삭제
+  // 1. 기존 비-렌탈 불필요 양식 정리
+  try {
+    db.prepare("DELETE FROM consent_forms WHERE id NOT IN ('rental_privacy', 'rental_collection')").run();
+  } catch {}
+
+  // 2. 단일 핵심 양식: (렌탈) 개인정보 동의서 보장
+  const mainForm = db.prepare("SELECT * FROM consent_forms WHERE id = 'rental_privacy'").get();
+  if (!mainForm) {
+    const upsertMain = db.prepare(`
+      INSERT INTO consent_forms (id, title, version, content, fields_config)
+      VALUES (?, ?, 1, ?, ?)
+    `);
+    upsertMain.run(
+      'rental_privacy',
+      '(렌탈) 개인정보 동의서',
+      DEFAULT_RENTAL_PRIVACY_CONTENT,
+      JSON.stringify(DEFAULT_RENTAL_FIELDS_CONFIG)
+    );
+  }
+
+  // 모바일 신청서 스냅샷에서 호환성을 위해 필요한 rental_collection이 없으면 등록
+  const collForm = db.prepare("SELECT id FROM consent_forms WHERE id = 'rental_collection'").get();
+  if (!collForm) {
+    const term = APPROVED_RENTAL_TERMS_DEFAULTS.find(t => t.id === 'rental_collection');
+    if (term) {
+      db.prepare("INSERT INTO consent_forms (id, title, version, content) VALUES (?, ?, ?, ?)").run(
+        term.id, term.title, term.version, term.content
+      );
+    }
   }
 }
 
@@ -286,6 +394,18 @@ export function initDatabase() {
   }
   if (!itemCols.includes('margin_rate')) {
     db.exec("ALTER TABLE quote_items ADD COLUMN margin_rate REAL NOT NULL DEFAULT 100.0");
+  }
+
+  // Migrate consent_forms columns
+  const formCols = db.prepare("PRAGMA table_info(consent_forms)").all().map(c => c.name);
+  if (!formCols.includes('pdf_path')) {
+    db.exec("ALTER TABLE consent_forms ADD COLUMN pdf_path TEXT");
+  }
+  if (!formCols.includes('file_name')) {
+    db.exec("ALTER TABLE consent_forms ADD COLUMN file_name TEXT");
+  }
+  if (!formCols.includes('fields_config')) {
+    db.exec("ALTER TABLE consent_forms ADD COLUMN fields_config TEXT");
   }
 
   // Ensure approved rental consent forms exist if consent_forms table has data

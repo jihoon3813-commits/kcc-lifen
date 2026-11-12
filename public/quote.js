@@ -39,8 +39,11 @@ let isSubmittingConsult = false;
 
 let plans = {
   cash: { name: '일시불 할인 결제', detail: '선금 50% / 잔금 50%', button: '일시불 결제 상담하기' },
-  lowupfront: { name: '초기 부담을 줄이는 렌탈', detail: '60개월 렌탈', button: '초기 부담 완화 조건 상담하기' },
-  lowmonthly: { name: '월 부담을 줄이는 렌탈', detail: '60개월 렌탈', button: '월 부담 완화 조건 상담하기' }
+  plan111: { name: '월 111,000원 렌탈 플랜', detail: '60개월 약정', button: '월 111,000원 조건 상담하기' },
+  plan222: { name: '월 222,000원 렌탈 플랜', detail: '60개월 약정', button: '월 222,000원 조건 상담하기' },
+  plan333: { name: '월 333,000원 렌탈 플랜', detail: '60개월 약정', button: '월 333,000원 조건 상담하기' },
+  lowupfront: { name: '월 222,000원 렌탈 플랜', detail: '60개월 약정', button: '월 222,000원 조건 상담하기' },
+  lowmonthly: { name: '월 111,000원 렌탈 플랜', detail: '60개월 약정', button: '월 111,000원 조건 상담하기' }
 };
 
 function showToast(msg) {
@@ -265,8 +268,9 @@ function renderQuote(q) {
     plans = q.plans;
   }
   const pCash = plans.cash;
-  const pLowUp = plans.lowupfront;
-  const pLowMo = plans.lowmonthly;
+  const p111 = plans.plan111 || plans.lowmonthly || { mainAmount: 111000, upfront: Math.max(0, cashPrice - 5000000) };
+  const p222 = plans.plan222 || plans.lowupfront || { mainAmount: 222000, upfront: Math.max(0, cashPrice - 10000000) };
+  const p333 = plans.plan333 || { mainAmount: 333000, upfront: Math.max(0, cashPrice - 15000000) };
 
   const cashPayTag = document.getElementById('cash-pay-tag');
   if (cashPayTag) cashPayTag.textContent = discountAmount > 0 ? '일시불 특별할인' : '일시불';
@@ -288,13 +292,41 @@ function renderQuote(q) {
   document.getElementById('cash-balance').textContent = money(pCash.balance ?? splitBalance);
   document.getElementById('cash-total').textContent = `총 ${money(pCash.total ?? cashPrice)}`;
 
-  document.getElementById('lowup-monthly').innerHTML = `${num(pLowUp.mainAmount)}<small>원</small>`;
-  document.getElementById('lowup-upfront').textContent = money(pLowUp.upfront);
-  document.getElementById('lowup-total').textContent = `총 ${money(pLowUp.total)}`;
+  // -----------------------------------------------------------
+  // [렌탈 금액표 바인딩] 고객 부담을 줄이기 위해 '총액'은 미표시
+  // 1) 월 111,000원 플랜 (500만원 초과분 = 초회납입금)
+  // 2) 월 222,000원 플랜 (1,000만원 초과분 = 초회납입금)
+  // 3) 월 333,000원 플랜 (1,500만원 초과분 = 초회납입금)
+  // -----------------------------------------------------------
+  const elP111Mo = document.getElementById('p111-monthly');
+  const elP111Up = document.getElementById('p111-upfront');
+  if (elP111Mo) elP111Mo.innerHTML = `${num(p111.mainAmount || 111000)}<small>원</small>`;
+  if (elP111Up) elP111Up.textContent = money(p111.upfront ?? Math.max(0, cashPrice - 5000000));
 
-  document.getElementById('lowmo-monthly').innerHTML = `${num(pLowMo.mainAmount)}<small>원</small>`;
-  document.getElementById('lowmo-upfront').textContent = money(pLowMo.upfront);
-  document.getElementById('lowmo-total').textContent = `총 ${money(pLowMo.total)}`;
+  const elP222Mo = document.getElementById('p222-monthly');
+  const elP222Up = document.getElementById('p222-upfront');
+  if (elP222Mo) elP222Mo.innerHTML = `${num(p222.mainAmount || 222000)}<small>원</small>`;
+  if (elP222Up) elP222Up.textContent = money(p222.upfront ?? Math.max(0, cashPrice - 10000000));
+
+  const elP333Mo = document.getElementById('p333-monthly');
+  const elP333Up = document.getElementById('p333-upfront');
+  if (elP333Mo) elP333Mo.innerHTML = `${num(p333.mainAmount || 333000)}<small>원</small>`;
+  if (elP333Up) elP333Up.textContent = money(p333.upfront ?? Math.max(0, cashPrice - 15000000));
+
+  // 하위 호환 구형 엘리먼트가 있을 경우 대응 (총액 노출 제거)
+  const elLowUpMo = document.getElementById('lowup-monthly');
+  const elLowUpUp = document.getElementById('lowup-upfront');
+  const elLowUpTot = document.getElementById('lowup-total');
+  if (elLowUpMo) elLowUpMo.innerHTML = `${num(p222.mainAmount)}<small>원</small>`;
+  if (elLowUpUp) elLowUpUp.textContent = money(p222.upfront);
+  if (elLowUpTot) elLowUpTot.closest('.pay-footer')?.remove();
+
+  const elLowMoMo = document.getElementById('lowmo-monthly');
+  const elLowMoUp = document.getElementById('lowmo-upfront');
+  const elLowMoTot = document.getElementById('lowmo-total');
+  if (elLowMoMo) elLowMoMo.innerHTML = `${num(p111.mainAmount)}<small>원</small>`;
+  if (elLowMoUp) elLowMoUp.textContent = money(p111.upfront);
+  if (elLowMoTot) elLowMoTot.closest('.pay-footer')?.remove();
 
   choosePlan('cash');
 

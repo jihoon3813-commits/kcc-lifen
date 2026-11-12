@@ -68,7 +68,7 @@
         <div class="r-field wide" id="r-birth-wrap"><label for="r-birth">생년월일 <span aria-hidden="true">*</span></label><input id="r-birth" type="text" inputmode="numeric" autocomplete="off" placeholder="YYYY-MM-DD" maxlength="10" aria-required="true" aria-describedby="r-birth-help r-birth-error"><small id="r-birth-help">숫자 8자리를 입력하면 자동으로 구분됩니다. (만 19세 이상 계약자 본인)</small><p id="r-birth-error" class="r-error" hidden></p></div>
       </div><p class="r-note" id="r-step1-note">견적서의 신청자 정보입니다. 정보가 다르면 담당자에게 변경을 요청해주세요.</p></div>
       <div id="r-plan-card" class="r-panel r-amount"></div>
-      <label class="r-checkline" id="r-price-check-wrap"><input id="r-price-check" type="checkbox"><span>위 <b>초기 납입액·월 납부액·총 납부액</b>을 확인했습니다.</span></label>
+      <label class="r-checkline" id="r-price-check-wrap"><input id="r-price-check" type="checkbox"><span>위 <b>초회납입금 및 월 납부액</b>을 확인했습니다.</span></label>
       <p class="r-note">신청 후 담당자가 계약 조건과 진행 가능 여부를 안내합니다. 신청만으로 계약이 확정되지는 않습니다.</p></section>
       <section data-r-step="2" hidden><div class="r-eyebrow">DOCUMENT VERIFICATION</div><h3 class="r-upload-title">계약자 본인의<br>신분증을 등록해주세요.</h3><p class="r-lead">사진을 선택하거나 바로 촬영할 수 있어요.<br>등록한 파일은 제출 전까지 변경할 수 있습니다.</p>
       <div class="r-panel"><div id="r-empty-file" class="r-upload-box"><div class="r-id-art" aria-hidden="true"><div class="r-id-person"></div><div class="r-id-lines"><i></i><i></i><i></i></div></div><strong>신분증 사진 1장</strong><p>JPG · PNG · HEIC · 최대 10MB</p></div>
@@ -113,9 +113,8 @@
 
   function summaryHtml(p) {
     return `<div><span>선택 상품</span><strong>${escape(runtimeCtx.quote.product || 'KCC 홈씨씨 창호 교체')}</strong></div>` +
-      `<div><span>초기 납입액</span><strong>${won(p.upfront)}</strong></div>` +
-      `<div><span>월 납부액 · ${p.months}개월</span><strong>${won(p.monthly)}</strong></div>` +
-      `<div><span>총 납부 예정금액</span><strong>${won(total(p))}</strong></div>`;
+      `<div><span>초회납입금</span><strong>${won(p.upfront)}</strong></div>` +
+      `<div><span>월 납부액</span><strong>${won(p.monthly)} / ${p.months}개월</strong></div>`;
   }
 
   function renderTermsList(terms) {
@@ -187,17 +186,35 @@
           product: `KCC 홈씨씨 ${q.product || '창호'} 교체`
         },
         plans: {
+          plan111: {
+            title: p.plan111?.name || '월 111,000원 렌탈 플랜',
+            upfront: p.plan111?.upfront ?? Math.max(0, (q.total_price || 0) - 5000000),
+            monthly: 111000,
+            months: 60
+          },
+          plan222: {
+            title: p.plan222?.name || '월 222,000원 렌탈 플랜',
+            upfront: p.plan222?.upfront ?? Math.max(0, (q.total_price || 0) - 10000000),
+            monthly: 222000,
+            months: 60
+          },
+          plan333: {
+            title: p.plan333?.name || '월 333,000원 렌탈 플랜',
+            upfront: p.plan333?.upfront ?? Math.max(0, (q.total_price || 0) - 15000000),
+            monthly: 333000,
+            months: 60
+          },
           lowupfront: {
-            title: p.lowupfront?.name || '초기 부담을 줄이는 렌탈',
-            upfront: p.lowupfront?.upfront ?? 500000,
-            monthly: p.lowupfront?.mainAmount ?? 222000,
-            months: p.lowupfront?.months ?? 60
+            title: p.plan222?.name || '월 222,000원 렌탈 플랜',
+            upfront: p.plan222?.upfront ?? Math.max(0, (q.total_price || 0) - 10000000),
+            monthly: 222000,
+            months: 60
           },
           lowmonthly: {
-            title: p.lowmonthly?.name || '월 부담을 줄이는 렌탈',
-            upfront: p.lowmonthly?.upfront ?? 5500000,
-            monthly: p.lowmonthly?.mainAmount ?? 111000,
-            months: p.lowmonthly?.months ?? 60
+            title: p.plan111?.name || '월 111,000원 렌탈 플랜',
+            upfront: p.plan111?.upfront ?? Math.max(0, (q.total_price || 0) - 5000000),
+            monthly: 111000,
+            months: 60
           }
         },
         termsVersion: 'preview-2026.11',
@@ -414,7 +431,7 @@
     $('r-plan-card').innerHTML =
       `<div class="r-amount-title">${escape(p.title)}</div>` +
       `<div class="r-monthly"><span>매월</span><strong>${new Intl.NumberFormat('ko-KR').format(p.monthly)}<small>원</small></strong><span>/ ${p.months}개월</span></div>` +
-      `<div class="r-cost-grid"><div><small>초기 납입액</small><b>${won(p.upfront)}</b></div><div><small>총 납부 예정금액</small><b>${won(total(p))}</b></div></div>`;
+      `<div class="r-cost-grid"><div><small>초회납입금</small><b>${won(p.upfront)}</b></div><div><small>약정기간</small><b>${p.months}개월</b></div></div>`;
     $('r-footer-amount').textContent = `월 ${won(p.monthly)} · ${p.months}개월`;
     $('r-final-summary').innerHTML = summaryHtml(p);
 
@@ -466,13 +483,13 @@
       $('r-plan-card').innerHTML =
         `<div class="r-amount-title">${escape(p.title)}</div>` +
         `<div class="r-monthly"><span>매월</span><strong>${new Intl.NumberFormat('ko-KR').format(p.monthly)}<small>원</small></strong><span>/ ${p.months}개월</span></div>` +
-        `<div class="r-cost-grid"><div><small>초기 납입액</small><b>${won(p.upfront)}</b></div><div><small>총 납부 예정금액</small><b>${won(p.total)}</b></div></div>`;
+        `<div class="r-cost-grid"><div><small>초회납입금</small><b>${won(p.upfront)}</b></div><div><small>약정기간</small><b>${p.months}개월</b></div></div>`;
       $('r-footer-amount').textContent = `접수번호 ${data.receiptId}`;
       $('r-final-summary').innerHTML =
         `<div><span>접수 번호</span><strong>${escape(data.receiptId)}</strong></div>` +
         `<div><span>선택 조건</span><strong>${escape(p.title)}</strong></div>` +
         `<div><span>월 납부액 · ${p.months}개월</span><strong>${won(p.monthly)}</strong></div>` +
-        `<div><span>총 납부 예정금액</span><strong>${won(p.total)}</strong></div>`;
+        `<div><span>초회납입금</span><strong>${won(p.upfront)}</strong></div>`;
 
       clearFile();
       clearSignature();

@@ -143,33 +143,45 @@
    <div class="pay-facts"><span>선금 <b id="cash-deposit">0원</b></span><span>잔금 <b id="cash-balance">0원</b></span></div>
    <div class="pay-footer"><span>카드 또는 현금 결제</span><b id="cash-total">총 0원</b></div>
   </button>
+  <!-- 렌탈 플랜 1: 월 111,000원 (500만원 기준 차액이 초회납입금) -->
   <div class="rental-option">
-   <button class="pay-card" type="button" role="radio" aria-checked="false" data-plan="lowupfront">
-    <div class="pay-heading"><span class="radio-mark"></span><span>처음 내는 금액을 줄이고 싶다면</span><span class="pay-tag">60개월 렌탈</span></div>
-    <div class="pay-main"><span>월 납부금액</span><strong id="lowup-monthly">0<small>원</small></strong></div>
-    <div class="pay-facts"><span>초기 납입액 <b id="lowup-upfront">0원</b></span><span>납부기간 <b>60개월</b></span></div>
-    <div class="pay-footer"><span>초기 납입액 + 월 납부액 합계</span><b id="lowup-total">총 0원</b></div>
+   <button class="pay-card" type="button" role="radio" aria-checked="false" data-plan="plan111">
+    <div class="pay-heading"><span class="radio-mark"></span><span>월 부담을 최소화하고 싶다면</span><span class="pay-tag">월 111,000원</span></div>
+    <div class="pay-main"><span>월 렌탈료</span><strong id="p111-monthly">111,000<small>원</small></strong></div>
+    <div class="pay-facts"><span>초회납입금 <b id="p111-upfront">0원</b></span><span>약정기간 <b>60개월</b></span></div>
    </button>
-   <div class="rental-actions" data-plan-actions="lowupfront" hidden>
-    <button type="button" class="rental-consult" data-rental-consult="lowupfront">상담하기</button>
-    <button type="button" class="rental-apply" data-rental-open="lowupfront">렌탈 신청하기 <span aria-hidden="true">→</span></button>
+   <div class="rental-actions" data-plan-actions="plan111" hidden>
+    <button type="button" class="rental-consult" data-rental-consult="plan111">상담하기</button>
+    <button type="button" class="rental-apply" data-rental-open="plan111">렌탈 신청하기 <span aria-hidden="true">→</span></button>
    </div>
   </div>
+  <!-- 렌탈 플랜 2: 월 222,000원 (1,000만원 기준 차액이 초회납입금) -->
   <div class="rental-option">
-   <button class="pay-card" type="button" role="radio" aria-checked="false" data-plan="lowmonthly">
-    <div class="pay-heading"><span class="radio-mark"></span><span>매월 내는 금액을 줄이고 싶다면</span><span class="pay-tag">60개월 렌탈</span></div>
-    <div class="pay-main"><span>월 납부금액</span><strong id="lowmo-monthly">0<small>원</small></strong></div>
-    <div class="pay-facts"><span>초기 납입액 <b id="lowmo-upfront">0원</b></span><span>납부기간 <b>60개월</b></span></div>
-    <div class="pay-footer"><span>초기 납입액 + 월 납부액 합계</span><b id="lowmo-total">총 0원</b></div>
+   <button class="pay-card" type="button" role="radio" aria-checked="false" data-plan="plan222">
+    <div class="pay-heading"><span class="radio-mark"></span><span>초기비용과 월납부의 균형을 원한다면</span><span class="pay-tag">월 222,000원</span></div>
+    <div class="pay-main"><span>월 렌탈료</span><strong id="p222-monthly">222,000<small>원</small></strong></div>
+    <div class="pay-facts"><span>초회납입금 <b id="p222-upfront">0원</b></span><span>약정기간 <b>60개월</b></span></div>
    </button>
-   <div class="rental-actions" data-plan-actions="lowmonthly" hidden>
-    <button type="button" class="rental-consult" data-rental-consult="lowmonthly">상담하기</button>
-    <button type="button" class="rental-apply" data-rental-open="lowmonthly">렌탈 신청하기 <span aria-hidden="true">→</span></button>
+   <div class="rental-actions" data-plan-actions="plan222" hidden>
+    <button type="button" class="rental-consult" data-rental-consult="plan222">상담하기</button>
+    <button type="button" class="rental-apply" data-rental-open="plan222">렌탈 신청하기 <span aria-hidden="true">→</span></button>
+   </div>
+  </div>
+  <!-- 렌탈 플랜 3: 월 333,000원 (1,500만원 기준 차액이 초회납입금) -->
+  <div class="rental-option">
+   <button class="pay-card" type="button" role="radio" aria-checked="false" data-plan="plan333">
+    <div class="pay-heading"><span class="radio-mark"></span><span>처음 내는 목돈을 최소화하고 싶다면</span><span class="pay-tag">월 333,000원</span></div>
+    <div class="pay-main"><span>월 렌탈료</span><strong id="p333-monthly">333,000<small>원</small></strong></div>
+    <div class="pay-facts"><span>초회납입금 <b id="p333-upfront">0원</b></span><span>약정기간 <b>60개월</b></span></div>
+   </button>
+   <div class="rental-actions" data-plan-actions="plan333" hidden>
+    <button type="button" class="rental-consult" data-rental-consult="plan333">상담하기</button>
+    <button type="button" class="rental-apply" data-rental-open="plan333">렌탈 신청하기 <span aria-hidden="true">→</span></button>
    </div>
   </div>
  </div>
  <button class="primary full" id="plan-cta">일시불 결제 상담하기<svg><use href="#i-arrow"/></svg></button>
- <p class="fineprint">렌탈 총 납부액은 초기 납입액과 60개월 월 납부액의 합계입니다. 계약 조건은 상담 시 확인해주세요.</p>
+ <p class="fineprint">렌탈 초회납입금 및 월 렌탈료는 계약 조건 및 심사 결과에 따라 확정되며, 상세 사항은 전담 상담사가 안내해 드립니다.</p>
  <button class="help-link" type="button" data-consult="결제 방식 비교">아직 고민되세요? <b>결제 방법 함께 비교하기</b><svg><use href="#i-arrow"/></svg></button>
 </section>
 

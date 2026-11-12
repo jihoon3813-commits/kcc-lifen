@@ -1,0 +1,13 @@
+{
+  "name": "kcc-homecc-rental-landing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "KCC 홈씨씨 창호 렌탈 PC·모바일 랜딩페이지 인계본",
+  "scripts": {
+    "dev": "node tools/preview.mjs",
+    "start": "node tools/preview.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

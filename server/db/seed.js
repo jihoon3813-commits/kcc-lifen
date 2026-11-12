@@ -57,14 +57,11 @@ export function seedDatabase() {
 
   // Products
   const insertProduct = db.prepare('INSERT INTO products (name, code, price_text, category, url) VALUES (?, ?, ?, ?, ?)');
-  insertProduct.run('KCC 홈씨씨 창호', 'PROD_WINDOW', '맞춤견적', '창호', 'https://kcchomecc-partner.com/products/rental');
+  insertProduct.run('KCC 홈씨씨 창호', 'PROD_WINDOW', '맞춤견적', '창호', '/landing/');
   insertProduct.run('KCC 홈씨씨 키친', 'PROD_KITCHEN', '맞춤견적', '주방', 'https://kcchomecc-partner.com/products/kitchen');
   insertProduct.run('KCC 홈씨씨 욕실', 'PROD_BATH', '맞춤견적', '욕실', 'https://kcchomecc-partner.com/products/bath');
 
-  // Consent forms
-  const insertForm = db.prepare('INSERT INTO consent_forms (id, title, version, content) VALUES (?, ?, ?, ?)');
-  insertForm.run('privacy', '상담 신청 개인정보 동의서', 1, `상품 상담 및 방문 실측 안내를 위한 이름, 연락처, 시공 주소 수집·이용 동의서입니다.\n보유기간: 상담 종료 후 1년(계약 체결 시 관계 법령 보존기간 적용)`);
-  insertForm.run('contract', '시공 표준 계약서', 1, `계약 당사자, 공사 범위, 확정 견적 금액, 시공 일정, 선금·잔금 지급 조건 및 KCC홈씨씨 품질보증 기준을 적용합니다.`);
+  // Consent forms - 사용자 요청: '(렌탈) 개인정보 동의서'만 유지하고 나머지 양식 제거
   ensureApprovedRentalTerms();
 
   // Customers & Projects (3101 ~ 3110)

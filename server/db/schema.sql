@@ -394,10 +394,13 @@ CREATE TABLE IF NOT EXISTS system_contract_statuses (
 );
 
 CREATE TABLE IF NOT EXISTS consent_forms (
-  id TEXT PRIMARY KEY, -- 'privacy', 'marketing', 'contract'
+  id TEXT PRIMARY KEY, -- 'rental_privacy'
   title TEXT NOT NULL,
   version INTEGER NOT NULL DEFAULT 1,
   content TEXT NOT NULL,
+  pdf_path TEXT,
+  file_name TEXT,
+  fields_config TEXT,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

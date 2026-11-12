@@ -1,10 +1,42 @@
 import express from 'express';
-import { db } from '../db/index.js';
+import path from 'node:path';
+import fs from 'node:fs';
+import multer from 'multer';
+import { config } from '../config.js';
+import { db, DEFAULT_RENTAL_FIELDS_CONFIG, DEFAULT_RENTAL_PRIVACY_CONTENT } from '../db/index.js';
 import { requireAuth, requireRole, requireMenu } from '../middleware/auth.js';
 import { seedDatabase } from '../db/seed.js';
-import { deleteEncryptedObject } from '../utils/rentalSecurity.js';
+import { deleteEncryptedObject, decryptText, readEncryptedObject } from '../utils/rentalSecurity.js';
 
 const router = express.Router();
+
+const formsUploadDir = path.join(config.uploadsDir, 'forms');
+if (!fs.existsSync(formsUploadDir)) {
+  fs.mkdirSync(formsUploadDir, { recursive: true });
+}
+
+const pdfStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, formsUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.pdf';
+    const safeName = `form_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${ext}`;
+    cb(null, safeName);
+  }
+});
+
+const pdfUpload = multer({
+  storage: pdfStorage,
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf')) {
+      cb(null, true);
+    } else {
+      cb(new Error('PDF 파일만 업로드할 수 있습니다.'));
+    }
+  }
+});
 
 // 1. Get Labels
 router.get('/labels', requireAuth, (req, res) => {
@@ -144,69 +176,323 @@ router.delete('/contract-statuses/:id', requireAuth, requireMenu('settings'), (r
   res.json({ success: true, deletedName: current.name, message: '계약·수납 상태가 삭제되었습니다.' });
 });
 
+const STANDARD_RENTAL_FIELD_LABELS = {
+  date: '날짜',
+  name: '성명',
+  signature: '서명',
+  birthDate: '생년월일',
+  phone: '연락처'
+};
+
+function sanitizeFieldsConfig(cfg) {
+  if (!cfg) return DEFAULT_RENTAL_FIELDS_CONFIG;
+
+  // 다중 페이지 필드 인스턴스 배열 지원
+  if (Array.isArray(cfg)) {
+    const list = cfg.map((it, idx) => {
+      const key = ['date', 'name', 'signature', 'birthDate', 'phone'].includes(it.key) ? it.key : 'name';
+      const label = STANDARD_RENTAL_FIELD_LABELS[key] || '성명';
+      const id = it.id || `f_${key}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
+      const page = Math.max(1, parseInt(it.page, 10) || 1);
+      return {
+        id,
+        key,
+        label,
+        page,
+        x: typeof it.x === 'number' ? Math.max(0, Math.min(100, it.x)) : 50,
+        y: typeof it.y === 'number' ? Math.max(0, Math.min(100, it.y)) : 80,
+        w: typeof it.w === 'number' ? Math.max(2, Math.min(100, it.w)) : (key === 'signature' ? 16 : 20),
+        h: typeof it.h === 'number' ? Math.max(1, Math.min(100, it.h)) : (key === 'signature' ? 6.8 : 3.6),
+        fontSize: parseInt(it.fontSize, 10) || (key === 'name' ? 15 : 14),
+        fontWeight: it.fontWeight || (key === 'name' ? 'bold' : 'normal'),
+        color: it.color || '#1a202c',
+        align: it.align || 'center',
+        format: (key === 'date' && (!it.format || it.format.includes('?')))
+          ? 'YYYY년 MM월 DD일'
+          : (it.format || (key === 'birthDate' ? 'YYYY-MM-DD' : undefined)),
+        enabled: it.enabled !== false
+      };
+    });
+    return list;
+  }
+
+  // 레거시 단일 맵 객체
+  if (typeof cfg === 'object') {
+    const result = {};
+    for (const [key, label] of Object.entries(STANDARD_RENTAL_FIELD_LABELS)) {
+      const item = cfg[key] || DEFAULT_RENTAL_FIELDS_CONFIG[key] || {};
+      result[key] = {
+        ...item,
+        key,
+        label, // 항상 올바른 한글 명칭 강제 보장
+        page: parseInt(item.page, 10) || 1,
+        format: (key === 'date' && (!item.format || item.format.includes('?')))
+          ? 'YYYY년 MM월 DD일'
+          : (item.format || (key === 'birthDate' ? 'YYYY-MM-DD' : undefined))
+      };
+    }
+    return result;
+  }
+
+  return DEFAULT_RENTAL_FIELDS_CONFIG;
+}
+
 // 3. Get Consent Forms
+// 사용자 요청: '(렌탈) 개인정보 동의서'만 유지하고 나머지 양식은 삭제
 router.get('/forms', requireAuth, (req, res) => {
-  const forms = db.prepare('SELECT * FROM consent_forms ORDER BY id ASC').all();
+  // 비-렌탈 불필요 양식 자동 정리
+  try {
+    db.prepare("DELETE FROM consent_forms WHERE id NOT IN ('rental_privacy', 'rental_collection')").run();
+  } catch {}
+
+  // rental_privacy 기본 보장
+  let mainForm = db.prepare("SELECT * FROM consent_forms WHERE id = 'rental_privacy'").get();
+  if (!mainForm) {
+    db.prepare(`
+      INSERT INTO consent_forms (id, title, version, content, fields_config)
+      VALUES (?, ?, 1, ?, ?)
+    `).run(
+      'rental_privacy',
+      '(렌탈) 개인정보 동의서',
+      DEFAULT_RENTAL_PRIVACY_CONTENT,
+      JSON.stringify(DEFAULT_RENTAL_FIELDS_CONFIG)
+    );
+    mainForm = db.prepare("SELECT * FROM consent_forms WHERE id = 'rental_privacy'").get();
+  }
+
+  // 관리자 양식관리 목록에는 메인 (렌탈) 개인정보 동의서 (및 사용자 신규 추가 양식) 표시
+  const forms = db.prepare("SELECT * FROM consent_forms WHERE id != 'rental_collection' ORDER BY id ASC").all();
+
   res.json({
-    forms: forms.map(f => ({
-      id: f.id,
-      name: f.title,
-      version: f.version,
-      text: f.content
-    }))
+    forms: forms.map(f => {
+      let parsedFields = null;
+      if (f.fields_config) {
+        try { parsedFields = JSON.parse(f.fields_config); } catch {}
+      }
+      return {
+        id: f.id,
+        name: f.title,
+        version: f.version,
+        text: f.content,
+        pdfPath: f.pdf_path || null,
+        fileName: f.file_name || null,
+        fieldsConfig: sanitizeFieldsConfig(parsedFields)
+      };
+    })
   });
 });
 
-// Update Consent Form (Saves previous version to history)
+function decodeKoreanFileName(rawName) {
+  if (!rawName) return 'form.pdf';
+  try {
+    const decoded = Buffer.from(rawName, 'latin1').toString('utf8');
+    if (decoded && !decoded.includes('\ufffd')) {
+      return decoded;
+    }
+  } catch {}
+  return rawName;
+}
+
+// PDF 파일 업로드 엔드포인트 (한글 파일명 깨짐 방지 디코딩 적용)
+router.post('/forms/upload-pdf', requireAuth, requireMenu('settings'), (req, res) => {
+  pdfUpload.single('file')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'PDF 업로드에 실패했습니다.' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: '업로드할 PDF 파일을 선택해 주세요.' });
+    }
+    const pdfUrl = `/uploads/forms/${req.file.filename}`;
+    const clientFileName = req.body?.fileName ? String(req.body.fileName).trim() : '';
+    const safeOriginalName = clientFileName || decodeKoreanFileName(req.file.originalname);
+
+    res.json({
+      success: true,
+      pdfPath: pdfUrl,
+      fileName: safeOriginalName,
+      size: req.file.size
+    });
+  });
+});
+
+// 렌탈 신청 고객 정보 및 서명 목록 조회 (미리보기 연동용)
+router.get('/forms/rental-applicants', requireAuth, (req, res) => {
+  try {
+    const apps = db.prepare(`
+      SELECT ra.id, ra.customer_name, ra.customer_phone, ra.created_at, ra.status_code, ra.plan_title,
+             rp.masked_birth_date, rp.encrypted_birth_date, rp.encrypted_phone,
+             rdv.private_object_key, rdv.mime_type
+      FROM rental_applications ra
+      LEFT JOIN rental_applicant_private rp ON ra.id = rp.application_id
+      LEFT JOIN rental_document_versions rdv ON ra.id = rdv.application_id AND rdv.kind = 'signature' AND rdv.deleted_at IS NULL
+      ORDER BY ra.created_at DESC
+      LIMIT 20
+    `).all();
+
+    const results = apps.map(app => {
+      let plainBirth = '';
+      if (app.encrypted_birth_date) {
+        try { plainBirth = decryptText(app.encrypted_birth_date); } catch { plainBirth = app.masked_birth_date || ''; }
+      } else {
+        plainBirth = app.masked_birth_date || '1985-03-15';
+      }
+
+      let plainPhone = app.customer_phone;
+      if (app.encrypted_phone) {
+        try { plainPhone = decryptText(app.encrypted_phone); } catch {}
+      }
+
+      let signatureDataUrl = null;
+      if (app.private_object_key) {
+        try {
+          const buf = readEncryptedObject(app.private_object_key);
+          if (buf && buf.length > 0) {
+            signatureDataUrl = `data:${app.mime_type || 'image/png'};base64,${buf.toString('base64')}`;
+          }
+        } catch (err) {}
+      }
+
+      let dateStr = '';
+      if (app.created_at) {
+        const d = new Date(app.created_at);
+        if (!isNaN(d.getTime())) {
+          dateStr = `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 ${String(d.getDate()).padStart(2, '0')}일`;
+        }
+      }
+      if (!dateStr) {
+        const now = new Date();
+        dateStr = `${now.getFullYear()}년 ${String(now.getMonth() + 1).padStart(2, '0')}월 ${String(now.getDate()).padStart(2, '0')}일`;
+      }
+
+      return {
+        id: app.id,
+        customerName: app.customer_name || '한지우',
+        phone: plainPhone || '010-0000-1006',
+        birthDate: plainBirth || '1985-03-15',
+        date: dateStr,
+        signatureDataUrl,
+        planTitle: app.plan_title || '초기 부담을 줄이는 렌탈 (60개월)',
+        status: app.status_code
+      };
+    });
+
+    // 신청 데이터가 없을 경우를 대비한 기본 샘플 고객
+    if (results.length === 0) {
+      const now = new Date();
+      results.push({
+        id: 'SAMPLE-001',
+        customerName: '한지우',
+        phone: '010-8888-9999',
+        birthDate: '1988-06-25',
+        date: `${now.getFullYear()}년 ${String(now.getMonth() + 1).padStart(2, '0')}월 ${String(now.getDate()).padStart(2, '0')}일`,
+        signatureDataUrl: null,
+        planTitle: '60개월 렌탈 (스마트 플랜)',
+        status: 'received'
+      });
+    }
+
+    res.json({ applicants: results });
+  } catch (err) {
+    console.error('Failed to get rental applicants for form preview:', err);
+    res.status(500).json({ error: '신청 고객 목록을 불러오지 못했습니다.' });
+  }
+});
+
+// Update Consent Form (Saves previous version to history, updates fieldsConfig, pdfPath)
 router.patch('/forms/:id', requireAuth, requireMenu('settings'), (req, res) => {
   const { id } = req.params;
-  const { text } = req.body;
+  const { text, name, fieldsConfig, pdfPath, fileName } = req.body;
 
   const current = db.prepare('SELECT * FROM consent_forms WHERE id = ?').get(id);
   if (!current) return res.status(404).json({ error: '양식을 찾을 수 없습니다.' });
 
   // Record history
-  db.prepare(`
-    INSERT INTO consent_history (form_id, version, content, updated_by)
-    VALUES (?, ?, ?, ?)
-  `).run(id, current.version, current.content, req.user.name);
+  try {
+    db.prepare(`
+      INSERT INTO consent_history (form_id, version, content, updated_by)
+      VALUES (?, ?, ?, ?)
+    `).run(id, current.version, current.content, req.user.name);
+  } catch {}
 
   // Update to new version
   const newVer = current.version + 1;
+  const nextTitle = name !== undefined && String(name).trim() ? String(name).trim() : current.title;
+  const nextContent = text !== undefined && String(text).trim() ? String(text).trim() : current.content;
+  const nextPdfPath = pdfPath !== undefined ? pdfPath : current.pdf_path;
+  const nextFileName = fileName !== undefined ? fileName : current.file_name;
+
+  let sanitizedConfig = null;
+  if (fieldsConfig !== undefined) {
+    let parsed = fieldsConfig;
+    if (typeof parsed === 'string') {
+      try { parsed = JSON.parse(parsed); } catch {}
+    }
+    sanitizedConfig = sanitizeFieldsConfig(parsed);
+  } else if (current.fields_config) {
+    try { sanitizedConfig = sanitizeFieldsConfig(JSON.parse(current.fields_config)); } catch {}
+  } else {
+    sanitizedConfig = DEFAULT_RENTAL_FIELDS_CONFIG;
+  }
+
+  const nextFields = JSON.stringify(sanitizedConfig);
+
   db.prepare(`
     UPDATE consent_forms
-    SET version = ?, content = ?, updated_at = CURRENT_TIMESTAMP
+    SET title = ?, version = ?, content = ?, pdf_path = ?, file_name = ?, fields_config = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(newVer, text, id);
+  `).run(nextTitle, newVer, nextContent, nextPdfPath, nextFileName, nextFields, id);
 
-  res.json({ success: true, version: newVer, message: '새 양식 버전이 저장되었습니다.' });
+  res.json({
+    success: true,
+    version: newVer,
+    message: '새 양식 버전 및 필드 설정이 저장되었습니다.',
+    form: {
+      id,
+      name: nextTitle,
+      version: newVer,
+      text: nextContent,
+      pdfPath: nextPdfPath,
+      fileName: nextFileName,
+      fieldsConfig: sanitizedConfig
+    }
+  });
 });
 
 // Create Consent Form
 router.post('/forms', requireAuth, requireMenu('settings'), (req, res) => {
-  const { name, text } = req.body;
+  const { name, text, pdfPath, fileName, fieldsConfig } = req.body;
   const title = (name || '').trim();
-  const content = (text || '').trim();
+  const content = (text || '').trim() || DEFAULT_RENTAL_PRIVACY_CONTENT;
 
   if (!title) return res.status(400).json({ error: '양식 명칭을 입력해 주세요.' });
-  if (!content) return res.status(400).json({ error: '양식 내용을 입력해 주세요.' });
 
   const id = 'form_' + Date.now();
-  db.prepare(`
-    INSERT INTO consent_forms (id, title, version, content)
-    VALUES (?, ?, 1, ?)
-  `).run(id, title, content);
+  const fieldsJson = fieldsConfig ? (typeof fieldsConfig === 'object' ? JSON.stringify(fieldsConfig) : String(fieldsConfig)) : JSON.stringify(DEFAULT_RENTAL_FIELDS_CONFIG);
 
-  const updatedForms = db.prepare('SELECT * FROM consent_forms ORDER BY id ASC').all();
+  db.prepare(`
+    INSERT INTO consent_forms (id, title, version, content, pdf_path, file_name, fields_config)
+    VALUES (?, ?, 1, ?, ?, ?, ?)
+  `).run(id, title, content, pdfPath || null, fileName || null, fieldsJson);
+
+  const updatedForms = db.prepare("SELECT * FROM consent_forms WHERE id != 'rental_collection' ORDER BY id ASC").all();
   res.json({
     success: true,
     message: `'${title}' 양식이 추가되었습니다.`,
-    forms: updatedForms.map(f => ({
-      id: f.id,
-      name: f.title,
-      version: f.version,
-      text: f.content
-    }))
+    forms: updatedForms.map(f => {
+      let parsedFields = null;
+      if (f.fields_config) {
+        try { parsedFields = JSON.parse(f.fields_config); } catch {}
+      }
+      return {
+        id: f.id,
+        name: f.title,
+        version: f.version,
+        text: f.content,
+        pdfPath: f.pdf_path || null,
+        fileName: f.file_name || null,
+        fieldsConfig: parsedFields || DEFAULT_RENTAL_FIELDS_CONFIG
+      };
+    })
   });
 });
 
@@ -217,7 +503,7 @@ router.delete('/forms/:id', requireAuth, requireMenu('settings'), (req, res) => 
   const current = db.prepare('SELECT * FROM consent_forms WHERE id = ?').get(id);
   if (!current) return res.status(404).json({ error: '삭제할 양식을 찾을 수 없습니다.' });
 
-  const total = db.prepare('SELECT COUNT(*) as count FROM consent_forms').get().count;
+  const total = db.prepare("SELECT COUNT(*) as count FROM consent_forms WHERE id != 'rental_collection'").get().count;
   if (total <= 1) {
     return res.status(400).json({ error: '최소 1개 이상의 양식 및 동의서는 유지되어야 합니다.' });
   }
@@ -228,18 +514,27 @@ router.delete('/forms/:id', requireAuth, requireMenu('settings'), (req, res) => 
   });
   delTx();
 
-  const updatedForms = db.prepare('SELECT * FROM consent_forms ORDER BY id ASC').all();
+  const updatedForms = db.prepare("SELECT * FROM consent_forms WHERE id != 'rental_collection' ORDER BY id ASC").all();
   res.json({
     success: true,
     deletedId: id,
     deletedName: current.title,
     message: `'${current.title}' 양식이 삭제되었습니다.`,
-    forms: updatedForms.map(f => ({
-      id: f.id,
-      name: f.title,
-      version: f.version,
-      text: f.content
-    }))
+    forms: updatedForms.map(f => {
+      let parsedFields = null;
+      if (f.fields_config) {
+        try { parsedFields = JSON.parse(f.fields_config); } catch {}
+      }
+      return {
+        id: f.id,
+        name: f.title,
+        version: f.version,
+        text: f.content,
+        pdfPath: f.pdf_path || null,
+        fileName: f.file_name || null,
+        fieldsConfig: parsedFields || DEFAULT_RENTAL_FIELDS_CONFIG
+      };
+    })
   });
 });
 

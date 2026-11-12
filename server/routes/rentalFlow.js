@@ -219,6 +219,27 @@ customerRentalRouter.get('/context', (req, res) => {
       publishedAt: quote.published_at
     },
     plans: {
+      plan111: {
+        title: allPlans.plan111.name,
+        upfront: allPlans.plan111.upfront,
+        monthly: allPlans.plan111.mainAmount,
+        months: allPlans.plan111.months,
+        total: allPlans.plan111.total
+      },
+      plan222: {
+        title: allPlans.plan222.name,
+        upfront: allPlans.plan222.upfront,
+        monthly: allPlans.plan222.mainAmount,
+        months: allPlans.plan222.months,
+        total: allPlans.plan222.total
+      },
+      plan333: {
+        title: allPlans.plan333.name,
+        upfront: allPlans.plan333.upfront,
+        monthly: allPlans.plan333.mainAmount,
+        months: allPlans.plan333.months,
+        total: allPlans.plan333.total
+      },
       lowupfront: {
         title: allPlans.lowupfront.name,
         upfront: allPlans.lowupfront.upfront,
@@ -395,7 +416,7 @@ customerRentalRouter.post('/applications', async (req, res) => {
   // Plan validation & server-authoritative price calculation
   const planKey = String(quoteInput.plan || '').trim();
   const serverPlans = buildRentalPlans(dbQuote.total_price, dbQuote.discount_amount);
-  if (!['lowupfront', 'lowmonthly'].includes(planKey) || !serverPlans[planKey]) {
+  if (!['lowupfront', 'lowmonthly', 'plan111', 'plan222', 'plan333'].includes(planKey) || !serverPlans[planKey]) {
     return res.status(422).json({ error: '유효한 렌탈 플랜을 선택해 주세요.', field: 'plan' });
   }
   const chosenPlan = serverPlans[planKey];

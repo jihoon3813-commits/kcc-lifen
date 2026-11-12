@@ -97,6 +97,105 @@ function getUserAllowedMenuKeys(u) {
   return norm.allowed_menus;
 }
 
+const STANDARD_FIELD_LABELS = {
+  date: '날짜',
+  name: '성명',
+  signature: '서명',
+  birthDate: '생년월일',
+  phone: '연락처'
+};
+
+const DEFAULT_FIELD_TEMPLATES = {
+  date: { key: 'date', label: '날짜', x: 58.0, y: 78.5, w: 32.0, h: 3.6, fontSize: 14, color: '#1a202c', align: 'center', format: 'YYYY년 MM월 DD일', enabled: true },
+  name: { key: 'name', label: '성명', x: 62.0, y: 83.2, w: 16.0, h: 3.6, fontSize: 15, color: '#1a202c', align: 'center', fontWeight: 'bold', enabled: true },
+  signature: { key: 'signature', label: '서명', x: 78.5, y: 81.2, w: 16.0, h: 6.8, color: '#1a202c', enabled: true },
+  birthDate: { key: 'birthDate', label: '생년월일', x: 18.0, y: 83.2, w: 28.0, h: 3.6, fontSize: 14, color: '#1a202c', align: 'center', format: 'YYYY-MM-DD', enabled: true },
+  phone: { key: 'phone', label: '연락처', x: 18.0, y: 87.5, w: 28.0, h: 3.6, fontSize: 14, color: '#1a202c', align: 'center', enabled: true }
+};
+
+function getSafeFieldLabel(key, f) {
+  if (f && typeof f.label === 'string' && f.label.trim() && !f.label.includes('?')) {
+    return f.label.trim();
+  }
+  return STANDARD_FIELD_LABELS[key] || key;
+}
+
+// 다중 페이지 필드 인스턴스 배열 정규화 함수
+function normalizeFormFields(rawConfig) {
+  if (Array.isArray(rawConfig)) {
+    return rawConfig.map((it, idx) => {
+      const key = ['date', 'name', 'signature', 'birthDate', 'phone'].includes(it.key) ? it.key : 'name';
+      const label = STANDARD_FIELD_LABELS[key] || '성명';
+      const page = Math.max(1, parseInt(it.page, 10) || 1);
+      return {
+        id: it.id || `f_${key}_p${page}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
+        key,
+        label,
+        page,
+        x: typeof it.x === 'number' ? it.x : 50.0,
+        y: typeof it.y === 'number' ? it.y : 80.0,
+        w: typeof it.w === 'number' ? it.w : (key === 'signature' ? 16.0 : 20.0),
+        h: typeof it.h === 'number' ? it.h : (key === 'signature' ? 6.8 : 3.6),
+        fontSize: parseInt(it.fontSize, 10) || (key === 'name' ? 15 : 14),
+        fontWeight: it.fontWeight || (key === 'name' ? 'bold' : 'normal'),
+        color: it.color || '#1a202c',
+        align: it.align || 'center',
+        format: (key === 'date' && (!it.format || it.format.includes('?')))
+          ? 'YYYY년 MM월 DD일'
+          : (it.format || (key === 'birthDate' ? 'YYYY-MM-DD' : undefined)),
+        enabled: it.enabled !== false
+      };
+    });
+  }
+
+  // 레거시 맵 객체 { date: {...}, name: {...}, ... } 지원
+  const list = [];
+  const cfg = (rawConfig && typeof rawConfig === 'object') ? rawConfig : DEFAULT_FIELD_TEMPLATES;
+  for (const k of ['date', 'name', 'signature', 'birthDate', 'phone']) {
+    const item = cfg[k] || DEFAULT_FIELD_TEMPLATES[k];
+    const page = Math.max(1, parseInt(item.page, 10) || 1);
+    list.push({
+      id: `f_${k}_p${page}_${Math.random().toString(36).slice(2, 6)}`,
+      key: k,
+      label: STANDARD_FIELD_LABELS[k] || k,
+      page,
+      x: typeof item.x === 'number' ? item.x : DEFAULT_FIELD_TEMPLATES[k].x,
+      y: typeof item.y === 'number' ? item.y : DEFAULT_FIELD_TEMPLATES[k].y,
+      w: typeof item.w === 'number' ? item.w : DEFAULT_FIELD_TEMPLATES[k].w,
+      h: typeof item.h === 'number' ? item.h : DEFAULT_FIELD_TEMPLATES[k].h,
+      fontSize: parseInt(item.fontSize, 10) || DEFAULT_FIELD_TEMPLATES[k].fontSize,
+      fontWeight: item.fontWeight || DEFAULT_FIELD_TEMPLATES[k].fontWeight || 'normal',
+      color: item.color || '#1a202c',
+      align: item.align || 'center',
+      format: (k === 'date' && (!item.format || item.format.includes('?')))
+        ? 'YYYY년 MM월 DD일'
+        : (item.format || DEFAULT_FIELD_TEMPLATES[k].format),
+      enabled: item.enabled !== false
+    });
+  }
+  return list;
+}
+
+const DEFAULT_FORM_FIELDS = normalizeFormFields(DEFAULT_FIELD_TEMPLATES);
+
+const DEFAULT_RENTAL_PRIVACY_CONTENT = `[필수] 렌탈 개인정보 수집·이용 및 제공 동의서 (KCC홈씨씨)
+
+1. 수집 및 이용 목적
+- KCC 홈씨씨 창호·인테리어 렌탈 서비스 신청 접수, 적격 확인, 본인 확인
+- 렌탈 계약 체결 및 유지 관리, 월 렌탈료 정산 및 청구
+- 시공 현장 실측, 일정 조율 및 사후 품질보증(A/S) 제공
+
+2. 수집하는 개인정보 항목
+- 기본 식별정보: 고객 성명, 연락처(휴대전화번호), 생년월일, 시공 주소
+- 계약 및 서명정보: 모바일 전자서명 이미지, 신청일자, 선택 렌탈 조건
+
+3. 보유 및 이용 기간
+- 렌탈 계약 성립 시: 상법 및 전자상거래법 등 관계 법령에 따른 5년간 보존 후 파기
+- 미체결 또는 취소 시: 처리 완료일로부터 즉시 안전하게 영구 파기
+
+4. 동의 거부 권리 및 불이익
+- 귀하는 상기 개인정보 수집 및 이용에 대한 동의를 거부할 권리가 있습니다. 단, 필수 정보 수집에 동의하지 않으실 경우 렌탈 신청 및 계약 체결이 불가능합니다.`;
+
 const initial=()=>({customers:[
 {id:3101,name:'김서연',phone:'010-0000-1001',address:'경기 하남시 미사강변 · 34평',product:'창호',status:'신규접수',label:'일반',source:'네이버 검색광고',partner:'직영',owner:'미배정',date:'2026-11-12',note:'거실과 안방 창호 교체 상담을 신청했습니다.',feedback:'상담 후 공사 범위를 확인해 주세요.',measure:'',build:'',quote:0,viewed:false},
 {id:3102,name:'이준호',phone:'010-0000-1002',address:'경기 파주시 운정신도시 · 32평',product:'창호',status:'가견적요청',label:'긴급',source:'네이버 검색광고',partner:'직영',owner:'오영진',date:'2026-11-12',note:'전체 창호 교체 희망. 12월 초 입주 전 공사 요청.',feedback:'평면도 수령 완료, 영업지원팀 견적 산출 중입니다.',measure:'',build:'2026-12-03',quote:0,viewed:false},
@@ -108,8 +207,20 @@ const initial=()=>({customers:[
 {id:3108,name:'김하린',phone:'010-0000-1008',address:'경기 남양주시 다산동 · 25평',product:'주방',status:'가견적요청',label:'일반',source:'네이버 블로그',partner:'리움디자인',owner:'마지희',date:'2026-11-10',note:'아일랜드 확장과 수납장 교체 2가지 안으로 요청.',feedback:'고객 전달 규격 확인 완료.',measure:'',build:'',quote:0,viewed:false},
 {id:3109,name:'이수아',phone:'010-0000-1009',address:'경기 수원시 영통구 · 36평',product:'창호',status:'견적안내',label:'일반',source:'네이버 검색광고',partner:'직영',owner:'김정연',date:'2026-11-09',note:'전체 교체 견적 전달. 가족과 상의 후 실측 신청 예정.',feedback:'내관도와 제품 사양을 함께 안내했습니다.',measure:'',build:'',quote:14850000,viewed:true},
 {id:3110,name:'서민재',phone:'010-0000-1010',address:'서울 노원구 중계동 · 27평',product:'욕실',status:'시공완료',label:'완료',source:'직접등록',partner:'직영',owner:'마지희',date:'2026-11-06',note:'시공 완료 및 고객 검수 확인. 잔금 수납 완료.',feedback:'공사 완료 사진 4장이 등록되었습니다.',measure:'2026-11-02',build:'2026-11-10',quote:5500000,viewed:true}
-],partners:[{id:'P001',name:'한빛인테리어',person:'이현우',email:'hanbit@example.com',type:'인테리어',active:true},{id:'P002',name:'리움디자인',person:'박수진',email:'rium@example.com',type:'영업대행',active:true},{id:'P003',name:'온유하우스',person:'정지훈',email:'onyou@example.com',type:'인테리어',active:false}],users:[{id:1,username:'admin',name:'김지훈',role:'hq_admin',org:'라이프앤조이',email:'admin@example.com',active:true},{id:2,username:'youngjin',name:'오영진',role:'consultant',org:'라이프앤조이',email:'youngjin@example.com',active:true},{id:3,username:'jeongyeon',name:'김정연',role:'estimator',org:'라이프앤조이',email:'jeongyeon@example.com',active:true},{id:4,username:'jihee',name:'마지희',role:'accountant',org:'라이프앤조이',email:'jihee@example.com',active:true},{id:5,username:'partner_hanbit',name:'한빛인테리어',role:'partner',org:'한빛인테리어',email:'hanbit@example.com',active:true}],labels:[{name:'일반',color:'#7194dd'},{name:'긴급',color:'#e88485'},{name:'체크',color:'#c39b56'},{name:'완료',color:'#74b6a1'}],contractStatuses:DEFAULT_CONTRACT_STATUSES.map(x=>({...x})),notes:{3102:[{date:'11.12 11:10',by:'오영진',text:'전체 창호 교체 희망. 12월 초 입주 전 공사 요청. 가족과 상의 후 실측 일정을 잡기로 했습니다.',type:'notes',important:true},{date:'11.12 10:35',by:'오영진',text:'32평 아파트 전체 창호와 거실 발코니 확장부 확인. 단열 성능과 외부 소음 차단을 우선으로 안내했습니다.',type:'notes'},{date:'11.12 10:05',by:'오영진',text:'평면도 수령 완료. 거실과 침실별 규격을 정리하여 가견적 산출을 요청했습니다.',type:'notes'},{date:'11.12 09:45',by:'오영진',text:'첫 상담 완료. 통화 가능 시간은 오후 1시 이후이며, 견적서는 모바일로 확인하기를 희망합니다.',type:'notes'}],3104:[{date:'11.11 16:40',by:'오영진',text:'11/12 오후 2시 방문 실측 확정. 경비실 호출 필요. 고객에게 방문 담당자와 연락 방법을 안내했습니다.',type:'notes',important:true},{date:'11.11 14:20',by:'오영진',text:'고객이 가견적서를 확인했습니다. 실측 후 공사 범위와 최종 금액을 확정하기로 했습니다.',type:'notes'},{date:'11.11 10:10',by:'오영진',text:'전체 창호 교체 상담. 공사 일정은 12월 1일을 희망하며 거주 중 시공이 가능한지 문의했습니다.',type:'notes'}]},history:{3102:[{date:'11.12 10:35',by:'오영진',text:'공사 희망사항 추가 · 단열 및 방음 우선'},{date:'11.12 10:10',by:'오영진',text:'진행구분 변경 · 상담중 → 가견적요청'},{date:'11.12 10:05',by:'오영진',text:'평면도 수령 및 영업지원팀 전달'},{date:'11.12 09:45',by:'오영진',text:'진행라벨 변경 · 일반 → 긴급'}]},quotes:[],applications:[{id:'R-261112-001',cid:3106,plan:'60개월',monthly:264000,status:'서류검토',date:'2026-11-12',createdAt:new Date(Date.now()-2*3600*1000).toISOString()}],contracts:[{id:'C-261112-001',cid:3106,type:'렌탈',amount:13200000,paid:0,status:'약정대기',date:'2026-11-12',createdAt:new Date(Date.now()-3*3600*1000).toISOString()},{id:'C-261110-002',cid:3107,type:'일시불(현금)',amount:11000000,paid:3300000,status:'선금완료',date:'2026-11-10',createdAt:'2026-11-10T14:20:00+09:00'},{id:'C-261106-003',cid:3110,type:'일시불(현금)',amount:5500000,paid:5500000,status:'수납완료',date:'2026-11-06',createdAt:'2026-11-06T17:00:00+09:00'}],products:[{name:'KCC 홈씨씨 창호',category:'창호',desc:'우리 집에 맞는 창호 교체, 상담부터 시공까지.',url:'https://kcchomecc-partner.com/products/rental',icon:'window',color:'#edf3f9',views:1248,active:true},{name:'KCC 홈씨씨 키친',category:'주방',desc:'생활의 중심이 되는 주방, 맞춤 리모델링 상담.',url:'',icon:'kitchen',color:'#f4f1ec',views:682,active:true},{name:'KCC 홈씨씨 욕실',category:'욕실',desc:'매일의 편안함을 만드는 욕실 리모델링.',url:'',icon:'bath',color:'#edf4f1',views:391,active:false}],forms:[{name:'렌탈 개인정보 수집·이용 동의서',version:1,text:'[검토용 예시 양식]\n목적: 렌탈 신청 접수 및 상담\n수집 항목: 이름, 연락처, 신청 정보\n보유기간: 실제 운영 정책 확정 후 기재\n제공받는 자와 처리위탁 등은 렌탈사별 계약에 따라 확정합니다.\n본 양식은 실제 고객 접수용으로 사용할 수 없습니다.'},{name:'상담 신청 개인정보 동의서',version:1,text:'[검토용 예시 양식]\n상품 상담을 위한 이름과 연락처 수집·이용 동의입니다.\n실제 운영 전 수집 목적, 항목, 보유기간, 동의 거부 권리를 확정합니다.'},{name:'시공 계약서',version:1,text:'[검토용 예시 양식]\n계약 당사자, 공사 범위, 총 금액, 시공 일정, 대금 지급 일정과 변경·해지 조건을 기재합니다.'}]});
+],partners:[{id:'P001',name:'한빛인테리어',person:'이현우',email:'hanbit@example.com',type:'인테리어',active:true},{id:'P002',name:'리움디자인',person:'박수진',email:'rium@example.com',type:'영업대행',active:true},{id:'P003',name:'온유하우스',person:'정지훈',email:'onyou@example.com',type:'인테리어',active:false}],users:[{id:1,username:'admin',name:'김지훈',role:'hq_admin',org:'라이프앤조이',email:'admin@example.com',active:true},{id:2,username:'youngjin',name:'오영진',role:'consultant',org:'라이프앤조이',email:'youngjin@example.com',active:true},{id:3,username:'jeongyeon',name:'김정연',role:'estimator',org:'라이프앤조이',email:'jeongyeon@example.com',active:true},{id:4,username:'jihee',name:'마지희',role:'accountant',org:'라이프앤조이',email:'jihee@example.com',active:true},{id:5,username:'partner_hanbit',name:'한빛인테리어',role:'partner',org:'한빛인테리어',email:'hanbit@example.com',active:true}],labels:[{name:'일반',color:'#7194dd'},{name:'긴급',color:'#e88485'},{name:'체크',color:'#c39b56'},{name:'완료',color:'#74b6a1'}],contractStatuses:DEFAULT_CONTRACT_STATUSES.map(x=>({...x})),notes:{3102:[{date:'11.12 11:10',by:'오영진',text:'전체 창호 교체 희망. 12월 초 입주 전 공사 요청. 가족과 상의 후 실측 일정을 잡기로 했습니다.',type:'notes',important:true},{date:'11.12 10:35',by:'오영진',text:'32평 아파트 전체 창호와 거실 발코니 확장부 확인. 단열 성능과 외부 소음 차단을 우선으로 안내했습니다.',type:'notes'},{date:'11.12 10:05',by:'오영진',text:'평면도 수령 완료. 거실과 침실별 규격을 정리하여 가견적 산출을 요청했습니다.',type:'notes'},{date:'11.12 09:45',by:'오영진',text:'첫 상담 완료. 통화 가능 시간은 오후 1시 이후이며, 견적서는 모바일로 확인하기를 희망합니다.',type:'notes'}],3104:[{date:'11.11 16:40',by:'오영진',text:'11/12 오후 2시 방문 실측 확정. 경비실 호출 필요. 고객에게 방문 담당자와 연락 방법을 안내했습니다.',type:'notes',important:true},{date:'11.11 14:20',by:'오영진',text:'고객이 가견적서를 확인했습니다. 실측 후 공사 범위와 최종 금액을 확정하기로 했습니다.',type:'notes'},{date:'11.11 10:10',by:'오영진',text:'전체 창호 교체 상담. 공사 일정은 12월 1일을 희망하며 거주 중 시공이 가능한지 문의했습니다.',type:'notes'}]},history:{3102:[{date:'11.12 10:35',by:'오영진',text:'공사 희망사항 추가 · 단열 및 방음 우선'},{date:'11.12 10:10',by:'오영진',text:'진행구분 변경 · 상담중 → 가견적요청'},{date:'11.12 10:05',by:'오영진',text:'평면도 수령 및 영업지원팀 전달'},{date:'11.12 09:45',by:'오영진',text:'진행라벨 변경 · 일반 → 긴급'}]},quotes:[],applications:[{id:'R-261112-001',cid:3106,plan:'60개월',monthly:264000,status:'서류검토',date:'2026-11-12',createdAt:new Date(Date.now()-2*3600*1000).toISOString()}],contracts:[{id:'C-261112-001',cid:3106,type:'렌탈',amount:13200000,paid:0,status:'약정대기',date:'2026-11-12',createdAt:new Date(Date.now()-3*3600*1000).toISOString()},{id:'C-261110-002',cid:3107,type:'일시불(현금)',amount:11000000,paid:3300000,status:'선금완료',date:'2026-11-10',createdAt:'2026-11-10T14:20:00+09:00'},{id:'C-261106-003',cid:3110,type:'일시불(현금)',amount:5500000,paid:5500000,status:'수납완료',date:'2026-11-06',createdAt:'2026-11-06T17:00:00+09:00'}],products:[{name:'KCC 홈씨씨 창호',category:'창호',desc:'우리 집에 맞는 창호 교체, 상담부터 시공까지.',url:'https://kcchomecc-partner.com/products/rental',icon:'window',color:'#edf3f9',views:1248,active:true},{name:'KCC 홈씨씨 키친',category:'주방',desc:'생활의 중심이 되는 주방, 맞춤 리모델링 상담.',url:'',icon:'kitchen',color:'#f4f1ec',views:682,active:true},{name:'KCC 홈씨씨 욕실',category:'욕실',desc:'매일의 편안함을 만드는 욕실 리모델링.',url:'',icon:'bath',color:'#edf4f1',views:391,active:false}],
+forms:[{id:'rental_privacy',name:'(렌탈) 개인정보 동의서',version:1,text:DEFAULT_RENTAL_PRIVACY_CONTENT,fieldsConfig:DEFAULT_FORM_FIELDS}]});
 let db;try{db=JSON.parse(localStorage.getItem('homecc_crm_v3_demo'))||initial()}catch{db=initial()}
+if(Array.isArray(db.forms)){
+  db.forms=db.forms.filter(f=>f.name.includes('렌탈')||f.id==='rental_privacy');
+  if(!db.forms.length){
+    db.forms=[{id:'rental_privacy',name:'(렌탈) 개인정보 동의서',version:1,text:DEFAULT_RENTAL_PRIVACY_CONTENT,fieldsConfig:JSON.parse(JSON.stringify(DEFAULT_FORM_FIELDS))}];
+  } else {
+    // 저장된 양식의 fieldsConfig 정규화 (다중 페이지 지원)
+    db.forms.forEach(f => {
+      f.fieldsConfig = normalizeFormFields(f.fieldsConfig);
+    });
+  }
+}
 if (!Array.isArray(db.contractStatuses) || !db.contractStatuses.length) {
   db.contractStatuses = DEFAULT_CONTRACT_STATUSES.map(x => ({ ...x }));
 }
@@ -352,11 +463,61 @@ function buildDraftMobileQuote(c, ed, totals) {
   const splitDeposit = Math.round(cashPrice / 2);
   const splitBalance = cashPrice - splitDeposit;
 
-  const upfrontA = cashPrice >= 1500000 ? 500000 : Math.floor((cashPrice * 0.1) / 100000) * 100000;
-  const monthlyA = Math.max(1000, Math.round(((cashPrice - upfrontA) * 0.0222) / 1000) * 1000);
-  let upfrontB = Math.round((cashPrice * 0.52381) / 500000) * 500000;
-  if (upfrontB <= upfrontA || upfrontB >= cashPrice) upfrontB = Math.round((cashPrice * 0.5) / 100000) * 100000;
-  const monthlyB = Math.max(1000, Math.round(((cashPrice - upfrontB) * 0.0222) / 1000) * 1000);
+  // -------------------------------------------------------------
+  // [렌탈금액 산정기준] (할인된 일시불 금액 기준)
+  // 1) 월 111,000원: 할인 일시불금액 - 5,000,000원 = 초회납입금
+  // 2) 월 222,000원: 할인 일시불금액 - 10,000,000원 = 초회납입금
+  // 3) 월 333,000원: 할인 일시불금액 - 15,000,000원 = 초회납입금
+  // ※ 총액은 고객 부담 완화를 위해 모바일 견적서 렌탈금액표에 미표시
+  // -------------------------------------------------------------
+  const upfront111 = Math.max(0, cashPrice - 5000000);
+  const monthly111 = 111000;
+  const upfront222 = Math.max(0, cashPrice - 10000000);
+  const monthly222 = 222000;
+  const upfront333 = Math.max(0, cashPrice - 15000000);
+  const monthly333 = 333000;
+
+  const plan111Obj = {
+    key: 'plan111',
+    tag: '월 111,000원',
+    heading: '월 부담을 최소화하고 싶다면',
+    mainLabel: '월 렌탈료',
+    mainAmount: monthly111,
+    upfront: upfront111,
+    months: 60,
+    total: upfront111 + monthly111 * 60,
+    name: '월 111,000원 렌탈 플랜',
+    detail: '초회납입금 ' + num(upfront111) + '원 + 월 111,000원 (60개월)',
+    button: '월 111,000원 조건 상담하기'
+  };
+
+  const plan222Obj = {
+    key: 'plan222',
+    tag: '월 222,000원',
+    heading: '초기비용과 월납부의 균형을 원한다면',
+    mainLabel: '월 렌탈료',
+    mainAmount: monthly222,
+    upfront: upfront222,
+    months: 60,
+    total: upfront222 + monthly222 * 60,
+    name: '월 222,000원 렌탈 플랜',
+    detail: '초회납입금 ' + num(upfront222) + '원 + 월 222,000원 (60개월)',
+    button: '월 222,000원 조건 상담하기'
+  };
+
+  const plan333Obj = {
+    key: 'plan333',
+    tag: '월 333,000원',
+    heading: '처음 내는 목돈을 최소화하고 싶다면',
+    mainLabel: '월 렌탈료',
+    mainAmount: monthly333,
+    upfront: upfront333,
+    months: 60,
+    total: upfront333 + monthly333 * 60,
+    name: '월 333,000원 렌탈 플랜',
+    detail: '초회납입금 ' + num(upfront333) + '원 + 월 333,000원 (60개월)',
+    button: '월 333,000원 조건 상담하기'
+  };
 
   const items = (ed.items || []).map((it, idx) => {
     const r = calcEditorItemRow(it, ed.margin ?? 100);
@@ -425,28 +586,11 @@ function buildDraftMobileQuote(c, ed, totals) {
         detail: (discountAmount > 0 ? ('일시불 ' + num(discountAmount) + '원 할인 적용 · ') : '') + '총 ' + num(cashPrice) + '원 (선금 50% / 잔금 50%)',
         button: '일시불 결제 상담하기'
       },
-      lowupfront: {
-        key: 'lowupfront',
-        mainLabel: '월 납부금액',
-        mainAmount: monthlyA,
-        upfront: upfrontA,
-        months: 60,
-        total: upfrontA + monthlyA * 60,
-        name: '초기 부담을 줄이는 렌탈',
-        detail: '초기 ' + num(upfrontA) + '원 + 월 ' + num(monthlyA) + '원 × 60개월',
-        button: '초기 부담 완화 조건 상담하기'
-      },
-      lowmonthly: {
-        key: 'lowmonthly',
-        mainLabel: '월 납부금액',
-        mainAmount: monthlyB,
-        upfront: upfrontB,
-        months: 60,
-        total: upfrontB + monthlyB * 60,
-        name: '월 부담을 줄이는 렌탈',
-        detail: '초기 ' + num(upfrontB) + '원 + 월 ' + num(monthlyB) + '원 × 60개월',
-        button: '월 부담 완화 조건 상담하기'
-      }
+      plan111: plan111Obj,
+      plan222: plan222Obj,
+      plan333: plan333Obj,
+      lowmonthly: { ...plan111Obj, key: 'lowmonthly' },
+      lowupfront: { ...plan222Obj, key: 'lowupfront' }
     },
     manager_name: safeMeta?.supplier_manager || (c.owner && c.owner !== '미배정' ? c.owner : '전담 상담사'),
     manager_phone: safeMeta?.supplier_phone || '1588-0000',
@@ -845,14 +989,10 @@ function contractsPage(){
 
   const newBanner = ns.totalNew > 0
     ? `<div class="new-24h-bar">
-        ${icon('bell')}
-        <div>
-          <b>최근 24시간 이내 신규 신청 <span style="color:#d92d20;font-weight:800">${ns.totalNew}</span>건</b>
-          <span style="margin-left:6px;color:#7a2e25">고객명 앞에 <span class="new-label" style="vertical-align:1px">NEW</span> 라벨이 24시간 동안 자동 표시됩니다.</span>
-        </div>
-        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-          <button type="button" class="new-24h-pill" data-action="contract-tab" data-value="cash" style="cursor:pointer">일시불 신규 <b class="red-num">${ns.cashNew}</b></button>
-          <button type="button" class="new-24h-pill" data-action="contract-tab" data-value="rental" style="cursor:pointer">렌탈 신규 <b class="red-num">${rentalNewCount}</b></button>
+        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+          ${icon('bell')}
+          <b>최근 24시간 이내 신규 접수 <span class="new-count-highlight">${ns.totalNew}건</span></b>
+          <span class="new-bar-desc">신규 계약 및 렌탈 신청 건에 <span class="new-label" style="vertical-align:1px">NEW</span> 라벨이 자동 표시됩니다.</span>
         </div>
       </div>`
     : '';
@@ -874,17 +1014,50 @@ function contractsPage(){
     `<section class="panel">
       <div class="tabs">${tabMeta.map(([v, l, newCnt]) => `<button class="tab ${contractTab === v ? 'active' : ''}" data-action="contract-tab" data-value="${v}">${l}${newCnt > 0 ? `<span class="count count-red" title="최근 24시간 신규 ${newCnt}건">${newCnt}</span>` : ''}</button>`).join('')}</div>
       <div class="table-wrap">
-        <table class="mobile-card-table">
-          <thead><tr>${contractTab === 'rental' ? '<th>고객 / 신청번호</th><th>렌탈 조건</th><th>월 납부금</th><th>상태</th><th>접수일시</th><th>관리</th>' : '<th>고객 / 계약번호</th><th>결제방식</th><th>계약금액</th><th>수납액</th><th>계약·수납 상태</th><th>관리</th>'}</tr></thead>
+        <table class="mobile-card-table contract-master-table">
+          <thead><tr>${contractTab === 'rental' 
+            ? '<th style="width:26%">고객 / 신청번호</th><th style="width:18%">렌탈 조건</th><th style="width:20%">월 납부금</th><th style="width:14%">심사 상태</th><th style="width:10%">접수일시</th><th style="width:12%">관리</th>' 
+            : '<th style="width:24%">고객 / 공사건</th><th style="width:12%">결제방식</th><th style="width:20%">계약금액 / 조건</th><th style="width:18%">수납 / 선납 현황</th><th style="width:13%">진행 상태</th><th style="width:13%">관리</th>'
+          }</tr></thead>
           <tbody>${contractTab === 'rental'
             ? apps.map(a => {
                 const c = findC(a.cid) || { name: a.customerName || '고객', product: a.product || '창호' };
                 return `<tr>
-                  <td class="card-primary"><b class="quote-customer-name contract-name-line">${newLabelHtml(a)}${esc(c.name)}</b><small>${esc(a.id)} · ${esc(c.product || '창호')}</small></td>
-                  <td data-label="렌탈 조건">${esc(a.plan)}</td>
-                  <td data-label="월 납부금" class="money"><b>${won(a.monthly)}</b></td>
-                  <td data-label="상태">${badge(a.status)}</td>
-                  <td data-label="접수일시">${esc(a.createdAtText || a.date || '-')}</td>
+                  <td class="card-primary">
+                    <div class="contract-cust-cell">
+                      <div class="contract-cust-top">
+                        ${newLabelHtml(a)}
+                        <b class="quote-customer-name">${esc(c.name)}</b>
+                        <span class="contract-product-tag">${esc(c.product || '창호')}</span>
+                      </div>
+                      <div class="contract-cust-meta">
+                        <span class="contract-id-code">${esc(a.id)}</span>
+                        <span class="contract-date-text">접수 ${esc(a.createdAtText || a.date || '-')}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td data-label="렌탈 조건">
+                    <div class="pay-type-cell">
+                      <span class="badge purple">렌탈</span>
+                      <small class="pay-type-sub">${esc(a.plan)}</small>
+                    </div>
+                  </td>
+                  <td data-label="월 납부금" class="money">
+                    <div class="contract-price-cell">
+                      <div class="rental-price-main">
+                        <span class="rental-tag">월 납부</span>
+                        <b class="rental-price-val">${won(a.monthly)}</b>
+                      </div>
+                      ${a.upfront ? `<div class="contract-price-sub">초회납입 ${won(a.upfront)}</div>` : ''}
+                    </div>
+                  </td>
+                  <td data-label="심사 상태">
+                    <div class="contract-status-cell">
+                      <div class="status-main-badge">${badge(a.status)}</div>
+                      <small class="rental-carrier-note">라이프앤조이 제휴 렌탈사</small>
+                    </div>
+                  </td>
+                  <td data-label="접수일시" style="font-size:11px;color:#64748b">${esc(a.createdAtText || a.date || '-')}</td>
                   <td class="card-actions"><div class="actions">${btn('신청서 검토', 'application', 'file', 'sm primary', `data-id="${a.id}"`)}</div></td>
                 </tr>`;
               }).join('')
@@ -899,28 +1072,64 @@ function contractsPage(){
                 const upfront = k.rentalUpfrontFee || rApp?.upfront || 0;
                 const rAppId = k.rentalAppId || rApp?.id;
 
-                const amountHtml = isRental
-                  ? `<div class="rental-amount-cell">
-                      <div class="rental-monthly-highlight">
-                        <span class="rental-monthly-tag">월 납부</span>
-                        <b class="rental-monthly-price">${won(monthly)}</b>
-                        <span class="rental-period-tag">${months}개월</span>
-                      </div>
-                      <div class="rental-sub-info">
-                        <span>총 ${won(total)}</span>
-                        ${upfront > 0 ? `<span class="rental-upfront-badge">선납 ${won(upfront)}</span>` : ''}
-                      </div>
+                const custCellHtml = `
+                  <div class="contract-cust-cell">
+                    <div class="contract-cust-top">
+                      ${newLabelHtml(k)}
+                      <b class="quote-customer-name">${esc(c.name)}</b>
+                      <span class="contract-product-tag">${esc(c.product || '창호')}</span>
+                    </div>
+                    <div class="contract-cust-meta">
+                      <span class="contract-id-code">${esc(k.id)}</span>
+                      <span class="contract-date-text">${k.createdAtText ? esc(k.createdAtText) : esc(k.date || '-')}</span>
+                    </div>
+                  </div>`;
+
+                const payTypeHtml = isRental
+                  ? `<div class="pay-type-cell">
+                      <span class="badge purple">렌탈</span>
+                      <small class="pay-type-sub">${months}개월 분납</small>
                     </div>`
-                  : `<b>${won(k.amount)}</b>`;
+                  : `<div class="pay-type-cell">
+                      <span class="badge dark">일시불</span>
+                      <small class="pay-type-sub">${esc(k.payMethod || '현금·계좌이체')}</small>
+                    </div>`;
+
+                const priceHtml = isRental
+                  ? `<div class="contract-price-cell">
+                      <div class="rental-price-main">
+                        <span class="rental-tag">월 납부</span>
+                        <b class="rental-price-val">${won(monthly)}</b>
+                      </div>
+                      <div class="contract-price-sub">총 분납 ${won(total)} (${months}개월)</div>
+                    </div>`
+                  : `<div class="contract-price-cell">
+                      <b class="cash-price-val">${won(k.amount)}</b>
+                      <div class="contract-price-sub">부가세(VAT) 포함</div>
+                    </div>`;
 
                 const paidHtml = isRental
-                  ? `<div class="rental-paid-cell">
-                      <span class="badge purple-soft">렌탈 분납약정</span>
-                      <div class="rental-paid-sub">
-                        ${(k.rentalStatus || rApp?.status) ? `심사: <b>${esc(k.rentalStatus || rApp?.status)}</b>` : '약정 대기'}
-                      </div>
+                  ? `<div class="contract-paid-cell">
+                      ${upfront > 0 
+                        ? `<div class="upfront-highlight"><span class="upfront-dot"></span>선납 <b>${won(upfront)}</b> 수납</div>`
+                        : `<div class="upfront-zero">선납금 없음</div>`
+                      }
+                      <div class="rental-billing-note">렌탈료 익월부터 청구</div>
                     </div>`
-                  : won(k.paid);
+                  : `<div class="contract-paid-cell">
+                      <div class="paid-amount-line">수납 <b>${won(k.paid)}</b></div>
+                      <div class="paid-balance-line">
+                        ${k.paid >= k.amount 
+                          ? '<span class="status-done-text">전액 완납</span>' 
+                          : `미수금 <span class="unpaid-val">${won(k.amount - k.paid)}</span>`
+                        }
+                      </div>
+                    </div>`;
+
+                const statusHtml = `<div class="contract-status-cell">
+                  <div class="status-main-badge">${badge(k.status)}</div>
+                  ${isRental ? `<div class="rental-review-pill" title="렌탈 심사 상태">심사 <b>${esc(k.rentalStatus || rApp?.status || '접수완료')}</b></div>` : ''}
+                </div>`;
 
                 const actionsHtml = `<div class="actions">
                   ${btn('계약 상세', 'contract', 'contract', 'sm soft', `data-id="${k.id}"`)}
@@ -928,11 +1137,11 @@ function contractsPage(){
                 </div>`;
 
                 return `<tr>
-                  <td class="card-primary"><b class="quote-customer-name contract-name-line">${newLabelHtml(k)}${esc(c.name)}</b><small>${esc(k.id)} · ${esc(c.product || '창호')}${k.createdAtText ? ' · ' + esc(k.createdAtText) : ''}</small></td>
-                  <td data-label="결제방식">${badge(k.type, isRental ? 'purple' : '')}</td>
-                  <td data-label="계약금액" class="money">${amountHtml}</td>
-                  <td data-label="수납액" class="money">${paidHtml}</td>
-                  <td data-label="계약·수납 상태">${badge(k.status)}</td>
+                  <td class="card-primary">${custCellHtml}</td>
+                  <td data-label="결제방식">${payTypeHtml}</td>
+                  <td data-label="계약금액 / 조건" class="money">${priceHtml}</td>
+                  <td data-label="수납 / 선납 현황" class="money">${paidHtml}</td>
+                  <td data-label="진행 상태">${statusHtml}</td>
                   <td class="card-actions">${actionsHtml}</td>
                 </tr>`;
               }).join('')}</tbody>
@@ -942,7 +1151,7 @@ function contractsPage(){
     </section>
     <div class="panel-caption">계약·수납 상태값은 [설정 &gt; 계약·수납상태]에서 추가·이름 변경·색상 수정·순서 조정할 수 있습니다.</div>`;
 }
-function productsPage(){return pageHead('상품관리','상품별 랜딩페이지와 전용 상담 링크를 관리하세요.',role==='본사 관리자'?btn('상품페이지 등록','new-product','plus','primary'):'','PRODUCT & LANDING')+`<div class="banner">${icon('link')}<div><b>${role==='본사 관리자'?'상품별 상담 유입을 고객관리로 연결합니다.':'한빛인테리어 전용 링크로 접수된 고객을 확인하세요.'}</b><br>방문·신청 통계 수집에는 랜딩페이지 연동이 필요합니다. 아래 수치는 예시입니다.</div></div><div class="three-col">${db.products.map((p,i)=>`<article class="product-card"><div class="product-visual" style="background:${p.color}"><span class="visual-label">HOMECC ${['WINDOW','KITCHEN','BATHROOM'][i%3]}</span>${icon(p.icon,'large-icon')}</div><div class="product-info">${badge(p.active?'운영중':'준비중',p.active?'green':'gray')}<h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><div class="product-url"><span>${p.url?esc(p.url.replace('https://','')):'랜딩 URL 등록 대기'}</span><button data-action="copy-product" data-id="${i}" aria-label="${esc(p.name)} 링크 복사">${icon('copy')}</button></div><div class="product-stats"><div><small>방문 수 · 예시</small><b>${num(p.views)}</b></div><div><small>접수 고객</small><b>${visibleCustomers().filter(c=>c.product===p.category).length}</b></div><div><small>계약</small><b>${db.contracts.filter(k=>visibleCustomers().some(c=>c.id===k.cid&&c.product===p.category)).length}</b></div></div><div class="actions">${btn('전용 링크','product-link','link','soft',`data-id="${i}"`)}${role==='본사 관리자'?btn('수정','edit-product','edit','',`data-id="${i}"`):''}${p.url?`<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(p.name)} 랜딩 보기">${icon('external')}</a>`:''}</div></div></article>`).join('')}</div>`}
+function productsPage(){return pageHead('상품관리','상품별 랜딩페이지와 전용 상담 링크를 관리하세요.',role==='본사 관리자'?btn('상품페이지 등록','new-product','plus','primary'):'','PRODUCT & LANDING')+`<div class="banner">${icon('link')}<div><b>${role==='본사 관리자'?'상품별 상담 유입을 고객관리로 연결합니다.':'한빛인테리어 전용 링크로 접수된 고객을 확인하세요.'}</b><br>방문·신청 통계 수집에는 랜딩페이지 연동이 필요합니다. 아래 수치는 실시간 연동 및 예시입니다.</div></div><div class="three-col">${db.products.map((p,i)=>{const isLocalLanding=p.url&&(p.url.startsWith('/')||p.url.includes('/landing'));const displayUrl=p.url?(p.url.startsWith('/')?window.location.origin+p.url:p.url.replace('https://','')):'랜딩 URL 등록 대기';return `<article class="product-card"><div class="product-visual" style="background:${p.color}"><span class="visual-label">HOMECC ${['WINDOW','KITCHEN','BATHROOM'][i%3]}</span>${icon(p.icon,'large-icon')}</div><div class="product-info">${badge(p.active?'운영중':'준비중',p.active?'green':'gray')}<h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><div class="product-url"><span>${esc(displayUrl)}</span><button data-action="copy-product" data-id="${i}" aria-label="${esc(p.name)} 링크 복사">${icon('copy')}</button></div><div class="product-stats"><div><small>방문 수</small><b>${num(p.views)}</b></div><div><small>접수 고객</small><b>${visibleCustomers().filter(c=>c.product===p.category).length}</b></div><div><small>계약</small><b>${db.contracts.filter(k=>visibleCustomers().some(c=>c.id===k.cid&&c.product===p.category)).length}</b></div></div><div class="actions">${btn('전용 링크','product-link','link','soft',`data-id="${i}"`)}${isLocalLanding?`<button type="button" class="btn sm soft" data-action="preview-landing" data-id="${i}" title="${esc(p.name)} 미리보기">${icon('eye')}미리보기</button>`:''}${role==='본사 관리자'?btn('수정','edit-product','edit','',`data-id="${i}"`):''}${p.url?`<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(p.name)} 랜딩 새창 열기">${icon('external')} 새창 열기</a>`:''}</div></div></article>`}).join('')}</div>`}
 function partnersPage(){return pageHead('파트너관리','함께 성장하는 영업파트너와 고객 성과를 관리하세요.',btn('파트너 등록','new-partner','plus','primary'),'PARTNER NETWORK')+`<div class="three-col">${db.partners.map(p=>{const cs=db.customers.filter(c=>c.partner===p.name);const pUser=(db.users||[]).map((u,idx)=>normalizeUserRecord(u,idx)).find(u=>u.org===p.name);const pMenuLabels=pUser?getUserAllowedMenuKeys(pUser).map(k=>MENU_META[k]?.label||k).join(' · '):'고객관리 · 계약관리 · 상품관리';return `<section class="panel partner-card"><div class="partner-top"><div class="avatar">${esc(p.name.slice(0,2))}</div><div><h3>${esc(p.name)}</h3><p>${p.id} · ${esc(p.type)}</p></div>${badge(p.active?'정상':'대기',p.active?'green':'orange')}</div><div class="info-grid"><div><label>대표 담당자</label><b>${esc(p.person)}</b></div><div><label>운영 권한</label><b>${esc(pUser?.role_label||'파트너 관리자')}</b></div></div><div class="divider"></div><div class="mini-stat"><span>등록 고객</span><b>${cs.length}건</b></div><div class="mini-stat"><span>계약 현황</span><b>${db.contracts.filter(k=>cs.some(c=>c.id===k.cid)).length}건</b></div><div class="mini-stat"><span>허용 메뉴</span><b>${esc(pMenuLabels)}</b></div><div class="actions" style="margin-top:20px">${btn('파트너 정보','partner-detail','building','sm',`data-id="${p.id}"`)}${pUser?btn('전용 화면 체험','partner-mode','external','sm soft',`data-username="${esc(pUser.username)}" data-org="${esc(p.name)}"`):''}</div></section>`}).join('')}</div><div class="banner" style="margin-top:22px">${icon('shield')}<div><b>소속 파트너의 고객과 계약만 관리합니다.</b><br>파트너 사용자별로 볼 수 있는 메뉴는 <b>[설정 &gt; 사용자관리]</b>에서 자유롭게 선택·변경할 수 있으며, 원가·본사 마진·타 파트너 정보는 비공개로 보호됩니다.</div></div>`}
 function chartSVG(){const values=statsPeriod==='1'?[12,18,15,33,41,35,55,49,64,43,68,76]:statsPeriod==='30'?[35,58,45,77,70,98,63,104,120,95,138,149]:[42,60,49,84,76,104,123];const max=Math.max(...values)*1.2,dx=540/(values.length-1), points=values.map((v,i)=>[45+i*dx,190-v/max*165]);const path=points.map((p,i)=>(i?'L':'M')+p.join(' ')).join(' ');return `<svg class="chart" viewBox="0 0 620 230" role="img" aria-label="기간별 방문 추이 예시"><defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5484ec" stop-opacity=".18"/><stop offset="1" stop-color="#5484ec" stop-opacity="0"/></linearGradient></defs>${[30,70,110,150,190].map((y,i)=>`<line x1="45" x2="585" y1="${y}" y2="${y}" stroke="#edf1f7"/><text x="8" y="${y+4}">${Math.round(max*(4-i)/4)}</text>`).join('')}<path d="${path}L585 190L45 190Z" fill="url(#fade)"/><path d="${path}" fill="none" stroke="#5484ec" stroke-width="2.5" stroke-linejoin="round"/>${points.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="white" stroke="#5484ec" stroke-width="2"/><text x="${p[0]}" y="215" text-anchor="middle">${statsPeriod==='1'?`${i+9}시`:statsPeriod==='30'?`${i*2+1}일`:`11.${i+6}`}</text>`).join('')}</svg>`}
 function statsPage(){return pageHead('통계관리','유입부터 계약까지, 마케팅과 영업의 흐름을 확인하세요.',`<select class="select" id="stats-period" aria-label="통계 기간"><option value="1" ${statsPeriod==='1'?'selected':''}>오늘</option><option value="7" ${statsPeriod==='7'?'selected':''}>최근 7일</option><option value="30" ${statsPeriod==='30'?'selected':''}>이번 달</option></select>`,'ANALYTICS & INSIGHTS')+`<div class="metrics">${metric('랜딩 방문 · 예시',statsPeriod==='1'?'609':statsPeriod==='30'?'8,742':'2,321','회','내부·봇 방문 제외 기준','chart')}${metric('등록 고객',db.customers.length,'건','체험 데이터 전체 누적','users','purple')}${metric('견적 발행 고객',db.customers.filter(c=>c.quote>0).length,'명','최신 견적 보유 고객','file','orange')}${metric('계약 고객',db.contracts.length,'명','체험 데이터 전체 누적','contract','green')}</div><div class="two-col"><section class="panel"><div class="panel-head"><div><h3>랜딩페이지 방문 추이</h3><p>선택 기간의 예시 시계열</p></div><div class="legend"><span><i></i>방문 수</span></div></div><div class="panel-pad">${chartSVG()}</div></section><section class="panel"><div class="panel-head"><h3>유입 채널 구성</h3>${badge('예시','gray')}</div><div class="panel-pad">${[['네이버',54],['인스타그램',21],['파트너 링크',15],['기타·직접',10]].map(([s,n])=>`<div class="bar-row"><span>${s}</span><div class="bar-track"><div class="bar-fill" style="width:${n}%;background:${n===54?'#5e86ea':n===21?'#92acec':n===15?'#b3c5ed':'#d1dcee'}"></div></div><b>${n}%</b></div>`).join('')}<div class="panel-caption">알 수 없는 유입은 직접·확인불가로 분류합니다.</div></div></section></div><section class="panel" style="margin-top:20px"><div class="panel-head"><h3>고객 전환 흐름</h3><span class="pill-note">전체 체험 데이터 · 공사건 기준</span></div><div class="panel-pad"><div class="progress-list">${[['고객 등록',db.customers.length],['견적 발행',db.customers.filter(c=>c.quote>0).length],['견적 열람',db.customers.filter(c=>c.viewed).length],['계약 등록',db.contracts.length],['수납 완료',db.contracts.filter(c=>c.paid>=c.amount).length]].map(([t,n])=>`<div><span>${t}</span><b>${n}건</b><i class="on" style="opacity:${.3+n/15}"></i></div>`).join('')}</div><div class="notice-text">방문 추이는 화면 확인용 예시입니다. 실제 통계는 랜딩 추적과 서버 이벤트 연결 후 수집됩니다. IP는 기본 마스킹하며, 계약·결제 이벤트는 처리 완료를 기준으로 집계합니다.</div></div></section><section class="panel" style="margin-top:20px"><div class="panel-head"><div><h3>상품페이지별 성과</h3><p>페이지·유입채널별 전환 분석 · 예시</p></div></div><div class="table-wrap"><table><thead><tr><th>상품페이지</th><th>방문 수</th><th>상담 신청</th><th>견적 발행</th><th>계약</th><th>상담 전환율</th></tr></thead><tbody>${[['창호',1248,36,21,8],['주방',682,18,10,3],['욕실',391,9,5,2]].map(([n,v,l,q,c])=>`<tr><td><b>KCC 홈씨씨 ${n}</b></td><td>${num(v)}</td><td>${l}건</td><td>${q}건</td><td>${c}건</td><td>${(l/v*100).toFixed(1)}%</td></tr>`).join('')}</tbody></table></div></section><section class="panel" style="margin-top:20px"><div class="panel-head"><div><h3>접속 및 이벤트 기록</h3><p>표시용 예시 로그 · 실제 방문 데이터와 연결되지 않았습니다.</p></div>${badge('IP 마스킹','gray')}</div><div class="table-wrap"><table><thead><tr><th>발생 시각</th><th>상품페이지</th><th>유입 경로</th><th>접속 IP</th><th>기기</th><th>이벤트</th></tr></thead><tbody>${[['11.12 10:42:15','창호','네이버 / 검색광고','192.0.2.***','모바일','상담 신청'],['11.12 10:40:08','주방','파트너 / 한빛인테리어','198.51.100.***','모바일','견적 열람'],['11.12 10:38:52','창호','인스타그램 / 캠페인','203.0.113.***','모바일','페이지 방문'],['11.12 10:31:20','욕실','직접 / 확인불가','192.0.2.***','PC','계약 등록']].map(r=>`<tr>${r.map((t,i)=>`<td>${i===5?badge(t):t}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`}
@@ -1244,9 +1453,1349 @@ function openContractStatusDialog(statusId = null) {
   );
 }
 
-function settingsPage(){const tabs=[['labels','진행라벨','box'],['stages','진행구분','filter'],['contract-statuses','계약·수납상태','contract'],['forms','양식관리','file'],['users','사용자관리','users'],['integrations','외부 연동','link'],['reset','초기화 설정','refresh']];let content='';if(settingsTab==='labels')content=`<div class="panel-head"><div><h3>진행라벨 관리</h3><p>고객의 특성을 표시하는 라벨입니다. 업무 단계와 별도로 관리합니다.</p></div>${btn('라벨 추가','new-label','plus','sm primary')}</div><div class="panel-pad">${db.labels.map(l=>`<div class="settings-row"><span class="color-dot" style="background:${l.color}"></span><div class="grow"><b>${esc(l.name)}</b><small>고객 목록과 상세 화면에 표시</small></div>${badge(l.name,'gray')}</div>`).join('')}</div>`;if(settingsTab==='stages')content=`<div class="panel-head"><div><h3>진행구분</h3><p>상담·견적·실측·계약의 업무 흐름을 표시합니다.</p></div></div><div class="panel-pad">${stages.map((s,i)=>`<div class="settings-row"><div class="avatar" style="width:28px;height:28px">${String(i+1).padStart(2,'0')}</div><div class="grow"><b>${s}</b><small>${i<5?'상담·견적 담당':'계약·운영 담당'} · 과거 이력 보존</small></div>${badge(s)}</div>`).join('')}</div>`;if(settingsTab==='contract-statuses')content=renderContractStatusesSettingsPanel();if(settingsTab==='forms')content=`<div class="panel-head"><div><h3>양식 및 동의서</h3><p>고객 동의 시점의 양식 버전을 보관합니다.</p></div><div style="display:flex;align-items:center;gap:8px">${badge('검토용 양식','orange')}${btn('양식 추가','new-form','plus','sm primary')}</div></div><div class="panel-pad">${db.forms.length?db.forms.map((f,i)=>`<div class="settings-row">${icon('file')}<div class="grow"><b>${esc(f.name)}</b><small>버전 ${f.version}.0 · 실제 접수 전 내용 확정 필요</small></div><div style="display:flex;gap:6px">${btn('편집','edit-form','edit','sm',`data-id="${i}"`)}${btn('삭제','delete-form','trash','sm',`data-id="${i}"`)}</div></div>`).join(''):'<div class="empty">등록된 양식이 없습니다.</div>'}</div>`;if(settingsTab==='users')content=renderUsersSettingsPanel();if(settingsTab==='integrations')content=`<div class="panel-head"><div><h3>외부 서비스 연동</h3><p>실제 서비스 개통 상태와 운영 연결을 관리합니다.</p></div></div><div class="panel-pad">${[['카드결제 PG','신규 결제 요청·승인·취소·정산','credit'],['문자·알림톡','견적 안내·본인 인증·업무 알림','send'],['렌탈사 접수','심사·약정·정산 결과 연결','file'],['랜딩페이지 수집','상담 신청·유입 이벤트 연결','link']].map(([n,t,i])=>`<div class="settings-row">${icon(i)}<div class="grow"><b>${n}</b><small>${t}</small></div>${badge('미연결','gray')}${btn('연결 안내','integration','info','sm',`data-name="${n}"`)}</div>`).join('')}</div>`;if(settingsTab==='reset')content=`<div class="panel-head"><h3>체험 데이터 초기화</h3></div><div class="panel-pad"><div class="notice-text">현재 브라우저에 저장된 체험 데이터만 초기 상태로 되돌립니다. 기존 운영 CRM과 연결되어 있지 않습니다.</div><div style="margin-top:20px">${btn('체험 데이터 초기화','reset-data','refresh','danger')}</div></div>`;return pageHead('설정','운영 기준과 사용자 권한을 관리하세요.','','SYSTEM SETTINGS')+`<div class="settings-layout"><nav class="settings-nav">${tabs.map(([v,t,i])=>`<button class="${settingsTab===v?'active':''}" data-action="settings-tab" data-value="${v}">${icon(i)}${t}</button>`).join('')}</nav><section class="panel">${content}</section></div>`}
-function openDialog(title,body,footer='',cls='',subtitle='',dark=false){if(mobileNavOpen)setMobileNav(false);restoreFocus=document.activeElement;$('#overlay').innerHTML=`<div class="overlay"><section class="dialog ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title.replace(/<[^>]*>/g,''))}"><header class="dialog-head ${dark?'dark':''}"><div><h2>${title}</h2>${subtitle?`<p>${subtitle}</p>`:''}</div><button class="close" data-action="close" aria-label="닫기">${icon('close')}</button></header>${body}${footer?`<footer class="dialog-footer">${footer}</footer>`:''}</section></div>`;document.body.style.overflow='hidden';setTimeout(()=>$('.dialog .close')?.focus(),20)}
-function closeDialog(){ $('#overlay').innerHTML='';document.body.style.overflow='';detailId=null;restoreFocus?.isConnected&&restoreFocus.focus() }
+function renderFormsSettingsPanel() {
+  const formsList = (db.forms || []).filter(f => f.name.includes('렌탈') || f.id === 'rental_privacy');
+  if (!formsList.length && db.forms.length) {
+    formsList.push(db.forms[0]);
+  }
+  return `
+    <div class="panel-head">
+      <div>
+        <h3>양식 및 동의서 관리</h3>
+        <p>렌탈 신청 고객의 정보와 서명을 합성하기 위한 PDF 기반 필드 매핑 및 전자 서식 관리</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${badge('렌탈 동의서 표준', 'blue')}
+        ${btn('새 양식 등록', 'new-form', 'plus', 'sm primary')}
+      </div>
+    </div>
+    <div class="panel-pad">
+      ${formsList.length ? formsList.map((f, i) => {
+        const fields = f.fieldsConfig || DEFAULT_FORM_FIELDS;
+        const fieldTags = [
+          `<span style="color:#2563eb;font-weight:600">● 날짜</span>`,
+          `<span style="color:#0284c7;font-weight:600">● 성명</span>`,
+          `<span style="color:#7c3aed;font-weight:600">● 서명</span>`,
+          `<span style="color:#ea580c;font-weight:600">● 생년월일</span>`,
+          `<span style="color:#059669;font-weight:600">● 연락처</span>`
+        ].join(' &nbsp; ');
+        const pdfBadge = f.pdfPath
+          ? `<span style="background:#dcfce7;color:#15803d;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600">PDF 업로드 완료: ${esc(f.fileName || 'custom.pdf')}</span>`
+          : `<span style="background:#f1f5f9;color:#475569;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600">표준 A4 서식 템플릿 사용 중</span>`;
+
+        return `
+          <div class="settings-row" style="align-items:flex-start;padding:16px 14px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:12px;background:#ffffff">
+            <div style="background:#eff6ff;color:#2563eb;padding:10px;border-radius:8px;margin-right:12px">
+              ${icon('file')}
+            </div>
+            <div class="grow" style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <b style="font-size:15px;color:#0f172a">${esc(f.name)}</b>
+                <span class="badge blue">v${f.version || 1}.0</span>
+                ${pdfBadge}
+              </div>
+              <div style="font-size:12px;color:#64748b;line-height:1.4">
+                ${esc(f.text || '').substring(0, 110).replace(/\n/g, ' ')}...
+              </div>
+              <div style="font-size:11.5px;color:#334155;background:#f8fafc;padding:6px 10px;border-radius:6px;border:1px solid #f1f5f9;display:flex;align-items:center;gap:6px;margin-top:2px">
+                <span style="font-weight:700">매핑 필드:</span> ${fieldTags}
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-self:center">
+              ${btn('필드 에디터 열기', 'open-form-editor', 'edit', 'primary sm', `data-id="${i}"`)}
+              ${btn('실시간 미리보기', 'open-form-preview', 'eye', 'soft sm', `data-id="${i}"`)}
+              ${btn('PDF 파일 교체', 'upload-form-pdf-btn', 'upload', 'sm', `data-id="${i}"`)}
+              ${btn('삭제', 'delete-form', 'trash', 'danger sm', `data-id="${i}"`)}
+            </div>
+          </div>
+        `;
+      }).join('') : '<div class="empty">등록된 양식이 없습니다.</div>'}
+    </div>
+  `;
+}
+
+// PDF 캐시 및 헬퍼
+const pdfDocCache = new Map();
+
+async function getPdfDoc(pdfUrl) {
+  if (!window.pdfjsLib || !pdfUrl) return null;
+  if (pdfDocCache.has(pdfUrl)) return pdfDocCache.get(pdfUrl);
+  try {
+    const loadingTask = pdfjsLib.getDocument(pdfUrl);
+    const pdf = await loadingTask.promise;
+    pdfDocCache.set(pdfUrl, pdf);
+    return pdf;
+  } catch (err) {
+    console.error('PDF getDoc error:', err);
+    return null;
+  }
+}
+
+async function renderPdfPageToCanvas(pdfDoc, pageNum, canvasEl, scale = 1.5) {
+  if (!pdfDoc || !canvasEl) return false;
+  try {
+    const pNum = Math.max(1, Math.min(pageNum, pdfDoc.numPages));
+    const page = await pdfDoc.getPage(pNum);
+    const viewport = page.getViewport({ scale });
+    canvasEl.width = viewport.width;
+    canvasEl.height = viewport.height;
+    const ctx = canvasEl.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return true;
+  } catch (err) {
+    console.error('PDF page render error:', err);
+    return false;
+  }
+}
+
+// 표준 동의서 템플릿 HTML
+function getStandardConsentTemplateHtml() {
+  return `
+    <div class="fe-default-template">
+      <div class="fe-template-header">
+        <div>
+          <h1 class="fe-template-title">(렌탈) 개인정보 수집·이용 및 제공 동의서</h1>
+          <div style="font-size:12px;color:#475569;margin-top:4px">KCC글라스 홈씨씨 인테리어 제휴 렌탈 공식 전자 서식</div>
+        </div>
+        <div style="text-align:right">
+          <div class="fe-template-brand">KCC 홈씨씨</div>
+          <div style="font-size:10px;color:#94a3b8">표준서식 No. KCC-RENTAL-2026</div>
+        </div>
+      </div>
+      <p class="fe-template-sub">
+        본 동의서는 (주)라이프앤조이 및 KCC글라스 홈씨씨 제휴 렌탈 서비스 신청 및 계약 체결을 위해 고객님의 개인정보를 수집·이용 및 제공하는 내용을 규정합니다. 내용을 충분히 숙지하신 후 동의하여 주시기 바랍니다.
+      </p>
+
+      <div class="fe-clause-card">
+        <div class="fe-clause-title">제1조 (개인정보의 수집 및 이용 목적)</div>
+        <ul class="fe-clause-list">
+          <li>창호 및 인테리어 렌탈 서비스 신청 접수, 본인 확인 및 적격 심사</li>
+          <li>렌탈 약정 체결, 월 렌탈료 청구 및 수납, 계약 유지·관리</li>
+          <li>시공 현장 방문 실측, 설치 시공 일정 조율 및 사후 품질보증(A/S)</li>
+        </ul>
+      </div>
+
+      <div class="fe-clause-card">
+        <div class="fe-clause-title">제2조 (수집하는 개인정보의 항목)</div>
+        <ul class="fe-clause-list">
+          <li><strong>필수항목:</strong> 성명, 생년월일, 연락처(휴대전화), 시공 주소, 전자서명</li>
+          <li><strong>계약정보:</strong> 견적번호, 선택 렌탈 플랜, 월 납부금액, 납부 기간</li>
+        </ul>
+      </div>
+
+      <div class="fe-clause-card">
+        <div class="fe-clause-title">제3조 (개인정보의 보유 및 이용 기간)</div>
+        <ul class="fe-clause-list">
+          <li>계약 체결 시: 관련 법령(상법 및 전자상거래법)에 따라 계약 종료 후 5년 보관 후 파기</li>
+          <li>심사 미진행 또는 취소 시: 취소일로부터 즉시 안전하게 영구 파기</li>
+        </ul>
+      </div>
+
+      <div class="fe-clause-card">
+        <div class="fe-clause-title">제4조 (동의 거부 권리 및 불이익)</div>
+        <div style="font-size:11px;color:#475569">
+          귀하는 개인정보 수집·이용 동의를 거부할 권리가 있습니다. 단, 필수 항목 동의 거부 시 렌탈 신청 접수 및 심사 진행이 불가합니다.
+        </div>
+      </div>
+
+      <div class="fe-agree-check-box">
+        <span>[필수] 본인은 상기 개인정보 수집·이용 및 제공 내용을 모두 확인하였으며 이에 동의합니다.</span>
+        <span style="display:inline-block;padding:2px 8px;background:#2563eb;color:#ffffff;border-radius:4px;font-size:11px">☑ 동의함</span>
+      </div>
+
+      <div class="fe-sign-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-weight:800;font-size:14px;color:#0f172a">■ 계약자 확인 및 전자서명</span>
+          <span style="font-size:11px;color:#64748b">(주)라이프앤조이 / KCC글라스 홈씨씨</span>
+        </div>
+        <table class="fe-sign-table">
+          <tr>
+            <th>작성일자</th>
+            <td colspan="3" style="position:relative"></td>
+          </tr>
+          <tr>
+            <th>계약자 성명</th>
+            <td style="position:relative;width:30%"></td>
+            <th>서명 / 날인</th>
+            <td style="position:relative;width:30%"></td>
+          </tr>
+          <tr>
+            <th>생년월일</th>
+            <td style="position:relative"></td>
+            <th>연락처</th>
+            <td style="position:relative"></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// -------------------------------------------------------------
+// [양식 필드 에디터]: 날짜 / 성명 / 서명 / 생년월일 / 연락처 편집기 (각 페이지별 다중 선택/배치 완벽 지원)
+// -------------------------------------------------------------
+let editorState = null;
+
+async function openFormEditor(formIdx) {
+  const form = db.forms[formIdx];
+  if (!form) return toast('양식을 찾을 수 없습니다.');
+
+  // 다중 필드 인스턴스 배열로 정규화
+  const fields = normalizeFormFields(form.fieldsConfig || DEFAULT_FORM_FIELDS);
+
+  let pdfDoc = null;
+  let totalPages = 1;
+  if (form.pdfPath) {
+    pdfDoc = await getPdfDoc(form.pdfPath);
+    if (pdfDoc) totalPages = pdfDoc.numPages;
+  }
+
+  // 1페이지 또는 필드가 위치한 첫 번째 페이지
+  const initPage = 1;
+  const initialActive = fields.find(f => (parseInt(f.page, 10) || 1) === initPage) || fields[0] || null;
+
+  editorState = {
+    formIdx,
+    formId: form.id,
+    fields,
+    activeId: initialActive ? initialActive.id : null,
+    zoom: 1.0,
+    currentPage: initPage,
+    totalPages,
+    pdfDoc,
+    isDragging: false,
+    isResizing: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    initialBox: null
+  };
+
+  const bodyHtml = `
+    <div class="fe-toolbar">
+      <div class="fe-toolbar-group">
+        <span class="fe-doc-badge">${icon('file')} ${esc(form.name)} · v${form.version || 1}.0</span>
+        <span id="fe-pdf-status-text" style="font-size:12px;color:#64748b">
+          ${form.pdfPath ? `PDF: <b style="color:#0f172a">${esc(form.fileName || '양식.pdf')}</b>` : '표준 A4 서식 적용'}
+        </span>
+        <input type="file" id="fe-pdf-file-input" accept=".pdf" style="display:none">
+        <button type="button" class="btn sm" id="fe-trigger-upload-btn">${icon('upload')} PDF 파일 교체</button>
+      </div>
+
+      <!-- 다중 페이지 네비게이션 -->
+      <div class="fe-toolbar-group fe-page-nav-wrap">
+        <div class="fe-page-nav" id="fe-page-nav-group" style="${form.pdfPath && totalPages > 1 ? '' : 'display:none'}">
+          <button type="button" class="btn sm soft" id="fe-prev-page" style="padding:2px 8px" ${editorState.currentPage <= 1 ? 'disabled' : ''}>◀ 이전</button>
+          <select id="fe-page-select">
+            ${Array.from({ length: totalPages }, (_, i) => `
+              <option value="${i + 1}" ${i + 1 === editorState.currentPage ? 'selected' : ''}>
+                ${i + 1} / ${totalPages} 페이지
+              </option>
+            `).join('')}
+          </select>
+          <button type="button" class="btn sm soft" id="fe-next-page" style="padding:2px 8px" ${editorState.currentPage >= totalPages ? 'disabled' : ''}>다음 ▶</button>
+          <span class="badge blue" id="fe-total-pages-badge">총 ${totalPages}페이지 문서</span>
+        </div>
+      </div>
+
+      <div class="fe-toolbar-group">
+        <div style="display:flex;align-items:center;gap:4px;background:#e2e8f0;padding:2px 6px;border-radius:6px">
+          <button type="button" class="btn sm soft" id="fe-zoom-out" style="padding:2px 8px">－</button>
+          <span id="fe-zoom-label" style="font-size:11.5px;font-weight:700;min-width:44px;text-align:center">100%</span>
+          <button type="button" class="btn sm soft" id="fe-zoom-in" style="padding:2px 8px">＋</button>
+          <button type="button" class="btn sm soft" id="fe-zoom-fit" style="padding:2px 8px;font-size:11px">맞춤</button>
+        </div>
+        <button type="button" class="btn sm soft" id="fe-reset-positions-btn">${icon('refresh')} 기본위치 복원</button>
+        <button type="button" class="btn sm" style="background:#059669;color:#fff" id="fe-preview-btn">${icon('eye')} 실시간 미리보기</button>
+        <button type="button" class="btn sm primary" id="fe-save-btn">${icon('check')} 필드 설정 저장</button>
+      </div>
+    </div>
+
+    <div class="fe-layout">
+      <!-- 중앙 문서 워크스페이스 -->
+      <div class="fe-viewport" id="fe-viewport">
+        <div class="fe-a4-wrapper" id="fe-a4-wrapper" style="transform: scale(1.0);">
+          <div class="fe-a4-page" id="fe-a4-page">
+            <span class="fp-page-number-tag" id="fe-page-indicator-tag" style="${totalPages > 1 ? '' : 'display:none'}">
+              ${editorState.currentPage} / ${totalPages} 페이지
+            </span>
+            <canvas class="fe-pdf-canvas" id="fe-pdf-canvas" style="${form.pdfPath ? '' : 'display:none'}"></canvas>
+            <div id="fe-default-template-container" style="${form.pdfPath ? 'display:none' : ''}">
+              ${getStandardConsentTemplateHtml()}
+            </div>
+            <!-- 필드 드래그 오버레이 (현재 페이지에 배치된 모든 필드 표시) -->
+            <div class="fe-fields-overlay" id="fe-fields-overlay">
+              ${renderFieldBoxes(fields, editorState.activeId, editorState.currentPage)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측 속성 패널: 각 페이지별 입력란 선택/추가 및 상세 속성 조정 -->
+      <aside class="fe-sidebar" id="fe-sidebar">
+        ${renderFieldSidebar(fields, editorState.activeId, editorState.currentPage, totalPages)}
+      </aside>
+    </div>
+  `;
+
+  openDialog(
+    '양식 필드 에디터 · (렌탈) 개인정보 동의서',
+    bodyHtml,
+    '',
+    'form-editor-dialog',
+    '각 페이지별로 필요한 날짜 / 성명 / 서명 / 생년월일 / 연락처 입력란을 자유롭게 선택·배치합니다.'
+  );
+
+  initFormEditorEvents(formIdx);
+}
+
+// 현재 페이지에 배치된 필드 인스턴스들 렌더링
+function renderFieldBoxes(fields, activeId, curPage = 1) {
+  const pageFields = (fields || []).filter(f => (parseInt(f.page, 10) || 1) === curPage && f.enabled !== false);
+
+  return pageFields.map(f => {
+    const isAct = f.id === activeId;
+    const safeLabel = STANDARD_FIELD_LABELS[f.key] || f.label || '입력란';
+    const sampleText = f.key === 'signature' ? '(서명 날인)' : (f.sample || sampleTextByKey(f.key));
+    const styleStr = `
+      left: ${f.x}%;
+      top: ${f.y}%;
+      width: ${f.w}%;
+      height: ${f.h}%;
+      font-size: ${f.fontSize || 14}px;
+      font-weight: ${f.fontWeight || (f.key === 'name' ? 'bold' : 'normal')};
+      text-align: ${f.align || 'center'};
+    `;
+
+    return `
+      <div class="fe-field-box fe-field-${f.key} ${isAct ? 'is-selected' : ''}"
+           data-id="${esc(f.id)}"
+           data-key="${esc(f.key)}"
+           style="${styleStr}">
+        <span class="fe-field-tag">${safeLabel} (${curPage}p)</span>
+        <div class="fe-field-content">${esc(sampleText)}</div>
+        <div class="fe-resize-handle" data-handle-id="${esc(f.id)}"></div>
+      </div>
+    `;
+  }).join('');
+}
+
+function sampleTextByKey(key) {
+  switch (key) {
+    case 'date': return '2026년 11월 12일';
+    case 'name': return '한지우';
+    case 'signature': return '(서명 날인)';
+    case 'birthDate': return '1985-03-15';
+    case 'phone': return '010-0000-1006';
+    default: return '입력란';
+  }
+}
+
+// 우측 사이드바 전체 렌더링 (페이지별 입력란 선택 + 상세 속성)
+function renderFieldSidebar(fields, activeId, curPage = 1, totalPages = 1) {
+  const curPageFields = (fields || []).filter(f => (parseInt(f.page, 10) || 1) === curPage && f.enabled !== false);
+  const activeField = (fields || []).find(f => f.id === activeId) || null;
+
+  return `
+    <div class="fe-sidebar-head">
+      <h4>입력 필드 속성 에디터</h4>
+      <p>각 페이지마다 필요한 입력란을 선택하여 자유롭게 배치하세요.</p>
+    </div>
+
+    <!-- 1. 현재 페이지 입력란 선택/추가 카드 -->
+    <div class="fe-section-card">
+      <div class="fe-section-title">
+        <span>📄 ${curPage}페이지 입력란 추가</span>
+        <span class="badge blue">${curPageFields.length}개 배치됨</span>
+      </div>
+      <p style="font-size:11px;color:#64748b;margin:0 0 8px 0;line-height:1.4">
+        아래 버튼을 누르면 현재(${curPage}p) 페이지에 해당 입력란이 즉시 추가됩니다.
+      </p>
+      <div class="fe-add-btn-grid">
+        <button type="button" class="btn sm soft fe-add-btn" data-add-key="date" title="날짜 입력란 추가">
+          ${icon('plus')} 날짜
+        </button>
+        <button type="button" class="btn sm soft fe-add-btn" data-add-key="name" title="성명 입력란 추가">
+          ${icon('plus')} 성명
+        </button>
+        <button type="button" class="btn sm soft fe-add-btn" data-add-key="signature" title="서명 입력란 추가">
+          ${icon('plus')} 서명
+        </button>
+        <button type="button" class="btn sm soft fe-add-btn" data-add-key="birthDate" title="생년월일 입력란 추가">
+          ${icon('plus')} 생년월일
+        </button>
+        <button type="button" class="btn sm soft fe-add-btn" data-add-key="phone" title="연락처 입력란 추가">
+          ${icon('plus')} 연락처
+        </button>
+      </div>
+
+      <!-- 현재 페이지에 배치된 입력란 목록 -->
+      <div class="fe-page-fields-list" style="margin-top:10px">
+        ${curPageFields.length === 0 ? `
+          <div style="font-size:11.5px;color:#94a3b8;text-align:center;padding:12px 6px;background:#f8fafc;border-radius:6px;border:1px dashed #cbd5e1">
+            현재 ${curPage}페이지에 배치된 입력란이 없습니다.<br>
+            위 버튼을 눌러 필요한 입력란을 추가하세요.
+          </div>
+        ` : curPageFields.map(f => {
+          const isAct = f.id === activeId;
+          const safeLabel = STANDARD_FIELD_LABELS[f.key] || f.label || '입력란';
+          return `
+            <div class="fe-field-item-row ${isAct ? 'is-active' : ''}" data-select-id="${esc(f.id)}">
+              <div class="fe-field-item-info">
+                <span class="fe-field-item-label">${esc(safeLabel)}</span>
+                <span class="fe-field-item-pos">X: ${Number(f.x || 0).toFixed(1)}% · Y: ${Number(f.y || 0).toFixed(1)}%</span>
+              </div>
+              <button type="button" class="fe-item-del-btn" data-del-id="${esc(f.id)}" title="${safeLabel} 삭제">✕</button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      ${totalPages > 1 && curPage < totalPages ? `
+        <button type="button" class="btn sm soft grow" id="fe-copy-to-next-page-btn" style="width:100%;margin-top:10px;font-size:11.5px">
+          ${icon('copy')} 현재 필드들을 다음(${curPage + 1}p)으로 복사
+        </button>
+      ` : ''}
+    </div>
+
+    <!-- 2. 선택된 입력란 상세 속성 조정 -->
+    <div class="fe-props-body" id="fe-props-body">
+      ${renderFieldProps(activeField, totalPages, curPage)}
+    </div>
+  `;
+}
+
+function renderFieldProps(field, totalPages = 1, curPage = 1) {
+  if (!field) {
+    return `
+      <div style="padding:20px 10px;text-align:center;color:#64748b;font-size:12px;background:#f8fafc;border-radius:6px;border:1px dashed #cbd5e1">
+        수정할 입력란 상자를 캔버스에서 클릭하거나<br>
+        상단 목록에서 선택하세요.
+      </div>
+    `;
+  }
+
+  const isDate = field.key === 'date';
+  const isSig = field.key === 'signature';
+  const fieldPage = parseInt(field.page, 10) || 1;
+  const safeLabel = STANDARD_FIELD_LABELS[field.key] || field.label || '입력란';
+
+  let pageOptions = '';
+  for (let p = 1; p <= totalPages; p++) {
+    pageOptions += `<option value="${p}" ${p === fieldPage ? 'selected' : ''}>${p} 페이지</option>`;
+  }
+
+  return `
+    <div style="padding-bottom:8px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-weight:800;font-size:13px;color:#0f172a">선택: [${esc(safeLabel)}]</span>
+      <span class="badge blue">배치: ${fieldPage}p</span>
+    </div>
+
+    ${totalPages > 1 ? `
+      <div class="fe-prop-group" style="background:#f8fafc;padding:10px;border-radius:6px;border:1px solid #e2e8f0">
+        <label style="color:#1e40af">📄 배치 페이지 변경</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select id="prop-page" style="flex:1;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;font-weight:700">
+            ${pageOptions}
+          </select>
+          <button type="button" class="btn sm soft" id="fe-move-to-curpage-btn" style="white-space:nowrap;font-size:11px">
+            현재(${curPage}p)로 이동
+          </button>
+        </div>
+      </div>
+    ` : ''}
+
+    <div class="fe-prop-group">
+      <label>위치 (A4 기준 백분율 %)</label>
+      <div class="fe-prop-row">
+        <div>
+          <small style="color:#64748b">X 좌표 (가로)</small>
+          <div class="fe-num-input">
+            <input type="number" id="prop-x" value="${Number(field.x || 0).toFixed(1)}" step="0.5" min="0" max="100">
+            <span>%</span>
+          </div>
+        </div>
+        <div>
+          <small style="color:#64748b">Y 좌표 (세로)</small>
+          <div class="fe-num-input">
+            <input type="number" id="prop-y" value="${Number(field.y || 0).toFixed(1)}" step="0.5" min="0" max="100">
+            <span>%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fe-prop-group">
+      <label>크기 (A4 기준 백분율 %)</label>
+      <div class="fe-prop-row">
+        <div>
+          <small style="color:#64748b">너비 (Width)</small>
+          <div class="fe-num-input">
+            <input type="number" id="prop-w" value="${Number(field.w || 10).toFixed(1)}" step="0.5" min="2" max="100">
+            <span>%</span>
+          </div>
+        </div>
+        <div>
+          <small style="color:#64748b">높이 (Height)</small>
+          <div class="fe-num-input">
+            <input type="number" id="prop-h" value="${Number(field.h || 3).toFixed(1)}" step="0.5" min="1" max="100">
+            <span>%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    ${!isSig ? `
+      <div class="fe-prop-group">
+        <label>텍스트 스타일</label>
+        <div class="fe-prop-row">
+          <div>
+            <small style="color:#64748b">글자 크기 (px)</small>
+            <div class="fe-num-input">
+              <input type="number" id="prop-fontSize" value="${field.fontSize || 14}" step="1" min="10" max="32">
+              <span>px</span>
+            </div>
+          </div>
+          <div>
+            <small style="color:#64748b">정렬</small>
+            <select id="prop-align" style="width:100%;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px">
+              <option value="left" ${field.align === 'left' ? 'selected' : ''}>좌측 정렬</option>
+              <option value="center" ${field.align === 'center' ? 'selected' : ''}>가운데 정렬</option>
+              <option value="right" ${field.align === 'right' ? 'selected' : ''}>우측 정렬</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
+    ${isDate ? `
+      <div class="fe-prop-group">
+        <label>날짜 표기 형식</label>
+        <select id="prop-format" style="width:100%;padding:6px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px">
+          <option value="YYYY년 MM월 DD일" ${(field.format || '') === 'YYYY년 MM월 DD일' ? 'selected' : ''}>2026년 11월 12일</option>
+          <option value="YYYY. MM. DD" ${(field.format || '') === 'YYYY. MM. DD' ? 'selected' : ''}>2026. 11. 12</option>
+          <option value="YYYY-MM-DD" ${(field.format || '') === 'YYYY-MM-DD' ? 'selected' : ''}>2026-11-12</option>
+        </select>
+      </div>
+    ` : ''}
+
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button type="button" class="btn sm soft grow" id="fe-center-x-btn">수평 중앙 정렬</button>
+      <button type="button" class="btn sm soft grow" id="fe-reset-this-btn">기본값 복원</button>
+      <button type="button" class="btn sm danger" id="fe-delete-this-btn" style="white-space:nowrap">${icon('trash')} 삭제</button>
+    </div>
+
+    <div class="fe-tips-box">
+      <b>💡 키보드 미세조정 팁</b><br>
+      박스를 클릭한 상태에서 키보드 <b>상/하/좌/우(↑↓←→)</b> 방향키를 누르면 <b>0.2% (약 2px)</b> 단위로 정밀하게 이동합니다.<br>
+      <b>Shift</b> 키를 함께 누르면 1.0% 단위로 이동합니다.
+    </div>
+  `;
+}
+
+function initFormEditorEvents(formIdx) {
+  const form = db.forms[formIdx];
+  const a4Page = $('#fe-a4-page');
+  const a4Wrapper = $('#fe-a4-wrapper');
+  const canvasEl = $('#fe-pdf-canvas');
+  const overlayEl = $('#fe-fields-overlay');
+  const sidebarEl = $('#fe-sidebar');
+
+  // 현재 활성 필드 찾기
+  const getActiveField = () => {
+    if (!editorState || !editorState.fields) return null;
+    return editorState.fields.find(f => f.id === editorState.activeId) || null;
+  };
+
+  // 현재 페이지 PDF 및 필드 렌더링 함수
+  const renderCurrentPage = async () => {
+    if (editorState.pdfDoc && canvasEl) {
+      canvasEl.style.display = 'block';
+      const defTpl = $('#fe-default-template-container');
+      if (defTpl) defTpl.style.display = 'none';
+
+      await renderPdfPageToCanvas(editorState.pdfDoc, editorState.currentPage, canvasEl);
+
+      const tag = $('#fe-page-indicator-tag');
+      if (tag) {
+        tag.textContent = `${editorState.currentPage} / ${editorState.totalPages} 페이지`;
+        tag.style.display = editorState.totalPages > 1 ? 'block' : 'none';
+      }
+    }
+
+    // 캔버스 오버레이 다시 렌더링
+    if (overlayEl) {
+      overlayEl.innerHTML = renderFieldBoxes(editorState.fields, editorState.activeId, editorState.currentPage);
+    }
+
+    // 사이드바 다시 렌더링
+    if (sidebarEl) {
+      sidebarEl.innerHTML = renderFieldSidebar(editorState.fields, editorState.activeId, editorState.currentPage, editorState.totalPages);
+    }
+  };
+
+  // 초기 렌더링
+  if (editorState.pdfDoc) {
+    renderCurrentPage();
+  }
+
+  // 페이지 이동 함수
+  const goToPage = (p) => {
+    const targetPage = Math.max(1, Math.min(p, editorState.totalPages));
+    if (editorState.currentPage === targetPage) return;
+    editorState.currentPage = targetPage;
+
+    // 페이지 네비게이션 UI 업데이트
+    const sel = $('#fe-page-select');
+    if (sel) sel.value = String(targetPage);
+    const prevBtn = $('#fe-prev-page');
+    if (prevBtn) prevBtn.disabled = targetPage <= 1;
+    const nextBtn = $('#fe-next-page');
+    if (nextBtn) nextBtn.disabled = targetPage >= editorState.totalPages;
+
+    // 현재 페이지에 속한 필드가 있다면 첫 번째 것을 자동 선택
+    const curPageField = editorState.fields.find(f => (parseInt(f.page, 10) || 1) === targetPage);
+    if (curPageField) {
+      editorState.activeId = curPageField.id;
+    } else {
+      editorState.activeId = null;
+    }
+
+    renderCurrentPage();
+  };
+
+  $('#fe-prev-page')?.addEventListener('click', () => goToPage(editorState.currentPage - 1));
+  $('#fe-next-page')?.addEventListener('click', () => goToPage(editorState.currentPage + 1));
+  $('#fe-page-select')?.addEventListener('change', e => goToPage(parseInt(e.target.value, 10) || 1));
+
+  // 줌 컨트롤
+  const updateZoom = (z) => {
+    editorState.zoom = Math.max(0.5, Math.min(2.0, z));
+    if (a4Wrapper) a4Wrapper.style.transform = `scale(${editorState.zoom})`;
+    const lbl = $('#fe-zoom-label');
+    if (lbl) lbl.textContent = `${Math.round(editorState.zoom * 100)}%`;
+  };
+
+  $('#fe-zoom-in')?.addEventListener('click', () => updateZoom(editorState.zoom + 0.15));
+  $('#fe-zoom-out')?.addEventListener('click', () => updateZoom(editorState.zoom - 0.15));
+  $('#fe-zoom-fit')?.addEventListener('click', () => {
+    const vp = $('#fe-viewport');
+    if (vp) {
+      const scale = Math.min((vp.clientWidth - 40) / 794, (vp.clientHeight - 60) / 1123);
+      updateZoom(scale);
+    }
+  });
+
+  // 필드 선택 함수
+  function selectField(id) {
+    if (!id) {
+      editorState.activeId = null;
+      renderCurrentPage();
+      return;
+    }
+    const f = editorState.fields.find(item => item.id === id);
+    if (!f) return;
+
+    editorState.activeId = id;
+    const targetPage = parseInt(f.page, 10) || 1;
+
+    // 만약 선택한 필드가 현재 보고 있는 페이지와 다르면 해당 페이지로 자동 이동
+    if (targetPage !== editorState.currentPage) {
+      goToPage(targetPage);
+    } else {
+      renderCurrentPage();
+    }
+  }
+
+  // 사이드바 이벤트 델리게이션
+  sidebarEl?.addEventListener('click', e => {
+    // 1. [✚ 필드 추가] 버튼 클릭
+    const addBtn = e.target.closest('[data-add-key]');
+    if (addBtn) {
+      const key = addBtn.dataset.addKey;
+      const tpl = DEFAULT_FIELD_TEMPLATES[key] || DEFAULT_FIELD_TEMPLATES.name;
+      const curPage = editorState.currentPage;
+
+      // 같은 키의 필드가 현재 페이지에 몇 개 있는지 세어 약간의 오프셋 부여
+      const sameKeyCount = editorState.fields.filter(f => (parseInt(f.page, 10) || 1) === curPage && f.key === key).length;
+      const offsetY = sameKeyCount * 4.0;
+
+      const newId = `f_${key}_p${curPage}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`;
+      const newField = {
+        id: newId,
+        key,
+        label: STANDARD_FIELD_LABELS[key] || key,
+        page: curPage,
+        x: tpl.x,
+        y: Math.min(92.0, tpl.y + offsetY),
+        w: tpl.w,
+        h: tpl.h,
+        fontSize: tpl.fontSize || 14,
+        fontWeight: tpl.fontWeight || (key === 'name' ? 'bold' : 'normal'),
+        color: '#1a202c',
+        align: tpl.align || 'center',
+        format: (key === 'date') ? 'YYYY년 MM월 DD일' : undefined,
+        sample: tpl.sample,
+        enabled: true
+      };
+
+      editorState.fields.push(newField);
+      editorState.activeId = newId;
+      toast(`[${newField.label}] 입력란이 ${curPage}페이지에 추가되었습니다.`);
+      renderCurrentPage();
+      return;
+    }
+
+    // 2. [✕ 삭제] 개별 버튼 클릭
+    const delBtn = e.target.closest('[data-del-id]');
+    if (delBtn) {
+      const delId = delBtn.dataset.delId;
+      const target = editorState.fields.find(f => f.id === delId);
+      const label = target ? target.label : '입력란';
+      editorState.fields = editorState.fields.filter(f => f.id !== delId);
+      if (editorState.activeId === delId) {
+        const remainingInPage = editorState.fields.find(f => (parseInt(f.page, 10) || 1) === editorState.currentPage);
+        editorState.activeId = remainingInPage ? remainingInPage.id : null;
+      }
+      toast(`[${label}] 입력란이 삭제되었습니다.`);
+      renderCurrentPage();
+      return;
+    }
+
+    // 3. 목록 항목 클릭하여 선택
+    const itemRow = e.target.closest('[data-select-id]');
+    if (itemRow && !e.target.closest('.fe-item-del-btn')) {
+      selectField(itemRow.dataset.selectId);
+      return;
+    }
+
+    // 4. [현재 필드들을 다음 페이지로 복사] 버튼
+    if (e.target.closest('#fe-copy-to-next-page-btn')) {
+      const curPage = editorState.currentPage;
+      const nextPage = curPage + 1;
+      if (nextPage > editorState.totalPages) return toast('마지막 페이지입니다.');
+
+      const curFields = editorState.fields.filter(f => (parseInt(f.page, 10) || 1) === curPage);
+      if (curFields.length === 0) return toast('현재 페이지에 복사할 필드가 없습니다.');
+
+      const copied = curFields.map(f => ({
+        ...JSON.parse(JSON.stringify(f)),
+        id: `f_${f.key}_p${nextPage}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`,
+        page: nextPage
+      }));
+
+      editorState.fields.push(...copied);
+      toast(`${curFields.length}개 입력란이 ${nextPage}페이지로 복사되었습니다.`);
+      goToPage(nextPage);
+      return;
+    }
+
+    // 5. 상세 속성 버튼들 (수평 중앙 정렬, 기본값 복원, 활성 필드 삭제)
+    const active = getActiveField();
+    if (!active) return;
+
+    if (e.target.closest('#fe-center-x-btn')) {
+      active.x = Number(((100 - active.w) / 2).toFixed(1));
+      syncBoxStyle(active.id);
+      renderCurrentPage();
+      return;
+    }
+
+    if (e.target.closest('#fe-reset-this-btn')) {
+      const tpl = DEFAULT_FIELD_TEMPLATES[active.key] || DEFAULT_FIELD_TEMPLATES.name;
+      active.x = tpl.x;
+      active.y = tpl.y;
+      active.w = tpl.w;
+      active.h = tpl.h;
+      active.fontSize = tpl.fontSize || 14;
+      active.align = tpl.align || 'center';
+      syncBoxStyle(active.id);
+      renderCurrentPage();
+      return;
+    }
+
+    if (e.target.closest('#fe-delete-this-btn')) {
+      const label = active.label || '입력란';
+      const curDelId = active.id;
+      editorState.fields = editorState.fields.filter(f => f.id !== curDelId);
+      const remainingInPage = editorState.fields.find(f => (parseInt(f.page, 10) || 1) === editorState.currentPage);
+      editorState.activeId = remainingInPage ? remainingInPage.id : null;
+      toast(`[${label}] 입력란이 삭제되었습니다.`);
+      renderCurrentPage();
+      return;
+    }
+
+    if (e.target.closest('#fe-move-to-curpage-btn')) {
+      active.page = editorState.currentPage;
+      toast(`[${active.label}] 필드가 현재 페이지(${editorState.currentPage}p)로 이동되었습니다.`);
+      renderCurrentPage();
+      return;
+    }
+  });
+
+  // 속성 입력 실시간 반영
+  sidebarEl?.addEventListener('input', e => {
+    const active = getActiveField();
+    if (!active) return;
+
+    if (e.target.id === 'prop-x') active.x = parseFloat(e.target.value) || 0;
+    if (e.target.id === 'prop-y') active.y = parseFloat(e.target.value) || 0;
+    if (e.target.id === 'prop-w') active.w = parseFloat(e.target.value) || 10;
+    if (e.target.id === 'prop-h') active.h = parseFloat(e.target.value) || 3;
+    if (e.target.id === 'prop-fontSize') active.fontSize = parseInt(e.target.value, 10) || 14;
+    if (e.target.id === 'prop-align') active.align = e.target.value;
+    if (e.target.id === 'prop-format') active.format = e.target.value;
+
+    syncBoxStyle(active.id);
+  });
+
+  sidebarEl?.addEventListener('change', e => {
+    const active = getActiveField();
+    if (!active) return;
+
+    if (e.target.id === 'prop-page') {
+      const newPage = parseInt(e.target.value, 10) || 1;
+      active.page = newPage;
+      toast(`[${active.label}] 필드가 ${newPage}페이지로 이동되었습니다.`);
+      selectField(active.id);
+    }
+  });
+
+  function syncBoxStyle(id) {
+    const f = editorState.fields.find(item => item.id === id);
+    const box = $(`[data-id="${id}"]`, a4Page);
+    if (!box || !f) return;
+    box.style.left = `${f.x}%`;
+    box.style.top = `${f.y}%`;
+    box.style.width = `${f.w}%`;
+    box.style.height = `${f.h}%`;
+    box.style.fontSize = `${f.fontSize || 14}px`;
+    box.style.textAlign = f.align || 'center';
+  }
+
+  // 드래그 & 리사이즈 마우스 인터랙션
+  a4Page?.addEventListener('mousedown', e => {
+    const handle = e.target.closest('.fe-resize-handle');
+    if (handle) {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = handle.dataset.handleId;
+      selectField(id);
+      editorState.isResizing = true;
+      editorState.dragStartX = e.clientX;
+      editorState.dragStartY = e.clientY;
+      const f = getActiveField();
+      editorState.initialBox = f ? { ...f } : null;
+      return;
+    }
+
+    const box = e.target.closest('.fe-field-box');
+    if (box) {
+      e.preventDefault();
+      const id = box.dataset.id;
+      selectField(id);
+      editorState.isDragging = true;
+      editorState.dragStartX = e.clientX;
+      editorState.dragStartY = e.clientY;
+      const f = getActiveField();
+      editorState.initialBox = f ? { ...f } : null;
+    }
+  });
+
+  const onMouseMove = (e) => {
+    if (!editorState || (!editorState.isDragging && !editorState.isResizing)) return;
+    const f = getActiveField();
+    const init = editorState.initialBox;
+    if (!f || !init) return;
+
+    const scale = editorState.zoom || 1.0;
+    const dx = (e.clientX - editorState.dragStartX) / scale;
+    const dy = (e.clientY - editorState.dragStartY) / scale;
+
+    const dxPercent = (dx / 794) * 100;
+    const dyPercent = (dy / 1123) * 100;
+
+    if (editorState.isDragging) {
+      let newX = Math.round((init.x + dxPercent) * 10) / 10;
+      let newY = Math.round((init.y + dyPercent) * 10) / 10;
+      f.x = Math.max(0, Math.min(100 - f.w, newX));
+      f.y = Math.max(0, Math.min(100 - f.h, newY));
+      syncBoxStyle(f.id);
+      const px = $('#prop-x'); if (px) px.value = f.x.toFixed(1);
+      const py = $('#prop-y'); if (py) py.value = f.y.toFixed(1);
+    } else if (editorState.isResizing) {
+      let newW = Math.round((init.w + dxPercent) * 10) / 10;
+      let newH = Math.round((init.h + dyPercent) * 10) / 10;
+      f.w = Math.max(4, Math.min(100 - f.x, newW));
+      f.h = Math.max(1.5, Math.min(100 - f.y, newH));
+      syncBoxStyle(f.id);
+      const pw = $('#prop-w'); if (pw) pw.value = f.w.toFixed(1);
+      const ph = $('#prop-h'); if (ph) ph.value = f.h.toFixed(1);
+    }
+  };
+
+  const onMouseUp = () => {
+    if (editorState) {
+      editorState.isDragging = false;
+      editorState.isResizing = false;
+    }
+  };
+
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+
+  // 키보드 방향키 미세 조정
+  const onKeyDown = (e) => {
+    if (!editorState || !$('.dialog.form-editor-dialog')) return;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+        return;
+      }
+      e.preventDefault();
+      const f = getActiveField();
+      if (!f) return;
+
+      const step = e.shiftKey ? 1.0 : 0.2;
+      if (e.key === 'ArrowUp') f.y = Math.max(0, Number((f.y - step).toFixed(1)));
+      if (e.key === 'ArrowDown') f.y = Math.min(100 - f.h, Number((f.y + step).toFixed(1)));
+      if (e.key === 'ArrowLeft') f.x = Math.max(0, Number((f.x - step).toFixed(1)));
+      if (e.key === 'ArrowRight') f.x = Math.min(100 - f.w, Number((f.x + step).toFixed(1)));
+
+      syncBoxStyle(f.id);
+      const px = $('#prop-x'); if (px) px.value = f.x.toFixed(1);
+      const py = $('#prop-y'); if (py) py.value = f.y.toFixed(1);
+    }
+  };
+  window.addEventListener('keydown', onKeyDown);
+
+  // PDF 업로드 트리거
+  const fileInp = $('#fe-pdf-file-input');
+  $('#fe-trigger-upload-btn')?.addEventListener('click', () => fileInp?.click());
+  fileInp?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await handleFormPdfUpload(formIdx, file);
+  });
+
+  // 전체 기본위치 복구
+  $('#fe-reset-positions-btn')?.addEventListener('click', () => {
+    if (!confirm('표준 기본 입력란 위치로 초기화하시겠습니까?')) return;
+    editorState.fields = normalizeFormFields(DEFAULT_FIELD_TEMPLATES);
+    editorState.activeId = editorState.fields[0]?.id || null;
+    renderCurrentPage();
+    toast('표준 기본 입력란으로 복원했습니다.');
+  });
+
+  // 실시간 미리보기 버튼
+  $('#fe-preview-btn')?.addEventListener('click', () => {
+    openFormPreview(formIdx, null, editorState.fields);
+  });
+
+  // 저장 버튼
+  $('#fe-save-btn')?.addEventListener('click', async () => {
+    const curForm = db.forms[formIdx];
+
+    // 저장 전 필드 데이터 유효성 정규화
+    editorState.fields.forEach(f => {
+      f.label = STANDARD_FIELD_LABELS[f.key] || f.label || '입력란';
+      f.page = parseInt(f.page, 10) || 1;
+      if (f.key === 'date' && (!f.format || f.format.includes('?'))) {
+        f.format = 'YYYY년 MM월 DD일';
+      }
+    });
+
+    curForm.fieldsConfig = JSON.parse(JSON.stringify(editorState.fields));
+    save();
+
+    if (curForm.id) {
+      try {
+        const res = await apiFetch('/api/settings/forms/' + encodeURIComponent(curForm.id), {
+          method: 'PATCH',
+          body: {
+            fieldsConfig: curForm.fieldsConfig,
+            pdfPath: curForm.pdfPath,
+            fileName: curForm.fileName
+          }
+        });
+        if (res.ok) {
+          const resData = await res.json().catch(() => ({}));
+          curForm.version = resData.version || curForm.version;
+          save();
+        }
+      } catch (err) {
+        console.warn('Server form sync err:', err);
+      }
+    }
+    toast('양식 필드 배치 설정이 성공적으로 저장되었습니다!');
+    render();
+  });
+}
+
+// PDF 업로드 처리 (한글 파일명 보존 및 다중 페이지 재로딩)
+async function handleFormPdfUpload(formIdx, file) {
+  const form = db.forms[formIdx];
+  if (!file || !form) return;
+  toast('PDF 파일을 업로드하고 있습니다...');
+
+  // 브라우저 측에서 파일명 한글 안전 보존
+  const originalFileName = file.name;
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('fileName', originalFileName);
+
+  try {
+    const res = await fetch('/api/settings/forms/upload-pdf', {
+      method: 'POST',
+      headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+      body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return toast(data.error || 'PDF 업로드에 실패했습니다.');
+    }
+
+    form.pdfPath = data.pdfPath;
+    form.fileName = data.fileName || originalFileName;
+    save();
+
+    pdfDocCache.delete(data.pdfPath);
+    toast(`[${form.fileName}] PDF가 성공적으로 등록되었습니다!`);
+
+    // PDF 로드 및 총 페이지 수 파악
+    const newDoc = await getPdfDoc(data.pdfPath);
+    if (editorState) {
+      editorState.pdfDoc = newDoc;
+      editorState.totalPages = newDoc ? newDoc.numPages : 1;
+      editorState.currentPage = 1;
+      // 에디터 UI 새로고침
+      openFormEditor(formIdx);
+    } else {
+      render();
+    }
+  } catch (err) {
+    console.error('PDF upload error:', err);
+    toast('PDF 파일 업로드 중 오류가 발생했습니다.');
+  }
+}
+
+// -------------------------------------------------------------
+// [실시간 미리보기]: 렌탈 신청 고객 정보 & 서명 합성 뷰어 (다중 페이지 전체 지원)
+// -------------------------------------------------------------
+let previewApplicantsCache = null;
+
+async function openFormPreview(formIdx, selectedApplicantId = null, draftFields = null) {
+  const form = db.forms[formIdx];
+  if (!form) return toast('양식을 찾을 수 없습니다.');
+
+  toast('렌탈 신청 고객 및 서명 데이터를 불러오는 중...');
+  let applicants = previewApplicantsCache;
+
+  if (!applicants) {
+    try {
+      const res = await apiFetch('/api/settings/forms/rental-applicants');
+      if (res.ok) {
+        const data = await res.json();
+        applicants = data.applicants || [];
+        previewApplicantsCache = applicants;
+      }
+    } catch {}
+  }
+
+  // 폴백 샘플 고객
+  if (!applicants || !applicants.length) {
+    const today = new Date();
+    const dStr = `${today.getFullYear()}년 ${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일`;
+    applicants = [
+      {
+        id: 'R-261112-001',
+        customerName: '한지우',
+        phone: '010-0000-1006',
+        birthDate: '1985-03-15',
+        date: dStr,
+        signatureDataUrl: null,
+        planTitle: '초회납입금 + 월 111,000원 플랜'
+      }
+    ];
+  }
+
+  const activeApp = applicants.find(a => a.id === selectedApplicantId) || applicants[0];
+  const fields = normalizeFormFields(draftFields || form.fieldsConfig || DEFAULT_FORM_FIELDS);
+
+  // PDF 문서 및 총 페이지 수 로드
+  let pdfDoc = null;
+  let totalPages = 1;
+  if (form.pdfPath) {
+    pdfDoc = await getPdfDoc(form.pdfPath);
+    if (pdfDoc) totalPages = pdfDoc.numPages;
+  }
+
+  // 페이지 목록 HTML 생성 (다중 페이지 전체 연속 스크롤)
+  let pagesHtml = '';
+  if (form.pdfPath && totalPages > 0) {
+    for (let pNum = 1; pNum <= totalPages; pNum++) {
+      pagesHtml += `
+        <div class="fp-a4-page" id="fp-a4-page-${pNum}" data-page="${pNum}">
+          <span class="fp-page-number-tag">${pNum} / ${totalPages} 페이지</span>
+          <canvas class="fe-pdf-canvas" id="fp-pdf-canvas-${pNum}"></canvas>
+          <div class="fp-rendered-fields-layer" id="fp-fields-layer-${pNum}">
+            ${renderPreviewFieldsForPage(fields, activeApp, pNum, totalPages)}
+          </div>
+        </div>
+      `;
+    }
+  } else {
+    // PDF가 없을 경우 기본 서식 1장 표시
+    pagesHtml = `
+      <div class="fp-a4-page" id="fp-a4-page-1" data-page="1">
+        <span class="fp-page-number-tag">1 / 1 페이지 (표준 서식)</span>
+        <div id="fp-default-template-container">
+          ${getStandardConsentTemplateHtml()}
+        </div>
+        <div class="fp-rendered-fields-layer" id="fp-fields-layer-1">
+          ${renderPreviewFieldsForPage(fields, activeApp, 1, 1)}
+        </div>
+      </div>
+    `;
+  }
+
+  const bodyHtml = `
+    <div class="fp-header-bar">
+      <div class="fp-applicant-select-wrap">
+        <label style="font-weight:700;font-size:12px;color:#334155">${icon('users')} 렌탈 신청 고객 선택:</label>
+        <select class="fp-applicant-select" id="fp-applicant-select">
+          ${applicants.map(a => `
+            <option value="${esc(a.id)}" ${a.id === activeApp.id ? 'selected' : ''}>
+              ${esc(a.id)} | ${esc(a.customerName)} (${esc(a.phone)}) · ${esc(a.planTitle || '렌탈')}
+            </option>
+          `).join('')}
+        </select>
+        <span class="badge green" style="font-size:11px">고객 정보 및 전자서명 자동 연동</span>
+        ${totalPages > 1 ? `<span class="badge blue" style="font-size:11px">총 ${totalPages}페이지 전체 연속 뷰</span>` : ''}
+      </div>
+
+      <div style="display:flex;align-items:center;gap:6px">
+        ${totalPages > 1 ? `
+          <button type="button" class="btn sm soft" id="fp-jump-first-page-btn">1p 이동</button>
+          <button type="button" class="btn sm soft" id="fp-jump-last-page-btn">${totalPages}p(서명란) 이동</button>
+        ` : ''}
+        <div style="display:flex;align-items:center;gap:4px;background:#e2e8f0;padding:2px 6px;border-radius:6px">
+          <button type="button" class="btn sm soft" id="fp-zoom-out" style="padding:2px 8px">－</button>
+          <span id="fp-zoom-label" style="font-size:11.5px;font-weight:700;min-width:44px;text-align:center">100%</span>
+          <button type="button" class="btn sm soft" id="fp-zoom-in" style="padding:2px 8px">＋</button>
+        </div>
+        <button type="button" class="btn sm soft" id="fp-back-to-editor-btn">${icon('edit')} 필드 에디터로 위치 수정</button>
+        <button type="button" class="btn sm primary" id="fp-print-btn">${icon('send')} 전체 인쇄 / PDF 출력</button>
+      </div>
+    </div>
+
+    <div class="fp-viewport" id="fp-viewport">
+      <div class="fp-pages-container" id="fp-pages-container" style="transform: scale(1.0); transform-origin: top center; transition: transform 0.15s ease-out;">
+        ${pagesHtml}
+      </div>
+    </div>
+  `;
+
+  openDialog(
+    '실시간 완성본 미리보기 · (렌탈) 개인정보 동의서',
+    bodyHtml,
+    '',
+    'form-preview-dialog',
+    `총 ${totalPages}페이지 전체 문서가 연속 표시되며, 고객의 실제 정보와 전자서명이 각 페이지 지정 위치에 정확히 합성됩니다.`
+  );
+
+  initFormPreviewEvents(formIdx, applicants, fields, pdfDoc, totalPages);
+}
+
+// 특정 페이지에 배치된 모든 필드 인스턴스들을 실시간 고객 정보 및 전자서명으로 합성
+function renderPreviewFieldsForPage(fields, app, targetPage = 1, totalPages = 1) {
+  const normalized = normalizeFormFields(fields);
+  const pageFields = normalized.filter(f => (parseInt(f.page, 10) || 1) === targetPage && f.enabled !== false);
+
+  // 서명 렌더링 준비
+  let sigContent = '';
+  if (app.signatureDataUrl) {
+    sigContent = `<img src="${app.signatureDataUrl}" alt="전자서명" style="max-width:100%;max-height:100%;object-fit:contain">`;
+  } else {
+    sigContent = `
+      <div style="font-family:'Brush Script MT', cursive, sans-serif;font-size:26px;color:#1e3a8a;transform:rotate(-4deg);letter-spacing:1px;opacity:0.9">
+        ${esc(app.customerName)} (인)
+      </div>
+    `;
+  }
+
+  const htmlList = [];
+
+  for (const f of pageFields) {
+    if (f.key === 'signature') {
+      const sigStyle = `
+        left: ${f.x}%;
+        top: ${f.y}%;
+        width: ${f.w}%;
+        height: ${f.h}%;
+      `;
+      htmlList.push(`<div class="fp-rendered-signature" style="${sigStyle}">${sigContent}</div>`);
+      continue;
+    }
+
+    let textVal = '';
+    if (f.key === 'name') textVal = app.customerName || '';
+    else if (f.key === 'birthDate') textVal = app.birthDate || '';
+    else if (f.key === 'phone') textVal = app.phone || '';
+    else if (f.key === 'date') {
+      textVal = app.date || '';
+      const dFmt = f.format || 'YYYY년 MM월 DD일';
+      if (dFmt === 'YYYY. MM. DD') {
+        textVal = (textVal || '').replace('년 ', '. ').replace('월 ', '. ').replace('일', '');
+      } else if (dFmt === 'YYYY-MM-DD') {
+        textVal = (textVal || '').replace('년 ', '-').replace('월 ', '-').replace('일', '');
+      }
+    }
+
+    const styleStr = `
+      left: ${f.x}%;
+      top: ${f.y}%;
+      width: ${f.w}%;
+      height: ${f.h}%;
+      font-size: ${f.fontSize || 14}px;
+      font-weight: ${f.fontWeight || (f.key === 'name' ? 'bold' : 'normal')};
+      color: ${f.color || '#1a202c'};
+      text-align: ${f.align || 'center'};
+    `;
+    htmlList.push(`<div class="fp-rendered-field" style="${styleStr}">${esc(textVal)}</div>`);
+  }
+
+  return htmlList.join('');
+}
+
+function initFormPreviewEvents(formIdx, applicants, fields, pdfDoc, totalPages) {
+  const container = $('#fp-pages-container');
+  let currentZoom = 1.0;
+
+  // 모든 페이지 캔버스 비동기 순차 렌더링
+  if (pdfDoc && totalPages > 0) {
+    for (let pNum = 1; pNum <= totalPages; pNum++) {
+      const cv = $(`#fp-pdf-canvas-${pNum}`);
+      if (cv) {
+        renderPdfPageToCanvas(pdfDoc, pNum, cv);
+      }
+    }
+  }
+
+  // 고객 변경
+  $('#fp-applicant-select')?.addEventListener('change', e => {
+    const app = applicants.find(a => a.id === e.target.value) || applicants[0];
+    for (let pNum = 1; pNum <= totalPages; pNum++) {
+      const layer = $(`#fp-fields-layer-${pNum}`);
+      if (layer) layer.innerHTML = renderPreviewFieldsForPage(fields, app, pNum, totalPages);
+    }
+  });
+
+  // 페이지 점프
+  $('#fp-jump-first-page-btn')?.addEventListener('click', () => {
+    const p1 = $(`#fp-a4-page-1`);
+    if (p1) p1.scrollIntoView({ behavior: 'smooth' });
+  });
+  $('#fp-jump-last-page-btn')?.addEventListener('click', () => {
+    const pLast = $(`#fp-a4-page-${totalPages}`);
+    if (pLast) pLast.scrollIntoView({ behavior: 'smooth' });
+  });
+
+  // 줌
+  const updateZoom = (z) => {
+    currentZoom = Math.max(0.6, Math.min(1.8, z));
+    if (container) container.style.transform = `scale(${currentZoom})`;
+    const lbl = $('#fp-zoom-label');
+    if (lbl) lbl.textContent = `${Math.round(currentZoom * 100)}%`;
+  };
+  $('#fp-zoom-in')?.addEventListener('click', () => updateZoom(currentZoom + 0.15));
+  $('#fp-zoom-out')?.addEventListener('click', () => updateZoom(currentZoom - 0.15));
+
+  // 에디터로 돌아가기
+  $('#fp-back-to-editor-btn')?.addEventListener('click', () => {
+    openFormEditor(formIdx);
+  });
+
+  // 인쇄
+  $('#fp-print-btn')?.addEventListener('click', () => {
+    window.print();
+  });
+}
+
+function settingsPage(){
+  const tabs=[
+    ['labels','진행라벨','box'],
+    ['stages','진행구분','filter'],
+    ['contract-statuses','계약·수납상태','contract'],
+    ['forms','양식관리','file'],
+    ['users','사용자관리','users'],
+    ['integrations','외부 연동','link'],
+    ['reset','초기화 설정','refresh']
+  ];
+  let content='';
+  if(settingsTab==='labels')content=`<div class="panel-head"><div><h3>진행라벨 관리</h3><p>고객의 특성을 표시하는 라벨입니다. 업무 단계와 별도로 관리합니다.</p></div>${btn('라벨 추가','new-label','plus','sm primary')}</div><div class="panel-pad">${db.labels.map(l=>`<div class="settings-row"><span class="color-dot" style="background:${l.color}"></span><div class="grow"><b>${esc(l.name)}</b><small>고객 목록과 상세 화면에 표시</small></div>${badge(l.name,'gray')}</div>`).join('')}</div>`;
+  if(settingsTab==='stages')content=`<div class="panel-head"><div><h3>진행구분</h3><p>상담·견적·실측·계약의 업무 흐름을 표시합니다.</p></div></div><div class="panel-pad">${stages.map((s,i)=>`<div class="settings-row"><div class="avatar" style="width:28px;height:28px">${String(i+1).padStart(2,'0')}</div><div class="grow"><b>${s}</b><small>${i<5?'상담·견적 담당':'계약·운영 담당'} · 과거 이력 보존</small></div>${badge(s)}</div>`).join('')}</div>`;
+  if(settingsTab==='contract-statuses')content=renderContractStatusesSettingsPanel();
+  if(settingsTab==='forms')content=renderFormsSettingsPanel();
+  if(settingsTab==='users')content=renderUsersSettingsPanel();
+  if(settingsTab==='integrations')content=`<div class="panel-head"><div><h3>외부 서비스 연동</h3><p>실제 서비스 개통 상태와 운영 연결을 관리합니다.</p></div></div><div class="panel-pad">${[['카드결제 PG','신규 결제 요청·승인·취소·정산','credit'],['문자·알림톡','견적 안내·본인 인증·업무 알림','send'],['렌탈사 접수','심사·약정·정산 결과 연결','file'],['랜딩페이지 수집','상담 신청·유입 이벤트 연결','link']].map(([n,t,i])=>`<div class="settings-row">${icon(i)}<div class="grow"><b>${n}</b><small>${t}</small></div>${badge('미연결','gray')}${btn('연결 안내','integration','info','sm',`data-name="${n}"`)}</div>`).join('')}</div>`;
+  if(settingsTab==='reset')content=`<div class="panel-head"><h3>체험 데이터 초기화</h3></div><div class="panel-pad"><div class="notice-text">현재 브라우저에 저장된 체험 데이터만 초기 상태로 되돌립니다. 기존 운영 CRM과 연결되어 있지 않습니다.</div><div style="margin-top:20px">${btn('체험 데이터 초기화','reset-data','refresh','danger')}</div></div>`;
+  return pageHead('설정','운영 기준과 사용자 권한을 관리하세요.','','SYSTEM SETTINGS')+`<div class="settings-layout"><nav class="settings-nav">${tabs.map(([v,t,i])=>`<button class="${settingsTab===v?'active':''}" data-action="settings-tab" data-value="${v}">${icon(i)}${t}</button>`).join('')}</nav><section class="panel">${content}</section></div>`;
+}
+
+function openDialog(title,body,footer='',cls='',subtitle='',dark=false){
+  if(mobileNavOpen) setMobileNav(false);
+  if(!restoreFocus) restoreFocus = document.activeElement;
+  
+  const overlayEl = $('#overlay');
+  const existingOverlay = overlayEl?.querySelector('.overlay');
+  const existingDialog = existingOverlay?.querySelector('.dialog');
+
+  if (existingDialog) {
+    // Already open! Update in-place to avoid re-triggering slide-in animation or resetting scroll
+    existingDialog.className = `dialog ${cls}`.trim();
+    existingDialog.setAttribute('aria-label', title.replace(/<[^>]*>/g,''));
+    
+    const head = existingDialog.querySelector('.dialog-head');
+    if (head) {
+      head.className = `dialog-head ${dark ? 'dark' : ''}`.trim();
+      head.innerHTML = `<div><h2>${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ''}</div><button class="close" data-action="close" aria-label="닫기">${icon('close')}</button>`;
+    }
+    
+    const prevBody = existingDialog.querySelector('.dialog-body');
+    const prevScroll = prevBody ? prevBody.scrollTop : 0;
+    
+    // Remove all siblings after head
+    while (head && head.nextSibling) {
+      head.nextSibling.remove();
+    }
+    
+    // Insert new body and footer
+    const temp = document.createElement('div');
+    temp.innerHTML = `${body}${footer ? `<footer class="dialog-footer">${footer}</footer>` : ''}`;
+    while (temp.firstChild) {
+      existingDialog.appendChild(temp.firstChild);
+    }
+    
+    const newBody = existingDialog.querySelector('.dialog-body');
+    if (newBody && prevScroll) {
+      newBody.scrollTop = prevScroll;
+    }
+    document.body.style.overflow = 'hidden';
+    return;
+  }
+  
+  overlayEl.innerHTML = `<div class="overlay"><section class="dialog ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title.replace(/<[^>]*>/g,''))}"><header class="dialog-head ${dark?'dark':''}"><div><h2>${title}</h2>${subtitle?`<p>${subtitle}</p>`:''}</div><button class="close" data-action="close" aria-label="닫기">${icon('close')}</button></header>${body}${footer?`<footer class="dialog-footer">${footer}</footer>`:''}</section></div>`;
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => $('.dialog .close')?.focus(), 20);
+}
+function closeDialog(){ 
+  $('#overlay').innerHTML = '';
+  document.body.style.overflow = '';
+  detailId = null;
+  detailTab = 'notes';
+  restoreFocus?.isConnected && restoreFocus.focus();
+  restoreFocus = null;
+}
 function formDialog(title,fields,submit,subtitle='',extra=''){openDialog(title,`<form id="edit-form" data-submit="${submit}" ${extra}><div class="dialog-body">${fields}</div><div class="dialog-footer">${btn('취소','close')}<button type="submit" class="btn primary">저장하기</button></div></form>`,'','',subtitle)}
 function linkRow(label,url,action,id,emptyLabel=label+' 등록'){return url?`<div style="display:flex;gap:6px"><a class="btn soft sm" href="${esc(url)}" target="_blank" rel="noopener noreferrer" style="flex:1">${icon('external')}${label} 바로가기</a><button class="btn sm" type="button" data-action="${action}" data-id="${id}" title="${label} 링크 수정" aria-label="${label} 링크 수정" style="padding:6px 9px">${icon('edit')}</button></div>`:btn(emptyLabel,action,'link','sm block',`data-id="${id}"`)}
 function linkDialog(title,label,url,submit,id,customerName){const cObj=accessibleC(id);const isQuoteLink=(label==='가견적'||label==='최종견적');openDialog(title,`<form id="edit-form" data-submit="${submit}" data-id="${id}"><div class="dialog-body">${field(label+' URL','url',url||'','text')}<p class="field-hint">이동할 ${label} 페이지 주소(URL)를 입력해 주세요. CRM에서 ${label}을 발행하면 전용 모바일 링크가 자동 연결됩니다.</p><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${isQuoteLink&&cObj?.quote?`<button type="button" class="btn soft sm" data-action="preview" data-id="${id}" data-type="${label}">${icon('eye')}${label} 모바일 화면 미리보기</button>`:''}${url?`<a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon('external')}새 탭에서 열기</a>`:''}</div></div><div class="dialog-footer"><button type="button" class="btn" data-action="customer" data-id="${id}">취소</button><button type="submit" class="btn primary">저장하기</button></div></form>`,'','',`${esc(customerName)} · ${label}`)}
@@ -1326,6 +2875,32 @@ if(tab==='contract')content=`${custContracts.map(k=>{
   </div>`;
 }).join('')||'<div class="empty">등록된 계약이 없습니다.</div>'}<div class="actions" style="margin-top:10px">${btn('계약 등록','new-contract','contract','primary sm',`data-id="${id}" data-from="customer-modal"`)}${custContracts.length?btn('계약관리에서 보기','go-customer-contracts','external','sm soft',`data-id="${id}"`):''}</div>`;
 if(tab==='files')content=`<div class="notice-text">공사 현장 사진·도면·내관도 링크를 한곳에서 관리합니다.</div><div class="file-card" style="margin-top:15px">${icon('link')}<div style="flex:1"><b>내관도 링크</b><small>${c.drawing?esc(c.drawing):'등록된 내관도 링크가 없습니다.'}</small></div><div class="actions">${c.drawing?`<a class="btn sm soft" href="${esc(c.drawing)}" target="_blank" rel="noopener noreferrer">${icon('external')}바로가기</a>`:''}${btn('관리','drawing','edit','sm',`data-id="${id}"`)}</div></div><div class="field"><label>공사 희망사항</label><textarea id="case-description">${esc(c.description||c.note)}</textarea></div>${btn('공사정보 저장','save-description','check','sm soft',`data-id="${id}"`)}`;
+
+const existingDetail = $('.overlay .customer-detail');
+if (existingDetail && detailId === c.id) {
+  detailTab = tab;
+  existingDetail.dataset.detailTab = tab;
+  existingDetail.querySelectorAll('.desktop-detail-tabs .tab, .mobile-detail-tabs .tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.value === tab);
+  });
+  const manageToggleBtn = existingDetail.querySelector('[data-action="detail-tab"][data-value="manage"], [data-action="detail-tab"][data-value="notes"]');
+  if (manageToggleBtn) {
+    manageToggleBtn.dataset.value = tab === 'manage' ? 'notes' : 'manage';
+    manageToggleBtn.textContent = tab === 'manage' ? '상담이력 보기' : '상태·링크 변경';
+  }
+  const contentEl = existingDetail.querySelector('.detail-content');
+  if (contentEl) contentEl.innerHTML = content;
+  const formEl = existingDetail.querySelector('.note-compose');
+  if (['notes', 'feedback'].includes(tab)) {
+    const formHtml = `<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`;
+    if (formEl) formEl.outerHTML = formHtml;
+    else contentEl.insertAdjacentHTML('afterend', formHtml);
+  } else if (formEl) {
+    formEl.remove();
+  }
+  return;
+}
+
 const quoteShortcutBtn = canManageQuotes()
   ? btn('견적등록', 'new-quote', 'plus', 'soft sm', `data-id="${id}"`)
   : btn('본사 견적 요청', 'request-quote', 'plus', 'soft sm', `data-id="${id}"`);
@@ -2287,6 +3862,7 @@ async function openApplication(id, contractId = null) {
       c ? btn('고객 보기', 'customer', 'users', '', `data-id="${c.id}"`) : '',
       c && c.quote ? btn('가견적 보기', 'preview', 'eye', 'soft', `data-id="${c.id}" data-type="가견적"`) : '',
       c && c.quote ? btn('최종견적 보기', 'preview', 'eye', 'soft', `data-id="${c.id}" data-type="최종견적"`) : '',
+      btn('(렌탈) 동의서 양식 출력', 'open-form-preview-by-app', 'file', 'primary', `data-app-id="${esc(app.id)}"`),
       contract ? btn('계약 원장 보기', 'cash-contract', 'contract', 'soft', `data-id="${contract.id}"`) : '',
       btn('닫기', 'close', '', 'secondary')
     ].filter(Boolean).join('');
@@ -2308,10 +3884,16 @@ function showSchedule(id){const c=accessibleC(id)||visibleCustomers()[0];formDia
 function download(name,content,mime='text/csv;charset=utf-8'){const blob=new Blob(['\ufeff',content],{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function csvCell(v){let s=String(v??'');if(/^[=+@-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('링크를 복사했습니다.')}catch{openDialog('링크 복사',`<div class="dialog-body"><input class="input" value="${esc(text)}" readonly style="width:100%"><p class="field-hint">링크를 선택해 복사해 주세요.</p></div>`)}}
-function productURL(i){const p=db.products[i];if(!p.url)return '';try{const uObj=getActiveUser();const isP=isPartnerUser(uObj);const u=new URL(p.url);u.searchParams.set('partner',!isP?'lifeandjoy':(uObj.username||'partner'));u.searchParams.set('utm_source',!isP?'crm':'partner');u.searchParams.set('utm_medium','referral');return u.href}catch{return ''}}
-function normalizeURL(url){const s=String(url??'').trim();if(!s)return '';return /^https?:\/\//i.test(s)?s:'https://'+s}
-function validateURL(url){if(!url)return true;try{const u=new URL(url);return ['https:','http:'].includes(u.protocol)&&Boolean(u.hostname)}catch{return false}}
-document.addEventListener('click',async e=>{if($('.overlay')&&!e.target.closest('.dialog'))return;if(e.target.matches('input[type=checkbox]'))return;const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action,id=el.dataset.id,v=el.dataset.value;
+function productURL(i){const p=db.products[i];if(!p.url)return '';try{const uObj=getActiveUser();const isP=isPartnerUser(uObj);const u=new URL(p.url,window.location.origin);u.searchParams.set('partner',!isP?'lifeandjoy':(uObj.username||'partner'));u.searchParams.set('utm_source',!isP?'crm':'partner');u.searchParams.set('utm_medium','referral');return u.href}catch{return p.url}}
+function normalizeURL(url){const s=String(url??'').trim();if(!s)return '';if(s.startsWith('/'))return s;return /^https?:\/\//i.test(s)?s:'https://'+s}
+function validateURL(url){if(!url)return true;const s=String(url).trim();if(s.startsWith('/'))return true;try{const u=new URL(s,window.location.origin);return ['https:','http:'].includes(u.protocol)&&Boolean(u.hostname)}catch{return false}}
+document.addEventListener('click',async e=>{
+  // 모달(다이얼로그) 바깥 오버레이 영역을 클릭해도 창이 닫히지 않고 작업 상태를 유지하도록 차단
+  if($('.overlay')&&!e.target.closest('.dialog'))return;
+  if(e.target.matches('input[type=checkbox]'))return;
+  const el=e.target.closest('[data-action]');
+  if(!el)return;
+  const a=el.dataset.action,id=el.dataset.id,v=el.dataset.value;
 switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':setMobileNav(false);break;case'nav':setMobileNav(false);page=el.dataset.page;selected.clear();render();window.scrollTo(0,0);break;case'close':closeDialog();break;case'customer':openCustomer(id);break;case'new-customer':openNewCustomer();break;case'customer-tab':customerTab=v;render();break;case'filter-all':stageFilter='';customerTab='all';render();break;case'filter-stage':stageFilter=v;customerTab='all';render();break;case'reset-filters':query='';stageFilter='';productFilter='';partnerFilter='';periodFilter='all';customerTab='all';render();break;case'detail-tab':openCustomer(id,v);break;case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();break;case'new-quote':openEditor(id, el.dataset.type || '');break;
   case'preview':openPreview(id, null, 'quote', el.dataset.type || '', el.dataset.quoteId || null);break;
   case'editor-preview':openPreview(editor.cid, { ...editor, ...editorTotal() }, 'quote', el.dataset.type || editor.type || '가견적');break;
@@ -2865,6 +4447,7 @@ case'partner-detail':{const p=db.partners.find(x=>x.id===id);formDialog('파트�
 case'new-partner':formDialog('영업파트너 등록',`${field('파트너명','name','','text',true)}${field('대표 담당자','person','','text',true)}${field('이메일','email','','email',true)}${selectField('업종','type',['인테리어','영업대행','기타'],'인테리어')}<div class="notice-text">체험용 파트너 등록입니다. 실제 계정 발급이나 초대 메일은 발송하지 않습니다.</div>`,'partner');break;
 case'copy-product':{const u=productURL(id);if(u)copy(u);else toast('랜딩 URL을 먼저 등록해 주세요.');break}
 case'product-link':{const p=db.products[id],u=productURL(id),activeU=getActiveUser();openDialog('상품 전용 상담 링크',`<div class="dialog-body"><div class="info-grid"><div><label>상품</label><b>${esc(p.name)}</b></div><div><label>소속</label><b>${esc(activeU.org||'라이프앤조이')}</b></div></div><div class="divider"></div><div class="field"><label>파트너·유입경로가 포함된 링크</label><textarea readonly>${esc(u||'랜딩 URL 등록 대기')}</textarea></div><div class="notice-text">이 링크에는 파트너 식별값이 포함됩니다. 실제 고객 귀속과 유입 집계에는 랜딩페이지 연동이 필요합니다.</div></div>`,u?btn('링크 복사','copy-product','copy','primary',`data-id="${id}"`):btn('닫기','close'));break}
+case'preview-landing':{const p=db.products[id];const u=productURL(id)||p?.url||'/landing/';openDialog('KCC 홈씨씨 창호 랜딩페이지 미리보기',`<div class="dialog-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;height:78vh"><div style="padding:10px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px"><div style="display:flex;align-items:center;gap:8px"><span class="badge green">실시간 연동</span><span style="color:#64748b;font-family:monospace;font-size:12px">${esc(u)}</span></div><div style="display:flex;gap:6px"><button type="button" class="btn sm" onclick="const f=document.getElementById('landing-preview-frame');if(f){f.style.maxWidth='390px';f.style.margin='0 auto';}">${icon('phone')}모바일 390px</button><button type="button" class="btn sm" onclick="const f=document.getElementById('landing-preview-frame');if(f){f.style.maxWidth='100%';f.style.margin='0';}">${icon('window')}PC 너비</button><a class="btn sm primary" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${icon('external')} 새 탭에서 열기</a></div></div><div style="flex:1;background:#52525b;display:flex;justify-content:center;overflow:hidden;padding:12px"><iframe id="landing-preview-frame" src="${esc(u)}" style="width:100%;height:100%;border:none;border-radius:12px;background:#fff;box-shadow:0 10px 25px -5px rgba(0,0,0,0.3);transition:all 0.25s ease" title="창호 랜딩페이지 미리보기"></iframe></div></div>`,btn('닫기','close'));break}
 case'new-product':case'edit-product':{const p=a==='edit-product'?db.products[id]:null;formDialog('상품페이지 '+(p?'수정':'등록'),`${field('상품명','name',p?.name||'','text',true)}${selectField('상품군','category',['창호','주방','욕실'],p?.category||'창호')}${field('랜딩페이지 URL','url',p?.url||'','url')}${field('간단 소개','desc',p?.desc||'')}`,'product','상품 판매 페이지의 링크를 관리합니다.',p?`data-id="${id}"`:'');break}
 case'new-label':formDialog('진행라벨 추가',field('라벨명','name','','text',true)+field('색상','color','#7396dd','color'),'label');break;
 case'new-user':openUserDialog(null);break;
@@ -2925,8 +4508,37 @@ case'dlg-menu-role-default':{
     }
     break;
   }
+case'open-form-editor':{
+  openFormEditor(Number(id));
+  break;
+}
+case'open-form-preview':{
+  openFormPreview(Number(id));
+  break;
+}
+case'open-form-preview-by-app':{
+  const appId = el.dataset.appId;
+  const fIdx = Math.max(0, (db.forms || []).findIndex(f => f.name.includes('렌탈') || f.id === 'rental_privacy'));
+  openFormPreview(fIdx >= 0 ? fIdx : 0, appId);
+  break;
+}
+case'upload-form-pdf-btn':{
+  const formIdx = Number(id);
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.pdf';
+  inp.onchange = async (ev) => {
+    const file = ev.target.files?.[0];
+    if (file) {
+      await handleFormPdfUpload(formIdx, file);
+      render();
+    }
+  };
+  inp.click();
+  break;
+}
 case'edit-form':{const f=db.forms[id];formDialog('양식 편집',`<div class="field"><label>${esc(f.name)} · 현재 v${f.version}.0</label><textarea name="text" style="min-height:230px" required>${esc(f.text)}</textarea></div><div class="notice-text">저장 시 새 버전으로 생성합니다. 본문은 검토용 예시이며 실제 접수 전 확정이 필요합니다.</div>`,'consent','',`data-id="${id}"`);break}
-case'new-form':{formDialog('새 양식 및 동의서 등록',`<div class="notice-text" style="margin-bottom:14px">상담, 계약, 렌탈 신청 등에 사용할 새 양식 및 동의서를 등록합니다.</div>${field('양식 명칭','name','','text',true)}<div class="field"><label>양식 본문 내용</label><textarea name="text" style="min-height:220px" placeholder="동의 목적, 수집 항목, 보유기간 및 약관 조항 등을 입력하세요." required></textarea></div>`,'create-form','새 양식 추가');break}
+case'new-form':{formDialog('새 양식 등록 (렌탈 동의서)',`<div class="notice-text" style="margin-bottom:14px">렌탈 신청 및 전자계약에 사용할 양식을 등록합니다.<br>등록 후 <b>날짜 / 성명 / 서명 / 생년월일 / 연락처</b> 입력 위치를 드래그 편집할 수 있는 에디터가 즉시 실행됩니다.</div>${field('양식 명칭','name','(렌탈) 개인정보 동의서','text',true)}<div class="field"><label>양식 본문 내용 (필요 시 수정)</label><textarea name="text" style="min-height:160px" required>${esc(DEFAULT_RENTAL_PRIVACY_CONTENT)}</textarea></div>`,'create-form','새 양식 추가 및 에디터 실행');break}
 case'delete-form':{
   const target=db.forms[id];
   if(!target)break;
@@ -3457,22 +5069,39 @@ case'consent':{
 }
 case'create-form':{
   const title=(d.name||'').trim();
-  const text=(d.text||'').trim();
-  if(!title||!text){toast('양식 명칭과 본문을 모두 입력해 주세요.');break}
+  const text=(d.text||'').trim() || DEFAULT_RENTAL_PRIVACY_CONTENT;
+  if(!title){toast('양식 명칭을 입력해 주세요.');break}
+  let newIdx = 0;
   try{
-    const res=await apiFetch('/api/settings/forms',{method:'POST',body:{name:title,text}});
+    const res=await apiFetch('/api/settings/forms',{
+      method:'POST',
+      body:{
+        name:title,
+        text,
+        fieldsConfig: DEFAULT_FORM_FIELDS
+      }
+    });
     if(res.ok){
       const resData=await res.json().catch(()=>({}));
       if(Array.isArray(resData.forms)){
         db.forms=resData.forms;
+        newIdx = Math.max(0, db.forms.findIndex(f => f.name === title));
       }else{
-        db.forms.push({id:'form_'+Date.now(),name:title,version:1,text});
+        db.forms.push({id:'form_'+Date.now(),name:title,version:1,text,fieldsConfig:JSON.parse(JSON.stringify(DEFAULT_FORM_FIELDS))});
+        newIdx = db.forms.length - 1;
       }
-      save();closeDialog();render();toast(`[${title}] 양식을 추가했습니다.`);break;
+      save();closeDialog();render();
+      toast(`[${title}] 양식을 등록했습니다. 필드 에디터를 실행합니다.`);
+      setTimeout(() => openFormEditor(newIdx), 150);
+      break;
     }
   }catch{}
-  db.forms.push({id:'form_'+Date.now(),name:title,version:1,text});
-  save();closeDialog();render();toast(`[${title}] 양식을 추가했습니다.`);break;
+  db.forms.push({id:'form_'+Date.now(),name:title,version:1,text,fieldsConfig:JSON.parse(JSON.stringify(DEFAULT_FORM_FIELDS))});
+  newIdx = db.forms.length - 1;
+  save();closeDialog();render();
+  toast(`[${title}] 양식을 등록했습니다. 필드 에디터를 실행합니다.`);
+  setTimeout(() => openFormEditor(newIdx), 150);
+  break;
 }
 case'messaging-config':{
     try {
