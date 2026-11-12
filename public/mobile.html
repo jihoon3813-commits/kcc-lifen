@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>KCC홈씨씨 · 모바일 화면 미리보기</title>
+  <style>
+    body { margin: 0; background: #e7eaed; display: flex; justify-content: center; align-items: center; min-height: 100vh; min-height: 100dvh; padding: 18px; box-sizing: border-box; }
+    #mframe { width: 390px; height: 844px; max-width: 100%; border: 0; background: white; border-radius: 18px; box-shadow: 0 15px 50px #1b2e3d22; }
+    @media (max-width: 480px) {
+      body { padding: 0; background: #fff; }
+      #mframe { width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <iframe id="mframe" title="모바일 견적서" src="./quote.html"></iframe>
+  <script>
+    if (location.search) {
+      document.getElementById('mframe').src = './quote.html' + location.search;
+    }
+  </script>
+</body>
+</html>

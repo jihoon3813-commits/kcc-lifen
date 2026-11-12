@@ -1,0 +1,22 @@
+{
+  "title": "KCC홈씨씨 CRM 3.0 | 라이프앤조이",
+  "created_at": "2026-11-12T11:02:38.175651+09:00",
+  "source_commit": "502c17769947206c3d4c53eb54f0930f4adc52d8",
+  "source_published_version": 2,
+  "latest_change": "우측 전체 높이 패널",
+  "live_url": "https://kcc-homecc-crm-v3.hoony365.chatgpt.site",
+  "application_files": {
+    "app/index.html": {
+      "sha256": "0e4ae3f0dadb1d600415de535090c551701bf733fcf85e9a85e313e03489bd56",
+      "size_bytes": 542
+    },
+    "app/style.css": {
+      "sha256": "f04073d87098ad54510801677efcde7106a7ad28cc26ee896a8b67e4952bd4e8",
+      "size_bytes": 32644
+    },
+    "app/app.js": {
+      "sha256": "793b4e70ad5d5e8a6ddefc8dac03ef3bef0451219348847932eff25cd3d067e5",
+      "size_bytes": 86565
+    }
+  }
+}

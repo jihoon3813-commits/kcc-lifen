@@ -1,0 +1,15 @@
+{
+  "name": "kcc-homecc-crm-v3-antigravity",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/preview.mjs",
+    "start": "node scripts/preview.mjs",
+    "check": "node --check app/app.js && node --check scripts/preview.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+

@@ -1,0 +1,15 @@
+{
+  "name": "kcc-mobile-estimate-antigravity",
+  "version": "2.0.0",
+  "private": true,
+  "description": "KCC 홈씨씨 모바일 견적서 · 렌탈 신청 · 관리자 시안 개발 인계",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "start": "node scripts/serve.mjs",
+    "check": "node --check web/app.js && node --check web/rental.js && node --check web/rental-config.js && node --check web/admin.js && node --check scripts/serve.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "source_matches_published_commit": true,
+  "node_syntax_check": "passed",
+  "preview_http": {
+    "index.html": {
+      "status": 200,
+      "exact_bytes": true
+    },
+    "style.css": {
+      "status": 200,
+      "exact_bytes": true
+    },
+    "app.js": {
+      "status": 200,
+      "exact_bytes": true
+    }
+  },
+  "real_backend_included": false,
+  "real_payment_included": false
+}

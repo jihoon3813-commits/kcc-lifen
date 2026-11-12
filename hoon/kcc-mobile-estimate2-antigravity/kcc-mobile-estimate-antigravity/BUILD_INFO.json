@@ -1,0 +1,8 @@
+{
+  "package_version": "2.0.0",
+  "source_commit": "ac017eb55fb1de268a369fce1140bfe935caff10",
+  "built_date": "2026-11-11",
+  "mode": "demo",
+  "backend_included": false,
+  "admin_data": "synthetic only"
+}
