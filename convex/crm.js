@@ -524,6 +524,19 @@ export const upsertContract = mutation({
   },
 });
 
+export const deleteContract = mutation({
+  args: { contractNo: v.string() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("contracts")
+      .withIndex("by_contractNo", (q) => q.eq("contractNo", args.contractNo))
+      .first();
+    if (!existing) return { deleted: false };
+    await ctx.db.delete(existing._id);
+    return { deleted: true };
+  },
+});
+
 export const getAnalyticsData = query({
   args: {},
   handler: async (ctx) => {
