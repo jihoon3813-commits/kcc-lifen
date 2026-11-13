@@ -635,4 +635,35 @@ router.post('/reset', requireAuth, requireRole('hq_admin'), (req, res) => {
   res.json({ message: '데이터가 초기화되었습니다.' });
 });
 
+// Get Customer Mobile Quote Consult Phone (Public GET so quote.html can read it)
+router.get('/quote-phone', (req, res) => {
+  try {
+    const row = db.prepare("SELECT config_json, updated_at FROM integration_configs WHERE key = 'quote_consult_phone'").get();
+    const parsed = row?.config_json ? JSON.parse(row.config_json) : {};
+    res.json({ phone: parsed.phone || '', updatedAt: row?.updated_at || null });
+  } catch {
+    res.json({ phone: '', updatedAt: null });
+  }
+});
+
+// Update Customer Mobile Quote Consult Phone
+const handleSaveQuotePhone = (req, res) => {
+  const rawPhone = String(req.body?.phone ?? '').trim();
+  if (rawPhone && !/^[\d\-+\s()]{4,25}$/.test(rawPhone)) {
+    return res.status(400).json({ error: '올바른 전화번호 형식을 입력해 주세요. (예: 02-2015-8500, 1588-0000)' });
+  }
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO integration_configs (key, config_json, updated_by, updated_at)
+    VALUES ('quote_consult_phone', ?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET
+      config_json = excluded.config_json,
+      updated_by = excluded.updated_by,
+      updated_at = excluded.updated_at
+  `).run(JSON.stringify({ phone: rawPhone }), req.user?.name || '관리자', now);
+  res.json({ success: true, phone: rawPhone, updatedAt: now });
+};
+router.put('/quote-phone', requireAuth, requireMenu('settings'), handleSaveQuotePhone);
+router.post('/quote-phone', requireAuth, requireMenu('settings'), handleSaveQuotePhone);
+
 export default router;

@@ -95,9 +95,9 @@ app.get('/api/health', (req, res) => {
 
 // 4. Serve Frontend Static Files
 if (fs.existsSync(config.publicDir)) {
-  // /admin, /admin.html 접속 시 메인 통합 CRM 어드민으로 바로 연결 (2번 화면)
-  app.get(['/admin', '/admin.html'], (req, res) => {
-    return res.redirect('/');
+  // /admin 접속 시 메인 통합 CRM 어드민으로 연결
+  app.get(['/admin', '/admin/'], (req, res) => {
+    return res.sendFile(path.join(config.publicDir, 'admin', 'index.html'));
   });
 
   app.use(express.static(config.publicDir));
@@ -105,6 +105,9 @@ if (fs.existsSync(config.publicDir)) {
     if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
       if (req.path === '/landing' || req.path.startsWith('/landing/')) {
         return res.sendFile(path.join(config.publicDir, 'landing', 'index.html'));
+      }
+      if (req.path === '/admin' || req.path.startsWith('/admin/')) {
+        return res.sendFile(path.join(config.publicDir, 'admin', 'index.html'));
       }
       return res.sendFile(path.join(config.publicDir, 'index.html'));
     }

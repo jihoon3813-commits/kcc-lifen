@@ -28,6 +28,7 @@ function setPreviewDevice(mode) {
 }
 
 let currentQuote = null;
+let configuredConsultPhone = '';
 let viewerToken = '';
 let csrfToken = '';
 let selectedPlan = 'cash';
@@ -106,8 +107,19 @@ function setScreenView(mode) {
   }
 }
 
+function isPlanSelectable(key) {
+  if (key === 'cash') return true;
+  if (!plans[key]) return false;
+  const card = document.querySelector(`[data-plan="${key}"]`);
+  if (!card) return false;
+  const optionWrap = card.closest('.rental-option');
+  if (card.disabled || card.hidden || (optionWrap && optionWrap.hidden)) return false;
+  if (Number(plans[key].upfront ?? 0) <= 0) return false;
+  return true;
+}
+
 function choosePlan(key) {
-  if (!plans[key]) key = 'cash';
+  if (!isPlanSelectable(key)) key = 'cash';
   selectedPlan = key;
   document.querySelectorAll('[data-plan-actions]').forEach(el => {
     el.hidden = el.dataset.planActions !== key;
@@ -294,24 +306,33 @@ function renderQuote(q) {
 
   // -----------------------------------------------------------
   // [렌탈 금액표 바인딩] 고객 부담을 줄이기 위해 '총액'은 미표시
+  // 초회납입금이 0원 이하인 플랜은 화면에서 숨기고 선택 불가 처리
   // 1) 월 111,000원 플랜 (500만원 초과분 = 초회납입금)
   // 2) 월 222,000원 플랜 (1,000만원 초과분 = 초회납입금)
   // 3) 월 333,000원 플랜 (1,500만원 초과분 = 초회납입금)
   // -----------------------------------------------------------
-  const elP111Mo = document.getElementById('p111-monthly');
-  const elP111Up = document.getElementById('p111-upfront');
-  if (elP111Mo) elP111Mo.innerHTML = `${num(p111.mainAmount || 111000)}<small>원</small>`;
-  if (elP111Up) elP111Up.textContent = money(p111.upfront ?? Math.max(0, cashPrice - 5000000));
+  const rentalPlanSpecs = [
+    { key: 'plan111', data: p111, defaultMo: 111000, threshold: 5000000, moElId: 'p111-monthly', upElId: 'p111-upfront' },
+    { key: 'plan222', data: p222, defaultMo: 222000, threshold: 10000000, moElId: 'p222-monthly', upElId: 'p222-upfront' },
+    { key: 'plan333', data: p333, defaultMo: 333000, threshold: 15000000, moElId: 'p333-monthly', upElId: 'p333-upfront' }
+  ];
+  for (const spec of rentalPlanSpecs) {
+    const moVal = Number(spec.data?.mainAmount || spec.defaultMo);
+    const upVal = Number(spec.data?.upfront ?? Math.max(0, cashPrice - spec.threshold));
+    const elMo = document.getElementById(spec.moElId);
+    const elUp = document.getElementById(spec.upElId);
+    if (elMo) elMo.innerHTML = `${num(moVal)}<small>원</small>`;
+    if (elUp) elUp.textContent = money(upVal);
 
-  const elP222Mo = document.getElementById('p222-monthly');
-  const elP222Up = document.getElementById('p222-upfront');
-  if (elP222Mo) elP222Mo.innerHTML = `${num(p222.mainAmount || 222000)}<small>원</small>`;
-  if (elP222Up) elP222Up.textContent = money(p222.upfront ?? Math.max(0, cashPrice - 10000000));
-
-  const elP333Mo = document.getElementById('p333-monthly');
-  const elP333Up = document.getElementById('p333-upfront');
-  if (elP333Mo) elP333Mo.innerHTML = `${num(p333.mainAmount || 333000)}<small>원</small>`;
-  if (elP333Up) elP333Up.textContent = money(p333.upfront ?? Math.max(0, cashPrice - 15000000));
+    const isAvailable = upVal > 0;
+    const card = document.querySelector(`[data-plan="${spec.key}"]`);
+    if (card) {
+      card.disabled = !isAvailable;
+      card.hidden = !isAvailable;
+      const optionWrap = card.closest('.rental-option');
+      if (optionWrap) optionWrap.hidden = !isAvailable;
+    }
+  }
 
   // 하위 호환 구형 엘리먼트가 있을 경우 대응 (총액 노출 제거)
   const elLowUpMo = document.getElementById('lowup-monthly');
@@ -520,7 +541,8 @@ function renderQuote(q) {
   document.getElementById('aside-window-count').textContent = `자재 ${displayMainItems.length} · 기타 ${extraItems.length}`;
 
   document.getElementById('footer-partner-name').textContent = q.partner_name || '(주)라이프앤조이';
-  document.getElementById('footer-manager-info').textContent = `${q.manager_name || '전담 상담사'} · ${q.manager_phone || '1588-0000'}`;
+  const effectivePhone = configuredConsultPhone || q.manager_phone || '1588-0000';
+  document.getElementById('footer-manager-info').textContent = `${q.manager_name || '전담 상담사'} · ${effectivePhone}`;
   document.getElementById('dialog-sub').textContent = `${customerName} 고객님의 견적을 기준으로 안내해드립니다.`;
   document.getElementById('dialog-masked-phone').textContent = q.customer_phone || '본인확인 완료';
 
@@ -538,13 +560,18 @@ function renderQuote(q) {
 }
 
 // Payment Card Events
-document.querySelectorAll('[data-plan]').forEach((card, index) => {
+document.querySelectorAll('[data-plan]').forEach((card) => {
   card.addEventListener('click', () => choosePlan(card.dataset.plan));
   card.addEventListener('keydown', e => {
     if (['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(e.key)) {
       e.preventDefault();
-      const cards = [...document.querySelectorAll('[data-plan]')];
-      const next = (index + (['ArrowDown', 'ArrowRight'].includes(e.key) ? 1 : -1) + cards.length) % cards.length;
+      const cards = [...document.querySelectorAll('[data-plan]')].filter(c => {
+        const wrap = c.closest('.rental-option');
+        return !c.disabled && !c.hidden && !(wrap && wrap.hidden);
+      });
+      const currentIdx = cards.indexOf(card);
+      if (currentIdx === -1 || cards.length === 0) return;
+      const next = (currentIdx + (['ArrowDown', 'ArrowRight'].includes(e.key) ? 1 : -1) + cards.length) % cards.length;
       choosePlan(cards[next].dataset.plan);
       cards[next].focus();
     }
@@ -640,13 +667,33 @@ document.querySelectorAll('[data-scroll]').forEach(button => {
 });
 
 document.getElementById('phone-btn').addEventListener('click', () => {
-  const tel = String(currentQuote?.manager_phone || '1588-0000').replace(/[^\d+]/g, '');
+  const displayPhone = configuredConsultPhone || currentQuote?.manager_phone || '1588-0000';
+  const tel = String(displayPhone).replace(/[^\d+]/g, '');
   if (isPreview) {
-    showToast(`미리보기 모드 · 실제 화면에서는 담당자(${currentQuote?.manager_phone || '1588-0000'})에게 전화 연결됩니다.`);
+    showToast(`미리보기 모드 · 실제 화면에서는 담당자(${displayPhone})에게 전화 연결됩니다.`);
     return;
   }
   window.location.href = `tel:${tel}`;
 });
+
+// Load admin-configured consult phone so it applies across preview & live quotes
+(async function loadConfiguredConsultPhone() {
+  try {
+    const res = await fetch('/api/settings/quote-phone', { credentials: 'same-origin' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const phone = String(data?.phone || '').trim();
+    if (phone) {
+      configuredConsultPhone = phone;
+      if (currentQuote) {
+        const footerInfo = document.getElementById('footer-manager-info');
+        if (footerInfo) {
+          footerInfo.textContent = `${currentQuote.manager_name || '전담 상담사'} · ${configuredConsultPhone}`;
+        }
+      }
+    }
+  } catch {}
+})();
 
 // Consultation Form Submit
 document.getElementById('consult-form').addEventListener('submit', async event => {
