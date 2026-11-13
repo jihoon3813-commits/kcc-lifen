@@ -8,22 +8,38 @@ import {
 
 function mapContract(c, projectMap) {
   const p = projectMap.get(Number(c.projectId));
+  const totalAmount = Number(c.totalAmount || 0);
+  const depositAmount = Number(c.depositAmount || 0);
+  const balanceAmount = Number(c.balanceAmount || 0);
+  const createdAt = c.createdAt || "";
+  const date = c.contractDate || (createdAt ? createdAt.slice(0, 10) : "");
+  const isRental = String(c.contractNo || "").startsWith("R-") || String(c.status || "").includes("렌탈");
+
   return {
     id: c.contractNo,
     contract_no: c.contractNo,
-    cid: c.projectId,
-    project_id: c.projectId,
+    cid: Number(c.projectId),
+    project_id: Number(c.projectId),
+    customerName: c.customerName || p?.customerName || "",
     customer_name: c.customerName || p?.customerName || "",
     customer_phone: c.customerPhone || p?.customerPhone || "",
     partner: p?.partnerName || "직영",
     product: p?.product || "창호",
+    type: isRental ? "렌탈" : "일시불",
     status: c.status || "계약대기",
-    total_amount: Number(c.totalAmount || 0),
-    deposit_amount: Number(c.depositAmount || 0),
-    balance_amount: Number(c.balanceAmount || 0),
-    contract_date: c.contractDate || (c.createdAt ? c.createdAt.slice(0, 10) : ""),
+    amount: totalAmount,
+    paid: depositAmount,
+    balance: balanceAmount,
+    total_amount: totalAmount,
+    deposit_amount: depositAmount,
+    balance_amount: balanceAmount,
+    date,
+    contract_date: date,
     signed_at: c.signedAt || "",
-    created_at: c.createdAt || "",
+    createdAt,
+    created_at: createdAt,
+    createdAtText: createdAt ? createdAt.replace("T", " ").slice(0, 16) : date,
+    updatedAt: c.updatedAt || "",
   };
 }
 
@@ -38,16 +54,62 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     try {
-      const data = await convexClient.query(api.crm.listContracts, {});
+      const [data, rentalApps] = await Promise.all([
+        convexClient.query(api.crm.listContracts, {}),
+        convexClient.query(api.rentals.list, {}),
+      ]);
       const projects = data.projects || [];
       const projectMap = new Map(projects.map((p) => [Number(p.projectId), p]));
       const isPartner = auth.user.role === "partner" && auth.user.org_name;
 
-      const contracts = (data.contracts || [])
-        .map((c) => mapContract(c, projectMap))
-        .filter((c) => !isPartner || c.partner === auth.user.org_name);
+      const contracts = (data.contracts || []).map((c) => mapContract(c, projectMap));
+      const contractNoSet = new Set(contracts.map((c) => c.contract_no));
 
-      return res.status(200).json({ contracts });
+      for (const a of rentalApps || []) {
+        if (!a.projectId || contractNoSet.has(a.appNo)) continue;
+        const p = projectMap.get(Number(a.projectId));
+        const months = Number(a.rentalPeriod || 60);
+        const monthly = Number(a.monthlyFee || 0);
+        const total = Number(a.totalRentalFee || monthly * months);
+        const upfront = Math.max(0, total - monthly * months);
+        const createdAt = a.createdAt || "";
+        const date = createdAt ? createdAt.slice(0, 10) : "";
+
+        contracts.push({
+          id: a.appNo,
+          contract_no: a.appNo,
+          rentalAppId: a.appNo,
+          cid: Number(a.projectId),
+          project_id: Number(a.projectId),
+          customerName: a.customerName || p?.customerName || "",
+          customer_name: a.customerName || p?.customerName || "",
+          customer_phone: a.customerPhone || p?.customerPhone || "",
+          partner: p?.partnerName || "직영",
+          product: p?.product || "창호",
+          type: "렌탈",
+          status: "렌탈접수",
+          amount: total,
+          paid: upfront,
+          balance: Math.max(0, total - upfront),
+          total_amount: total,
+          deposit_amount: upfront,
+          balance_amount: Math.max(0, total - upfront),
+          rentalPeriodMonths: months,
+          rentalMonthlyFee: monthly,
+          rentalTotalFee: total,
+          rentalUpfrontFee: upfront,
+          date,
+          contract_date: date,
+          signed_at: "",
+          createdAt,
+          created_at: createdAt,
+          createdAtText: createdAt ? createdAt.replace("T", " ").slice(0, 16) : date,
+          updatedAt: a.updatedAt || "",
+        });
+      }
+
+      const filtered = contracts.filter((c) => !isPartner || c.partner === auth.user.org_name);
+      return res.status(200).json({ contracts: filtered });
     } catch (err) {
       console.error("[Vercel Convex] GET /api/contracts error:", err);
       return res.status(500).json({ error: "계약 목록 조회 중 오류가 발생했습니다." });

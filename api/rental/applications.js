@@ -140,6 +140,21 @@ export default async function handler(req, res) {
       underwritingMemo: `온라인 렌탈 신청 접수 (신분증 ${Math.round(idDocFile.size / 1024)}KB, 전자서명 ${Math.round(sigFile.size / 1024)}KB 첨부)`,
     });
 
+    await convexClient.mutation(api.crm.upsertContract, {
+      contractNo: appNo,
+      projectId: project.projectId,
+      customerName: project.customerName,
+      customerPhone: project.customerPhone,
+      status: "렌탈접수",
+      totalAmount: Number(selectedPlan.total || quote.totalPrice || 0),
+      depositAmount: Number(selectedPlan.upfront || 0),
+      balanceAmount: Math.max(
+        0,
+        Number(selectedPlan.total || quote.totalPrice || 0) - Number(selectedPlan.upfront || 0)
+      ),
+      contractDate: now.toISOString().slice(0, 10),
+    });
+
     return res.status(201).json({
       receiptId: appNo,
       status: "received",
