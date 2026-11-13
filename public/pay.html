@@ -203,11 +203,64 @@
       margin: 0 auto 14px;
     }
     .foot-note {
-      margin-top: 18px;
-      text-align: center;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #cbd5e1;
+      text-align: left;
+      font-size: 11.5px;
+      color: #475569;
+      line-height: 1.7;
+    }
+    .foot-note strong { color: #0f172a; }
+    .foot-note a { color: #2563eb; text-decoration: underline; }
+    .policy-details {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 11px 14px;
+      margin-bottom: 14px;
       font-size: 12px;
-      color: #64748b;
+      color: #475569;
       line-height: 1.6;
+    }
+    .policy-details summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: #1e293b;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .policy-details summary::-webkit-details-marker { display: none; }
+    .policy-details ul {
+      margin-top: 8px;
+      padding-left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .consent-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      padding: 12px 13px;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      cursor: pointer;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: #1e293b;
+      font-weight: 600;
+    }
+    .consent-check input {
+      margin-top: 2px;
+      width: 16px;
+      height: 16px;
+      accent-color: #2563eb;
+      flex-shrink: 0;
     }
   </style>
 </head>
@@ -225,8 +278,18 @@
     </div>
 
     <div class="foot-note">
-      가맹점: (주)라이프앤조이 · KCC 홈씨씨 창호 공식 파트너<br />
-      결제 완료 즉시 계약관리 수납 내역에 자동 반영됩니다.
+      <div style="margin-bottom:6px;">
+        <strong>(주)라이프앤조이</strong> | 대표자: 김지훈 | 대표전화: <a href="tel:15880883">1588-0883</a>
+      </div>
+      <div>
+        사업자등록번호: 388-86-02921 | 통신판매업신고번호: 2024-경기하남-1853호<br />
+        주소: 경기도 하남시 덕풍동로 111-21, 10층 1001-1107호(덕풍동, 덕풍동 744 케이앤몰)<br />
+        이메일: lifenjoy0296@gmail.com | 개인정보보호책임자: 김지훈 (lifenjoy0296@gmail.co.kr)
+      </div>
+      <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span>KCC 홈씨씨 창호 공식 파트너 · 결제 완료 즉시 계약관리에 자동 반영됩니다.</span>
+        <a href="/">공식 홈페이지 바로가기</a>
+      </div>
     </div>
   </div>
 
@@ -321,24 +384,45 @@
       }
 
       async function init() {
-        if (!token) {
-          renderError('결제 토큰 정보가 없습니다. 전달받으신 결제 링크 주소를 다시 확인해 주세요.');
-          return;
-        }
+        const isSampleMode = !token || params.get('sample') === '1';
 
-        if (paymentKey && redirectOrderId && redirectAmount) {
+        if (!isSampleMode && paymentKey && redirectOrderId && redirectAmount) {
           await confirmRedirectPayment();
           return;
         }
 
-        const res = await fetch('/api/payments/public?token=' + encodeURIComponent(token));
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.order) {
-          renderError(data.error || '유효하지 않은 결제 링크입니다.');
-          return;
+        let order = null;
+        let pg = null;
+
+        if (isSampleMode) {
+          order = {
+            orderId: 'KCC-SAMPLE-20261113',
+            customerName: '홍길동 (심사 샘플)',
+            customerPhone: '010-****-0000',
+            product: 'KCC 홈씨씨 창호 교체 시공 (32평형)',
+            phaseLabel: '선금 (결제 테스트)',
+            contractNo: 'SAMPLE-2026-001',
+            memo: '방문 실측 후 확정된 맞춤 견적 카드결제 안내 화면(PG 심사용 샘플)입니다.',
+            amount: 100000,
+            installmentMonths: 0,
+            status: 'pending',
+          };
+          pg = {
+            merchantName: '(주)라이프앤조이 · KCC홈씨씨',
+            liveReady: false,
+            clientKey: '',
+          };
+        } else {
+          const res = await fetch('/api/payments/public?token=' + encodeURIComponent(token));
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.order) {
+            renderError(data.error || '유효하지 않은 결제 링크입니다.');
+            return;
+          }
+          order = data.order;
+          pg = data.pg;
         }
 
-        const { order, pg } = data;
         if (order.status === 'paid') {
           renderCompleted(order);
           return;
@@ -372,12 +456,17 @@
           </div>
           <div class="pay-body">
             ${failCode ? `<div class="notice-banner error"><strong>결제가 중단되었습니다:</strong> ${esc(failMessage || failCode)}</div>` : ''}
-            ${!pg.liveReady ? `
+            ${isSampleMode ? `
+              <div class="notice-banner test">
+                <strong>PG 가맹 심사 및 결제창 안내 샘플 화면</strong><br/>
+                실제 고객 결제 시에는 방문 실측 확정 후 발급된 고객별 전용 결제 링크(<code>/pay.html?token=...</code>)로 접속됩니다. 아래 버튼으로 실제 과금 없이 결제 확인 절차를 체험하실 수 있습니다.
+              </div>
+            ` : (!pg.liveReady ? `
               <div class="notice-banner test">
                 <strong>테스트 결제 모드 안내</strong><br/>
                 현재 실결제 PG 가맹점 키 연동 전 상태입니다. 아래 승인 버튼 클릭 시 실제 카드 과금 없이 <strong>결제완료 및 계약관리 자동 입금반영</strong> 흐름을 즉시 검증할 수 있습니다.
               </div>
-            ` : ''}
+            ` : '')}
             <dl class="info-list">
               <div class="info-row"><dt>고객명</dt><dd>${esc(order.customerName)} (${esc(order.customerPhone || '-')})</dd></div>
               <div class="info-row"><dt>시공 품목</dt><dd>${esc(order.product)}</dd></div>
@@ -393,9 +482,9 @@
               </select>
             </div>
 
-            ${!pg.liveReady ? `
+            ${(!pg.liveReady || isSampleMode) ? `
               <div class="field-group">
-                <label class="field-label" for="testCardSelect">카드사 선택 (테스트 검증용)</label>
+                <label class="field-label" for="testCardSelect">카드사 선택 (${isSampleMode ? '심사 테스트용' : '테스트 검증용'})</label>
                 <select class="field-select" id="testCardSelect">
                   <option value="신한카드">신한카드</option>
                   <option value="삼성카드">삼성카드</option>
@@ -409,6 +498,24 @@
               </div>
             ` : ''}
 
+            <details class="policy-details" open>
+              <summary>
+                <span>서비스 제공기간 및 취소·청약철회(환불) 규정</span>
+                <span style="font-size:11px;color:#2563eb;">내용 확인 ▾</span>
+              </summary>
+              <ul>
+                <li><strong>시공 제공기간:</strong> 발주 확정 후 본사 맞춤 제작을 거쳐 통상 7~14영업일 이내(최대 30일 이내) 고객 지정일에 방문 시공 완료</li>
+                <li><strong>전액 환불:</strong> 창호 맞춤 제작(재단·조립) 착수 전에는 위약금 없이 100% 카드 승인 취소(환불) 가능</li>
+                <li><strong>제작 착수 후:</strong> 전자상거래법 제17조 제2항(주문 생산 재화)에 따라 기투입 자재·제작 실비 공제 후 잔액 정산 환불 (제품 하자·오시공 시 무상 재시공 또는 전액 환불)</li>
+                <li><strong>문의 및 환불 접수:</strong> (주)라이프앤조이 고객센터 1588-0883 (평일 09:00–18:00)</li>
+              </ul>
+            </details>
+
+            <label class="consent-check" for="agreePayTerms">
+              <input type="checkbox" id="agreePayTerms" checked />
+              <span><strong>[필수]</strong> 위 시공 품목, 결제 금액, 서비스 제공기간 및 취소·환불 규정을 확인하였으며 결제를 진행합니다.</span>
+            </label>
+
             <button type="button" class="pay-btn" id="submitPayBtn">
               ${won(order.amount)} 안전 카드결제 하기
             </button>
@@ -417,11 +524,29 @@
 
         const submitBtn = document.getElementById('submitPayBtn');
         submitBtn.addEventListener('click', async () => {
+          const agreeCheck = document.getElementById('agreePayTerms');
+          if (agreeCheck && !agreeCheck.checked) {
+            alert('서비스 제공기간 및 취소·환불 규정 확인에 동의해 주세요.');
+            agreeCheck.focus();
+            return;
+          }
           const selectedMonths = Number(document.getElementById('installmentSelect')?.value || 0);
           submitBtn.disabled = true;
           submitBtn.textContent = '결제창 연결 중...';
 
           try {
+            if (isSampleMode) {
+              const cardCompany = document.getElementById('testCardSelect')?.value || '신한카드';
+              renderCompleted({
+                ...order,
+                cardCompany,
+                installmentMonths: selectedMonths,
+                pgApprovalNo: 'SAMPLE-' + String(Date.now()).slice(-6),
+                approvedAtText: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+              });
+              return;
+            }
+
             if (pg.liveReady && pg.clientKey && window.TossPayments) {
               const tossPayments = window.TossPayments(pg.clientKey);
               const baseUrl = window.location.origin + '/pay.html?token=' + encodeURIComponent(token);

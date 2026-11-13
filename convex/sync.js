@@ -342,8 +342,8 @@ export const resetOperationalData = internalMutation({
       name: "라이프앤조이",
       type: "hq",
       code: "HQ001",
-      phone: "1588-0000",
-      address: "서울 강남구 역삼동",
+      phone: "1588-0883",
+      address: "경기도 하남시 덕풍동로 111-21, 10층 1001-1107호(덕풍동, 덕풍동 744 케이앤몰)",
       createdAt: hqDoc?.createdAt || nowIso,
     };
     if (hqDoc) {
