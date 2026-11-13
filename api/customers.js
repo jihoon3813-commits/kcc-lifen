@@ -1,4 +1,4 @@
-import { api } from "../../convex/_generated/api.js";
+import { api } from "../convex/_generated/api.js";
 import {
   convexClient,
   setCors,
