@@ -423,3 +423,34 @@ export const resetOperationalData = internalMutation({
     };
   },
 });
+
+// 9. 고객·공사·상담·견적·계약·렌탈 데이터만 전체 삭제 (계정/조직/설정/양식은 유지)
+export const clearCustomerData = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const tables = [
+      "customers",
+      "projects",
+      "consultations",
+      "quotes",
+      "quoteItems",
+      "quoteViews",
+      "quoteDispatches",
+      "contracts",
+      "rentalApplications",
+      "customerConsultRequests",
+      "auditLogs",
+      "landingEvents",
+    ];
+    const deleted = {};
+    for (const table of tables) {
+      let count = 0;
+      for await (const doc of ctx.db.query(table)) {
+        await ctx.db.delete(doc._id);
+        count++;
+      }
+      deleted[table] = count;
+    }
+    return { ok: true, deleted };
+  },
+});
