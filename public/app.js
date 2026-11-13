@@ -1734,6 +1734,7 @@ function partnersPage(){
                     </div>
                     <div class="sub-partner-actions">
                       ${btn('파트너 정보', 'partner-detail', 'building', 'sm block', `data-id="${p.id}"`)}
+                      <button type="button" class="btn sm danger block" data-action="delete-partner" data-id="${p.orgId || p.id}" data-name="${esc(p.name)}" title="[${esc(p.name)}] 파트너 삭제" style="margin-top:4px">${icon('trash', 'sm')} 삭제</button>
                     </div>
                   </div>
                 `;
@@ -1809,10 +1810,11 @@ function partnersPage(){
                 </div>
                 <div class="actions">
                   ${btn('파트너 정보', 'partner-detail', 'building', 'sm', `data-id="${p.id}"`)}
-                  ${isHq ? (pUser ? btn('파트너 어드민 바로가기', 'partner-mode', 'external', 'sm soft', `data-username="${esc(pUser.username)}" data-org="${esc(p.name)}" title="새 창에서 [${esc(p.name)}] 파트너 어드민으로 접속합니다"`) : `<span class="badge gray sm" title="연결된 로그인 어드민 계정(users)이 없습니다." style="display:inline-flex;align-items:center;padding:5px 8px;font-size:11px;color:#64748b;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:4px">계정 미등록</span>`) : ''}
+                  ${isHq ? (pUser ? btn('파트너 어드민 바로가기', 'partner-mode', 'external', 'sm soft', `data-username="${esc(pUser.username)}" data-org="${esc(p.name)}" title="새 창에서 [${esc(p.name)}] 파트너 어드민으로 접속합니다"`) : `<button type="button" class="btn sm danger" data-action="partner-detail" data-id="${p.id}" title="연결된 어드민 계정이 없습니다. 클릭하여 계정을 생성하세요." style="display:inline-flex;align-items:center;padding:5px 8px;font-size:11px;color:#c2410c;background:#fff7ed;border:1px solid #fdba74;border-radius:4px">⚠️ 계정 미등록 (등록)</button>`) : ''}
                   <button type="button" class="btn sm" data-action="new-partner" data-parent-id="${p.orgId}">
                     ${icon('plus', 'sm')} 하위(2차) 파트너 추가
                   </button>
+                  ${isHq ? `<button type="button" class="btn sm danger" data-action="delete-partner" data-id="${p.orgId || p.id}" data-name="${esc(p.name)}" title="[${esc(p.name)}] 파트너 삭제">${icon('trash', 'sm')} 삭제</button>` : ''}
                 </div>
               </div>
             </div>
@@ -1866,7 +1868,8 @@ function partnersPage(){
                         </div>
                         <div class="sub-partner-actions">
                           ${btn('파트너 정보', 'partner-detail', 'building', 'sm block', `data-id="${cp.id}"`)}
-                          ${isHq ? (cpUser ? btn('어드민 바로가기', 'partner-mode', 'external', 'sm soft', `data-username="${esc(cpUser.username)}" data-org="${esc(cp.name)}" title="새 창에서 [${esc(cp.name)}] 파트너 어드민으로 접속합니다"`) : `<span class="badge gray sm" title="연결된 로그인 어드민 계정(users)이 없습니다." style="display:inline-flex;align-items:center;padding:5px 8px;font-size:11px;color:#64748b;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:4px">계정 미등록</span>`) : ''}
+                          ${isHq ? (cpUser ? btn('어드민 바로가기', 'partner-mode', 'external', 'sm soft', `data-username="${esc(cpUser.username)}" data-org="${esc(cp.name)}" title="새 창에서 [${esc(cp.name)}] 파트너 어드민으로 접속합니다"`) : `<button type="button" class="btn sm danger block" data-action="partner-detail" data-id="${cp.id}" title="연결된 어드민 계정이 없습니다. 클릭하여 계정을 생성하세요." style="display:inline-flex;align-items:center;justify-content:center;padding:5px 8px;font-size:11px;color:#c2410c;background:#fff7ed;border:1px solid #fdba74;border-radius:4px;margin-top:4px">⚠️ 계정 미등록 (등록)</button>`) : ''}
+                          ${isHq ? `<button type="button" class="btn sm danger block" data-action="delete-partner" data-id="${cp.orgId || cp.id}" data-name="${esc(cp.name)}" title="[${esc(cp.name)}] 파트너 삭제" style="margin-top:4px">${icon('trash', 'sm')} 삭제</button>` : ''}
                         </div>
                       </div>
                     `;
@@ -1931,7 +1934,8 @@ function partnersPage(){
                       </div>
                       <div class="sub-partner-actions">
                         ${btn('파트너 정보 (상위지정)', 'partner-detail', 'building', 'sm block', `data-id="${cp.id}"`)}
-                        ${isHq ? (cpUser ? btn('어드민 바로가기', 'partner-mode', 'external', 'sm soft', `data-username="${esc(cpUser.username)}" data-org="${esc(cp.name)}" title="새 창에서 [${esc(cp.name)}] 파트너 어드민으로 접속합니다"`) : `<span class="badge gray sm" title="연결된 로그인 어드민 계정(users)이 없습니다." style="display:inline-flex;align-items:center;padding:5px 8px;font-size:11px;color:#64748b;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:4px">계정 미등록</span>`) : ''}
+                        ${isHq ? (cpUser ? btn('어드민 바로가기', 'partner-mode', 'external', 'sm soft', `data-username="${esc(cpUser.username)}" data-org="${esc(cp.name)}" title="새 창에서 [${esc(cp.name)}] 파트너 어드민으로 접속합니다"`) : `<button type="button" class="btn sm danger block" data-action="partner-detail" data-id="${cp.id}" title="연결된 어드민 계정이 없습니다. 클릭하여 계정을 생성하세요." style="display:inline-flex;align-items:center;justify-content:center;padding:5px 8px;font-size:11px;color:#c2410c;background:#fff7ed;border:1px solid #fdba74;border-radius:4px;margin-top:4px">⚠️ 계정 미등록 (등록)</button>`) : ''}
+                        ${isHq ? `<button type="button" class="btn sm danger block" data-action="delete-partner" data-id="${cp.orgId || cp.id}" data-name="${esc(cp.name)}" title="[${esc(cp.name)}] 파트너 삭제" style="margin-top:4px">${icon('trash', 'sm')} 삭제</button>` : ''}
                       </div>
                     </div>
                   `;
@@ -5524,21 +5528,74 @@ case'copy-text':{
     break;
   }
 case'partner-detail':{
-    const p = db.partners.find(x => x.id === id || String(x.orgId) === String(id));
+    const p = db.partners.find(x => x.id === id || String(x.orgId) === String(id) || x.code === id || x.name === id);
     if (!p) { toast('파트너 정보를 찾을 수 없습니다.'); break; }
     const activeU = getActiveUser();
     const isHq = role === '본사 관리자' || activeU.role === 'hq_admin';
     const levelNum = p.level || 1;
-    const parentOpts = [['', '최상위 (1차 파트너)'], ...(db.partners || []).filter(x => x.orgId !== p.orgId).map(x => [String(x.orgId || x.id), `${x.name} (${x.level || 1}차 파트너)`])];
+    const parentOpts = [['', '최상위 (1차 파트너)'], ...(db.partners || []).filter(x => x.orgId !== p.orgId && x.id !== p.id).map(x => [String(x.orgId || x.id), `${x.name} (${x.level || 1}차 파트너)`])];
     const parentFieldHtml = isHq
       ? selectField('상위 파트너 (레벨 관리)', 'parentId', parentOpts, String(p.parentId || ''))
       : `<div class="field"><label>상위 파트너</label><input class="input" value="${esc(p.parentName || '본사 직속')}" readonly style="background:#f8fafc"></div>`;
+
+    const pUser = (db.users || []).map((u, idx) => normalizeUserRecord(u, idx)).find(u => u.org === p.name || (p.orgId && u.org_id === p.orgId) || (p.username && u.username === p.username));
+
+    const defaultUname = `partner_${(p.code || p.id || 'new').toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+    const accountSectionHtml = pUser ? `
+      <div style="background:#f8fafc;border:1px solid #bfdbfe;border-radius:8px;padding:14px;margin:14px 0">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="badge green" style="font-weight:700">🔐 어드민 계정 연동됨</span>
+            <span style="font-size:12px;color:#475569">아이디: <b style="color:#1e293b">${esc(pUser.username)}</b></span>
+          </div>
+          ${isHq ? `<a class="btn sm soft" href="./?switch_user=${encodeURIComponent(pUser.username)}" target="_blank" style="padding:4px 8px;font-size:11px">${icon('external','sm')} 새 창 로그인</a>` : ''}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          ${field('접속 아이디 (서브도메인)', 'username', pUser.username, 'text', true, '영문 소문자·숫자')}
+          ${field('비밀번호 변경 (선택)', 'password', '', 'password', false, '변경 시에만 4자리 이상 입력')}
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:#1d4ed8;background:#eff6ff;padding:6px 10px;border-radius:6px">
+          🌐 <b>전용 랜딩 주소</b>: <code>https://${esc(pUser.username)}.kcchomecc.com</code>
+        </div>
+      </div>
+    ` : `
+      <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:14px;margin:14px 0">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <span class="badge orange" style="font-weight:700">⚠️ 어드민 계정 미등록</span>
+          <span class="badge gray">로그인 불가 상태</span>
+        </div>
+        <p style="font-size:12px;color:#c2410c;margin:0 0 10px;line-height:1.5">
+          현재 연결된 로그인 어드민 계정이 없습니다. 접속 아이디와 비밀번호를 입력해 저장하면 파트너 어드민 접속 계정 및 전용 랜딩페이지가 즉시 생성됩니다.
+        </p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          ${field('접속 아이디 (서브도메인)', 'username', defaultUname, 'text', true, '영문 소문자·숫자 (예: partner_abc)')}
+          ${field('접속 비밀번호', 'password', '', 'password', true, '4자리 이상 입력')}
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:#ea580c;background:#ffedd5;padding:6px 10px;border-radius:6px">
+          🌐 <b>전용 랜딩 주소</b>: <code>https://[입력한 아이디].kcchomecc.com</code> 주소로 즉시 자동 개설됩니다.
+        </div>
+      </div>
+    `;
+
+    const canDelete = isHq || (activeU.role === 'partner' && String(p.parentId) === String(activeU.org_id));
+    const deleteSectionHtml = canDelete ? `
+      <div style="margin-top:20px;padding:12px 14px;border:1px dashed #fca5a5;background:#fef2f2;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <strong style="color:#b91c1c;font-size:13px;display:block">파트너 조직 삭제</strong>
+          <small style="color:#ef4444;font-size:11px">해당 파트너 조직 및 연관된 어드민 접속 계정을 영구 삭제합니다.</small>
+        </div>
+        <button type="button" class="btn danger sm" data-action="delete-partner" data-id="${p.orgId || p.id}" data-name="${esc(p.name)}">
+          ${icon('trash', 'sm')} 파트너 삭제
+        </button>
+      </div>
+    ` : '';
 
     formDialog('파트너 정보 상세 및 수정', `
       <div style="margin-bottom:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         ${badge(`${levelNum}차 파트너`, levelNum === 1 ? 'blue' : 'purple')}
         <span class="badge gray">식별 코드: ${esc(p.id)}</span>
         ${p.subPartnerCount > 0 ? badge(`직속 하위 ${p.subPartnerCount}개사`, 'green') : ''}
+        ${pUser ? badge('계정 연동됨', 'green') : badge('계정 미등록', 'orange')}
       </div>
       ${parentFieldHtml}
       ${field('파트너사명', 'name', p.name, 'text', true)}
@@ -5548,7 +5605,9 @@ case'partner-detail':{
         ${field('이메일', 'email', p.email || '', 'email')}
       </div>
       ${selectField('업종', 'type', ['인테리어', '영업대행', '건재유통', '시공업체', '기타'], p.type || '인테리어')}
+      ${accountSectionHtml}
       <div class="notice-text">파트너별 어드민 접속 권한과 메뉴(고객관리·상품관리·통계관리 등)는 실시간 자동 동기화됩니다.</div>
+      ${deleteSectionHtml}
     `, 'partner', '', `data-id="${p.orgId || p.id}"`);
     break;
   }
@@ -5626,6 +5685,63 @@ case'new-partner':{
         ✨ <b>하위 파트너 등록 시</b>: 상위 파트너에게 <b>[파트너관리]</b> 메뉴가 자동으로 활성화됩니다.
       </div>
     `, 'partner', '', '', '파트너 등록 완료');
+    break;
+  }
+case'delete-partner':{
+    const targetId = el.dataset.id;
+    const partnerName = el.dataset.name || '파트너';
+    if (!targetId) { toast('삭제 대상 파트너 ID가 없습니다.'); break; }
+
+    const targetPartner = (db.partners || []).find(x => x.id === targetId || String(x.orgId) === String(targetId) || x.name === partnerName);
+    const pOrgId = targetPartner?.orgId || targetId;
+
+    // Safety check: sub-partners in memory
+    const childPartners = (db.partners || []).filter(c => (String(c.parentId) === String(pOrgId) || String(c.parent_id) === String(pOrgId) || c.parentName === partnerName) && String(c.orgId || c.id) !== String(pOrgId));
+    if (childPartners.length > 0) {
+      toast(`직속 하위 2차 파트너(${childPartners.length}개사)가 등록되어 있어 삭제할 수 없습니다. 하위 파트너를 먼저 삭제하거나 상위 파트너를 변경해 주세요.`);
+      break;
+    }
+
+    // Safety check: customer/contract in memory
+    const relCustomers = (db.customers || []).filter(c => c.partner === partnerName || (targetPartner && c.partner === targetPartner.name));
+    const relContracts = (db.contracts || []).filter(k => relCustomers.some(c => c.id === k.cid));
+    if (relCustomers.length > 0 || relContracts.length > 0) {
+      toast(`해당 파트너로 귀속된 고객(${relCustomers.length}건) 또는 계약(${relContracts.length}건) 실적이 존재하여 삭제할 수 없습니다.`);
+      break;
+    }
+
+    if (!confirm(`[${partnerName}] 파트너 조직을 정말 삭제하시겠습니까?\n\n※ 해당 파트너의 어드민 접속 계정도 함께 삭제됩니다.`)) {
+      break;
+    }
+
+    try {
+      const apiUrl = '/api/partners/' + encodeURIComponent(targetId);
+      const res = await apiFetch(apiUrl, { method: 'DELETE' });
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok) {
+        db.partners = (db.partners || []).filter(x => x.id !== targetId && String(x.orgId) !== String(pOrgId) && x.name !== partnerName);
+        db.users = (db.users || []).filter(u => u.org !== partnerName && String(u.org_id) !== String(pOrgId));
+        save();
+        await syncFromServer();
+        closeDialog();
+        render();
+        toast(resData.message || `[${partnerName}] 파트너가 성공적으로 삭제되었습니다.`);
+        break;
+      } else {
+        toast(resData.error || '파트너 삭제에 실패했습니다.');
+        break;
+      }
+    } catch (err) {
+      console.warn('Partner delete error:', err);
+    }
+
+    // Fallback in-memory delete
+    db.partners = (db.partners || []).filter(x => x.id !== targetId && String(x.orgId) !== String(pOrgId) && x.name !== partnerName);
+    db.users = (db.users || []).filter(u => u.org !== partnerName && String(u.org_id) !== String(pOrgId));
+    save();
+    closeDialog();
+    render();
+    toast(`[${partnerName}] 파트너를 삭제했습니다.`);
     break;
   }
 case'open-clone-link':openCloneLinkDialog(null, id !== undefined && id !== '' ? Number(id) : null);break;
@@ -6224,14 +6340,22 @@ case'partner':{
     const cleanName = (d.name || '').trim();
     if (!cleanName) { toast('파트너사명을 입력해 주세요.'); return; }
     const isEdit = Boolean(id);
+    const cleanUname = (d.username || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const cleanPw = (d.password || '').trim();
+    const cleanPh = (d.phone || '').trim();
+
     if (!isEdit) {
-      const cleanUname = (d.username || '').trim();
-      const cleanPw = (d.password || '').trim();
-      const cleanPh = (d.phone || '').trim();
       if (!cleanUname) { toast('어드민 접속 및 서브도메인 아이디를 입력해 주세요.'); return; }
       if (!cleanPw || cleanPw.length < 4) { toast('비밀번호를 4자리 이상 입력해 주세요.'); return; }
       if (!cleanPh) { toast('대표 연락처를 입력해 주세요.'); return; }
+    } else {
+      // If editing and password provided, validate length
+      if (cleanPw && cleanPw.length < 4) {
+        toast('비밀번호를 4자리 이상 입력해 주세요.');
+        return;
+      }
     }
+
     try {
       const apiUrl = isEdit ? ('/api/partners/' + encodeURIComponent(id)) : '/api/partners';
       const method = isEdit ? 'PUT' : 'POST';
@@ -6240,12 +6364,12 @@ case'partner':{
         body: {
           name: cleanName,
           person: (d.person || '').trim(),
-          phone: (d.phone || '').trim(),
+          phone: cleanPh,
           email: (d.email || '').trim(),
           type: d.type || '인테리어',
           parentId: d.parentId ? Number(d.parentId) : null,
-          username: (d.username || '').trim(),
-          password: (d.password || '').trim()
+          username: cleanUname,
+          password: cleanPw
         }
       });
       const resData = await res.json().catch(() => ({}));
@@ -6253,7 +6377,7 @@ case'partner':{
         await syncFromServer();
         closeDialog();
         render();
-        toast(resData.message || (isEdit ? '파트너 정보가 수정되었습니다.' : `새 파트너 [${cleanName}] 및 어드민 계정이 등록되었습니다.`));
+        toast(resData.message || (isEdit ? '파트너 정보 및 계정이 수정되었습니다.' : `새 파트너 [${cleanName}] 및 어드민 계정이 등록되었습니다.`));
         break;
       } else {
         toast(resData.error || '파트너 저장에 실패했습니다.');
@@ -6262,13 +6386,79 @@ case'partner':{
     } catch (err) {
       console.warn('Partner save error:', err);
     }
+
     // Fallback in-memory
-    if (db.partners.some(p => p.name === cleanName && p.id !== id)) { toast('같은 이름의 파트너가 있습니다.'); return; }
+    if (db.partners.some(p => p.name === cleanName && p.id !== id && String(p.orgId) !== String(id))) {
+      toast('같은 이름의 파트너가 있습니다.');
+      return;
+    }
     if (id) {
-      const p = db.partners.find(x => x.id === id || String(x.orgId) === String(id));
-      if (p) Object.assign(p, d);
+      const p = db.partners.find(x => x.id === id || String(x.orgId) === String(id) || x.name === cleanName);
+      if (p) {
+        Object.assign(p, {
+          name: cleanName,
+          person: (d.person || '').trim(),
+          phone: cleanPh,
+          email: (d.email || '').trim(),
+          type: d.type || p.type || '인테리어',
+          parentId: d.parentId !== undefined ? (d.parentId ? Number(d.parentId) : null) : p.parentId
+        });
+        if (cleanUname) p.username = cleanUname;
+      }
+      // Update or create linked user in memory
+      let u = (db.users || []).find(x => x.org === cleanName || (p && p.orgId && x.org_id === p.orgId) || (cleanUname && x.username === cleanUname));
+      if (u) {
+        u.org = cleanName;
+        if (cleanUname) u.username = cleanUname;
+        if (d.person) u.name = d.person.trim();
+        if (cleanPh) u.phone = cleanPh;
+        if (d.email) u.email = d.email.trim();
+      } else if (cleanUname) {
+        db.users.push({
+          id: Date.now(),
+          org_id: p ? (p.orgId || p.id) : 999,
+          org: cleanName,
+          username: cleanUname,
+          name: (d.person || cleanName).trim(),
+          phone: cleanPh,
+          email: (d.email || `${cleanUname}@example.com`).trim(),
+          role: 'partner',
+          role_label: '파트너 관리자',
+          allowed_menus: ['customers', 'products', 'stats'],
+          active: true
+        });
+      }
     } else {
-      db.partners.push({ ...d, id: 'P' + String(db.partners.length + 1).padStart(3, '0'), active: true, level: d.parentId ? 2 : 1 });
+      const newCode = 'P' + String(db.partners.length + 1).padStart(3, '0');
+      db.partners.push({
+        id: newCode,
+        orgId: Date.now(),
+        code: newCode,
+        name: cleanName,
+        person: (d.person || '').trim(),
+        phone: cleanPh,
+        email: (d.email || '').trim(),
+        type: d.type || '인테리어',
+        parentId: d.parentId ? Number(d.parentId) : null,
+        level: d.parentId ? 2 : 1,
+        active: true,
+        username: cleanUname
+      });
+      if (cleanUname) {
+        db.users.push({
+          id: Date.now(),
+          org_id: Date.now(),
+          org: cleanName,
+          username: cleanUname,
+          name: (d.person || cleanName).trim(),
+          phone: cleanPh,
+          email: (d.email || `${cleanUname}@example.com`).trim(),
+          role: 'partner',
+          role_label: '파트너 관리자',
+          allowed_menus: ['customers', 'products', 'stats'],
+          active: true
+        });
+      }
     }
     save(); closeDialog(); render(); toast('파트너 정보를 저장했습니다.'); break;
   }

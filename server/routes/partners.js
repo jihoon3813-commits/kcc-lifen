@@ -209,17 +209,35 @@ router.post('/', requireAuth, requireMenu('partners'), (req, res) => {
 
 // 3. Update partner
 router.put('/:id', requireAuth, requireMenu('partners'), (req, res) => {
-  const targetId = Number(req.params.id);
-  const { name, person, email, phone, parentId } = req.body || {};
-
-  const org = db.prepare("SELECT * FROM organizations WHERE id = ? AND type = 'partner'").get(targetId);
+  const rawId = req.params.id;
+  const numId = Number(rawId);
+  let org = null;
+  if (!isNaN(numId) && numId > 0) {
+    org = db.prepare("SELECT * FROM organizations WHERE id = ? AND type = 'partner'").get(numId);
+  }
+  if (!org) {
+    org = db.prepare("SELECT * FROM organizations WHERE (code = ? OR name = ?) AND type = 'partner'").get(rawId, rawId);
+  }
   if (!org) {
     return res.status(404).json({ error: '파트너를 찾을 수 없습니다.' });
   }
 
+  const targetId = org.id;
+
   // If partner user, can only edit their sub-partners
   if (req.user.role === 'partner' && org.parent_id !== req.user.org_id) {
     return res.status(403).json({ error: '소속 하위 파트너 정보만 수정할 수 있습니다.' });
+  }
+
+  const { name, person, email, phone, parentId, username, password } = req.body || {};
+
+  // Check duplicate name if name changed
+  const cleanName = name ? String(name).trim() : org.name;
+  if (cleanName && cleanName !== org.name) {
+    const dupOrg = db.prepare("SELECT id FROM organizations WHERE name = ? AND id != ?").get(cleanName, targetId);
+    if (dupOrg) {
+      return res.status(400).json({ error: `이미 등록된 다른 파트너사명(${cleanName})입니다.` });
+    }
   }
 
   let nextParentId = org.parent_id;
@@ -245,20 +263,132 @@ router.put('/:id', requireAuth, requireMenu('partners'), (req, res) => {
         parent_id = ?,
         level = ?
     WHERE id = ?
-  `).run(name || org.name, phone !== undefined ? phone : org.phone, nextParentId, nextLevel, targetId);
+  `).run(cleanName || org.name, phone !== undefined ? phone : org.phone, nextParentId, nextLevel, targetId);
 
-  // Update associated partner user if person or email changed
-  if (person || email || phone) {
+  // Manage associated partner user
+  const existingUser = db.prepare("SELECT * FROM users WHERE org_id = ? AND role = 'partner'").get(targetId);
+
+  if (existingUser) {
+    let newUsername = existingUser.username;
+    if (username) {
+      const cleanU = String(username).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      if (cleanU && cleanU !== existingUser.username) {
+        const dupUser = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').get(cleanU, existingUser.id);
+        if (dupUser) {
+          return res.status(400).json({ error: `이미 사용 중인 로그인 아이디(${cleanU})입니다.` });
+        }
+        newUsername = cleanU;
+      }
+    }
+
+    let newPasswordHash = existingUser.password_hash;
+    if (password && String(password).trim().length >= 4) {
+      newPasswordHash = bcrypt.hashSync(String(password).trim(), 10);
+    }
+
     db.prepare(`
       UPDATE users
-      SET name = COALESCE(?, name),
+      SET username = ?,
+          password_hash = ?,
+          name = COALESCE(?, name),
           email = COALESCE(?, email),
           phone = COALESCE(?, phone)
-      WHERE org_id = ? AND role = 'partner'
-    `).run(person || null, email || null, phone || null, targetId);
+      WHERE id = ?
+    `).run(
+      newUsername,
+      newPasswordHash,
+      person || null,
+      email || null,
+      phone !== undefined ? phone : null,
+      existingUser.id
+    );
+  } else {
+    // No user was linked ("계정 미등록" state) - create user if username or registration provided
+    let targetUsername = username ? String(username).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') : '';
+    if (!targetUsername) {
+      targetUsername = `partner_${(org.code || String(targetId)).toLowerCase()}`;
+    }
+
+    // Ensure username uniqueness
+    let unameCheck = db.prepare('SELECT id FROM users WHERE username = ?').get(targetUsername);
+    let uSuffix = 1;
+    const baseUsername = targetUsername;
+    while (unameCheck) {
+      targetUsername = `${baseUsername}_${uSuffix}`;
+      unameCheck = db.prepare('SELECT id FROM users WHERE username = ?').get(targetUsername);
+      uSuffix++;
+    }
+
+    const cleanPw = String(password || '').trim() || 'partner123!';
+    const passwordHash = bcrypt.hashSync(cleanPw, 10);
+    const contactPerson = String(person || '').trim() || cleanName;
+    const partnerEmail = String(email || '').trim() || `${targetUsername}@example.com`;
+    const defaultMenus = JSON.stringify(['customers', 'products', 'stats']);
+
+    db.prepare(`
+      INSERT INTO users (org_id, username, password_hash, name, phone, email, role, allowed_menus, active)
+      VALUES (?, ?, ?, ?, ?, ?, 'partner', ?, 1)
+    `).run(targetId, targetUsername, passwordHash, contactPerson, phone || '', partnerEmail, defaultMenus);
   }
 
-  res.json({ message: '파트너 정보가 수정되었습니다.' });
+  res.json({ message: '파트너 정보 및 계정이 정상적으로 수정되었습니다.' });
+});
+
+// 4. Delete partner
+router.delete('/:id', requireAuth, requireMenu('partners'), (req, res) => {
+  const rawId = req.params.id;
+  const numId = Number(rawId);
+  let org = null;
+  if (!isNaN(numId) && numId > 0) {
+    org = db.prepare("SELECT * FROM organizations WHERE id = ? AND type = 'partner'").get(numId);
+  }
+  if (!org) {
+    org = db.prepare("SELECT * FROM organizations WHERE (code = ? OR name = ?) AND type = 'partner'").get(rawId, rawId);
+  }
+  if (!org) {
+    return res.status(404).json({ error: '삭제할 파트너 정보를 찾을 수 없습니다.' });
+  }
+
+  const isPartner = req.user.role === 'partner';
+  if (isPartner && org.parent_id !== req.user.org_id) {
+    return res.status(403).json({ error: '소속 직속 하위 파트너만 삭제할 수 있습니다.' });
+  }
+
+  // 1. Check if child/sub-partners exist
+  const childCount = db.prepare("SELECT COUNT(*) as cnt FROM organizations WHERE parent_id = ?").get(org.id).cnt;
+  if (childCount > 0) {
+    return res.status(400).json({
+      error: `직속 하위 2차 파트너(${childCount}개사)가 등록되어 있어 삭제할 수 없습니다. 하위 파트너를 먼저 삭제하거나 상위 파트너를 변경해 주세요.`
+    });
+  }
+
+  // 2. Check if customer or contract data exists
+  const custCount = db.prepare("SELECT COUNT(*) as cnt FROM projects WHERE org_id = ? OR partner_name = ?").get(org.id, org.name).cnt;
+  const ctCount = db.prepare(`
+    SELECT COUNT(*) as cnt FROM contracts ct
+    JOIN projects pr ON ct.project_id = pr.id
+    WHERE pr.org_id = ? OR pr.partner_name = ?
+  `).get(org.id, org.name).cnt;
+
+  if (custCount > 0 || ctCount > 0) {
+    return res.status(400).json({
+      error: `해당 파트너에 등록된 고객(${custCount}건) 또는 계약(${ctCount}건) 실적 데이터가 존재하여 삭제할 수 없습니다.`
+    });
+  }
+
+  // 3. Delete partner users & organization in transaction
+  const delTx = db.transaction(() => {
+    db.prepare("DELETE FROM users WHERE org_id = ?").run(org.id);
+    db.prepare("DELETE FROM organizations WHERE id = ?").run(org.id);
+  });
+  delTx();
+
+  res.json({
+    success: true,
+    deletedId: org.id,
+    deletedName: org.name,
+    message: `[${org.name}] 파트너 및 관련 어드민 계정이 정상적으로 삭제되었습니다.`
+  });
 });
 
 export default router;

@@ -593,38 +593,43 @@ router.post('/reset', requireAuth, requireRole('hq_admin'), (req, res) => {
   } catch {}
 
   // Clear tables
-  db.exec(`
-    DELETE FROM audit_logs;
-    DELETE FROM quote_dispatches;
-    DELETE FROM customer_consult_requests;
-    DELETE FROM quote_views;
-    DELETE FROM otp_verifications;
-    DELETE FROM cash_receipts;
-    DELETE FROM payment_orders;
-    DELETE FROM rental_idempotency_keys;
-    DELETE FROM rental_audit_events;
-    DELETE FROM rental_supplement_requests;
-    DELETE FROM rental_signature_evidence;
-    DELETE FROM rental_consent_snapshots;
-    DELETE FROM rental_document_versions;
-    DELETE FROM rental_applicant_private;
-    DELETE FROM rental_applications;
-    DELETE FROM contracts;
-    DELETE FROM quote_items;
-    DELETE FROM quotes;
-    DELETE FROM estimate_sources;
-    DELETE FROM consultations;
-    DELETE FROM projects;
-    DELETE FROM customers;
-    DELETE FROM users;
-    DELETE FROM organizations;
-    DELETE FROM system_labels;
-    DELETE FROM system_stages;
-    DELETE FROM system_contract_statuses;
-    DELETE FROM products;
-    DELETE FROM consent_forms;
-    DELETE FROM consent_history;
-  `);
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.exec(`
+      DELETE FROM audit_logs;
+      DELETE FROM quote_dispatches;
+      DELETE FROM customer_consult_requests;
+      DELETE FROM quote_views;
+      DELETE FROM otp_verifications;
+      DELETE FROM cash_receipts;
+      DELETE FROM payment_orders;
+      DELETE FROM rental_idempotency_keys;
+      DELETE FROM rental_audit_events;
+      DELETE FROM rental_supplement_requests;
+      DELETE FROM rental_signature_evidence;
+      DELETE FROM rental_consent_snapshots;
+      DELETE FROM rental_document_versions;
+      DELETE FROM rental_applicant_private;
+      DELETE FROM rental_applications;
+      DELETE FROM contracts;
+      DELETE FROM quote_items;
+      DELETE FROM quotes;
+      DELETE FROM estimate_sources;
+      DELETE FROM consultations;
+      DELETE FROM projects;
+      DELETE FROM customers;
+      DELETE FROM users;
+      DELETE FROM organizations;
+      DELETE FROM system_labels;
+      DELETE FROM system_stages;
+      DELETE FROM system_contract_statuses;
+      DELETE FROM products;
+      DELETE FROM consent_forms;
+      DELETE FROM consent_history;
+    `);
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
 
   seedDatabase();
   res.json({ message: '데이터가 초기화되었습니다.' });

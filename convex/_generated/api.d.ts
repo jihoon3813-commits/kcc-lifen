@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as http from "../http.js";
+import type * as landing from "../landing.js";
 import type * as projects from "../projects.js";
 import type * as quotes from "../quotes.js";
 import type * as rentals from "../rentals.js";
@@ -20,6 +22,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  http: typeof http;
+  landing: typeof landing;
   projects: typeof projects;
   quotes: typeof quotes;
   rentals: typeof rentals;

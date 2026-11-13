@@ -316,6 +316,6 @@ export function seedDatabase() {
   console.log('Database seeded successfully!');
 }
 
-if (process.argv[1].endsWith('seed.js')) {
+if (process.argv[1]?.endsWith('seed.js')) {
   seedDatabase();
 }
