@@ -1744,12 +1744,10 @@ function productsPage(){
   const headActions = (role === '본사 관리자' ? btn('상품페이지 등록', 'new-product', 'plus', 'secondary') : '') +
     btn('광고채널 링크 복제·생성', 'open-clone-link', 'link', 'primary');
 
-  // 파트너 전용 서브도메인 및 고유 링크 패널
+  // 파트너 전용 랜딩 주소 및 고유 링크 패널
   const partnerUsername = activeU.username || 'partner';
-  const localPort = window.location.port ? `:${window.location.port}` : '';
-  const subdomainHost = `${partnerUsername}.localhost${localPort}`;
-  const prodSubdomain = `https://${partnerUsername}.kcchomecc.com`;
-  const partnerSubdomainUrl = `http://${subdomainHost}/landing/`;
+  const prodSubdomain = `https://www.kcc-life.com/?partner=${encodeURIComponent(partnerUsername)}`;
+  const partnerSubdomainUrl = `${window.location.origin}/?partner=${encodeURIComponent(partnerUsername)}`;
   const partnerQueryUrl = `${window.location.origin}/landing/?partner=${encodeURIComponent(partnerUsername)}`;
 
   const partnerLinkBanner = isPartner ? `
@@ -1757,17 +1755,17 @@ function productsPage(){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px">
         <div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <span class="badge blue" style="font-weight:700">🌐 파트너 전용 서브도메인 랜딩</span>
+            <span class="badge blue" style="font-weight:700">🌐 파트너 전용 랜딩 주소</span>
             <span class="badge green">실시간 고객 100% 자동 귀속</span>
           </div>
-          <h3 style="margin:4px 0 6px;font-size:18px;color:#1e3a8a;font-weight:700">${esc(activeU.org)} 전용 서브도메인: <code style="background:#dbeafe;padding:2px 8px;border-radius:6px;font-size:16px;color:#1d4ed8">${esc(partnerUsername)}.kcchomecc.com</code></h3>
+          <h3 style="margin:4px 0 6px;font-size:18px;color:#1e3a8a;font-weight:700">${esc(activeU.org)} 전용 랜딩: <code style="background:#dbeafe;padding:2px 8px;border-radius:6px;font-size:15px;color:#1d4ed8">https://www.kcc-life.com/?partner=${esc(partnerUsername)}</code></h3>
           <p style="margin:0;color:#475569;font-size:13px;line-height:1.5">
-            파트너 아이디(<b>${esc(partnerUsername)}</b>)가 적용된 독립 서브도메인 주소입니다. 고객이 해당 주소로 접속해 접수하면 <b>[${esc(activeU.org)}]</b>의 고객으로 즉시 연동됩니다.
+            파트너 아이디(<b>${esc(partnerUsername)}</b>)가 적용된 전용 랜딩 주소입니다. 고객이 해당 주소로 접속해 접수하면 <b>[${esc(activeU.org)}]</b>의 고객으로 즉시 연동됩니다.
           </p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button type="button" class="btn primary sm" data-action="copy-text" data-text="${esc(partnerSubdomainUrl)}" title="서브도메인 주소 복사">
-            ${icon('copy')}서브도메인 복사
+          <button type="button" class="btn primary sm" data-action="copy-text" data-text="${esc(prodSubdomain)}" title="전용 랜딩 주소 복사">
+            ${icon('copy')}랜딩 주소 복사
           </button>
           <a href="${esc(partnerSubdomainUrl)}" target="_blank" rel="noopener noreferrer" class="btn sm soft">
             ${icon('external')}랜딩 바로가기
@@ -1775,12 +1773,11 @@ function productsPage(){
         </div>
       </div>
 
-      <!-- 메인 서브도메인 대표 주소 박스 -->
+      <!-- 대표 랜딩 주소 박스 -->
       <div style="background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px;margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:8px;font-family:monospace;font-size:13px;color:#1e293b">
-          <span style="font-weight:700;color:#2563eb">대표 서브도메인:</span>
-          <span style="word-break:break-all">${esc(partnerSubdomainUrl)}</span>
-          <small style="color:#64748b;font-family:sans-serif">(운영 시: ${esc(prodSubdomain)})</small>
+          <span style="font-weight:700;color:#2563eb">대표 랜딩 주소:</span>
+          <span style="word-break:break-all">${esc(prodSubdomain)}</span>
         </div>
         <div style="display:flex;gap:6px">
           <button type="button" class="btn sm" data-action="copy-text" data-text="${esc(partnerQueryUrl)}" title="파라미터형 공유링크 복사" style="font-size:11px;padding:3px 8px">
@@ -5901,11 +5898,11 @@ case'partner-detail':{
           ${isHq ? `<a class="btn sm soft" href="./?switch_user=${encodeURIComponent(pUser.username)}" target="_blank" style="padding:4px 8px;font-size:11px">${icon('external','sm')} 새 창 로그인</a>` : ''}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          ${field('접속 아이디 (서브도메인)', 'username', pUser.username, 'text', true, '영문 소문자·숫자')}
+          ${field('접속 아이디 (파트너 코드)', 'username', pUser.username, 'text', true, '영문 소문자·숫자')}
           ${field('비밀번호 변경 (선택)', 'password', '', 'password', false, '변경 시에만 4자리 이상 입력')}
         </div>
         <div style="margin-top:6px;font-size:12px;color:#1d4ed8;background:#eff6ff;padding:6px 10px;border-radius:6px">
-          🌐 <b>전용 랜딩 주소</b>: <code>https://${esc(pUser.username)}.kcchomecc.com</code>
+          🌐 <b>전용 랜딩 주소</b>: <code>https://www.kcc-life.com/?partner=${esc(pUser.username)}</code>
         </div>
       </div>
     ` : `
@@ -5918,11 +5915,11 @@ case'partner-detail':{
           현재 연결된 로그인 어드민 계정이 없습니다. 접속 아이디와 비밀번호를 입력해 저장하면 파트너 어드민 접속 계정 및 전용 랜딩페이지가 즉시 생성됩니다.
         </p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          ${field('접속 아이디 (서브도메인)', 'username', defaultUname, 'text', true, '영문 소문자·숫자 (예: partner_abc)')}
+          ${field('접속 아이디 (파트너 코드)', 'username', defaultUname, 'text', true, '영문 소문자·숫자 (예: partner_abc)')}
           ${field('접속 비밀번호', 'password', '', 'password', true, '4자리 이상 입력')}
         </div>
         <div style="margin-top:6px;font-size:12px;color:#ea580c;background:#ffedd5;padding:6px 10px;border-radius:6px">
-          🌐 <b>전용 랜딩 주소</b>: <code>https://[입력한 아이디].kcchomecc.com</code> 주소로 즉시 자동 개설됩니다.
+          🌐 <b>전용 랜딩 주소</b>: <code>https://www.kcc-life.com/?partner=[입력한 아이디]</code> 주소로 즉시 자동 개설됩니다.
         </div>
       </div>
     `;
@@ -5965,7 +5962,7 @@ case'my-profile':{
     const activeU = getActiveUser();
     const isPartner = activeU.role === 'partner';
     const partnerUsername = activeU.username || '';
-    const prodSubdomain = `${partnerUsername}.kcchomecc.com`;
+    const prodSubdomain = `https://www.kcc-life.com/?partner=${encodeURIComponent(partnerUsername)}`;
 
     formDialog(isPartner ? '파트너 정보 및 계정 수정' : '내 정보 및 비밀번호 수정', `
       <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:12px;margin-bottom:14px">
@@ -5975,7 +5972,7 @@ case'my-profile':{
         </div>
         <div style="font-size:12px;color:#475569;display:flex;gap:12px;flex-wrap:wrap">
           <span>아이디: <b style="color:#1e293b">${esc(partnerUsername)}</b></span>
-          ${isPartner ? `<span>서브도메인: <b style="color:#2563eb">${esc(prodSubdomain)}</b></span>` : ''}
+          ${isPartner ? `<span>전용 랜딩: <b style="color:#2563eb">${esc(prodSubdomain)}</b></span>` : ''}
         </div>
       </div>
       ${isPartner ? field('파트너사명 (상호명)', 'orgName', activeU.org, 'text', true) : ''}
@@ -6014,15 +6011,15 @@ case'new-partner':{
       ${field('대표 담당자명', 'person', '', 'text', true)}
       <div style="background:#f8fafc;border:1px solid #bfdbfe;border-radius:8px;padding:14px;margin:12px 0">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-          <span class="badge blue" style="font-weight:700">🔐 어드민 계정 &amp; 전용 서브도메인</span>
+          <span class="badge blue" style="font-weight:700">🔐 어드민 계정 &amp; 전용 랜딩 주소</span>
           <span class="badge green">필수 입력</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          ${field('접속 아이디 (서브도메인)', 'username', '', 'text', true, '영문 소문자·숫자 (예: partner_daon)')}
+          ${field('접속 아이디 (파트너 코드)', 'username', '', 'text', true, '영문 소문자·숫자 (예: partner_daon)')}
           ${field('접속 비밀번호', 'password', '', 'password', true, '4자리 이상 입력')}
         </div>
         <div style="margin-top:6px;font-size:12px;color:#1d4ed8;background:#eff6ff;padding:6px 10px;border-radius:6px">
-          🌐 <b>전용 랜딩 서브도메인</b>: <code>https://[아이디].kcchomecc.com</code> 주소로 자동 개설됩니다.
+          🌐 <b>전용 랜딩 주소</b>: <code>https://www.kcc-life.com/?partner=[입력한 아이디]</code> 주소로 자동 개설됩니다.
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">

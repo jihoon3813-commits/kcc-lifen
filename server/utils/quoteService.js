@@ -136,7 +136,7 @@ export async function createQuoteInConvex(convexClient, api, { body, user, partn
   };
 }
 
-function mapConvexQuoteForFormatter(quote, project, managerPhone = '', orgPhone = '') {
+export function mapConvexQuoteForFormatter(quote, project, managerPhone = '', orgPhone = '') {
   return {
     id: quote.version,
     project_id: project.projectId,
@@ -164,6 +164,21 @@ function mapConvexQuoteForFormatter(quote, project, managerPhone = '', orgPhone 
     manager_phone: managerPhone,
     org_phone: orgPhone,
   };
+}
+
+export function mapConvexItemsForFormatter(items = []) {
+  return [...items]
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    .map((it) => ({
+      sort_order: it.sortOrder,
+      name: it.name,
+      spec: it.spec || '',
+      category: it.category || 'window',
+      detail_json: it.detailJson || null,
+      quantity: it.quantity,
+      sale_unit_price: it.saleUnitPrice,
+      sale_total: it.saleTotal,
+    }));
 }
 
 export async function getProjectQuotePreviewFromConvex(
@@ -200,19 +215,9 @@ export async function getProjectQuotePreviewFromConvex(
     }
   }
 
-  const rawItems = (data.quoteItems || [])
-    .filter((it) => Number(it.quoteVersion) === Number(quote.version))
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-    .map((it) => ({
-      sort_order: it.sortOrder,
-      name: it.name,
-      spec: it.spec || '',
-      category: it.category || 'window',
-      detail_json: it.detailJson || null,
-      quantity: it.quantity,
-      sale_unit_price: it.saleUnitPrice,
-      sale_total: it.saleTotal,
-    }));
+  const rawItems = mapConvexItemsForFormatter(
+    (data.quoteItems || []).filter((it) => Number(it.quoteVersion) === Number(quote.version))
+  );
 
   const mappedQuote = mapConvexQuoteForFormatter(quote, data.project, data.managerPhone, data.orgPhone);
   const safeQuote = formatCustomerSafeQuote(mappedQuote, rawItems);

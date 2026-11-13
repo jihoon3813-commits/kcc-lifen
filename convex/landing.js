@@ -92,16 +92,27 @@ export const submitConsultation = mutation({
     const nextProjectId = maxId + 1;
 
     // 파트너명 및 유입 채널 결정
-    const partnerName = args.partner && args.partner !== "직영" ? args.partner : "직영";
+    let matchedLink = null;
+    if (args.ch) {
+      matchedLink = await ctx.db
+        .query("landingLinks")
+        .withIndex("by_code", (q) => q.eq("code", args.ch))
+        .first();
+    }
+    const partnerName = args.partner && args.partner !== "직영"
+      ? args.partner
+      : (matchedLink?.partnerName || "직영");
     let channel = "기본 랜딩(직접유입)";
-    if (args.utm_source) {
+    if (matchedLink?.channel) {
+      channel = matchedLink.channel;
+    } else if (args.utm_source) {
       channel = args.utm_source;
     } else if (args.ch) {
       channel = args.ch;
     } else if (partnerName !== "직영") {
       channel = "파트너 전용링크";
     }
-    const campaign = args.utm_campaign || "";
+    const campaign = args.utm_campaign || matchedLink?.name || matchedLink?.campaign || "";
     const channelDisplay = campaign ? `${channel} (${campaign})` : channel;
 
     const noteLines = [
@@ -129,7 +140,10 @@ export const submitConsultation = mutation({
       product: "창호",
       status: "신규접수",
       label: isMeasure ? "실측요청" : "상담요청",
-      source: channel,
+      source: args.ch || channel,
+      adChannel: matchedLink?.channel || (args.utm_source ? args.utm_source : undefined),
+      adCampaign: campaign || undefined,
+      landingLinkId: matchedLink?.linkId,
       partnerName: partnerName,
       ownerName: "미배정",
       note: noteText,

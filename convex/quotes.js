@@ -42,6 +42,209 @@ export const getPublicByToken = query({
   },
 });
 
+function normalizeCustomerName(name) {
+  return String(name || "").trim().replace(/\s+/g, "");
+}
+
+function normalizeCustomerPhone(phone) {
+  return String(phone || "").replace(/\D/g, "");
+}
+
+async function buildPublicQuoteBundle(ctx, quote, project) {
+  const [items, organizations, users] = await Promise.all([
+    ctx.db
+      .query("quoteItems")
+      .withIndex("by_project", (q) => q.eq("projectId", quote.projectId))
+      .filter((q) => q.eq(q.field("quoteVersion"), quote.version))
+      .collect(),
+    ctx.db.query("organizations").collect(),
+    ctx.db.query("users").collect(),
+  ]);
+
+  const manager = users.find((u) => u.name === project.ownerName);
+  const org = organizations.find((o) => Number(o.orgId) === Number(project.orgId));
+
+  // 동일 고객의 발행 견적서 목록 조회 (다중 견적 전환용)
+  const targetName = normalizeCustomerName(project.customerName);
+  const targetPhone = normalizeCustomerPhone(project.customerPhone);
+  const allProjects = await ctx.db.query("projects").collect();
+  const customerProjects = allProjects.filter(
+    (p) =>
+      normalizeCustomerName(p.customerName) === targetName &&
+      normalizeCustomerPhone(p.customerPhone) === targetPhone
+  );
+
+  const availableQuotes = [];
+  for (const cp of customerProjects) {
+    const pQuotes = await ctx.db
+      .query("quotes")
+      .withIndex("by_project", (q) => q.eq("projectId", cp.projectId))
+      .collect();
+    for (const pq of pQuotes) {
+      if (pq.status !== "published" || !pq.accessToken) continue;
+      availableQuotes.push({
+        access_token: pq.accessToken,
+        title: pq.title,
+        quote_type: pq.quoteType || "가견적",
+        product: cp.product || "창호",
+        total_price: pq.totalPrice,
+        published_at: pq.publishedAt || pq.createdAt || "",
+        version: pq.version || 0,
+      });
+    }
+  }
+  availableQuotes.sort((a, b) =>
+    String(b.published_at).localeCompare(String(a.published_at)) || b.version - a.version
+  );
+
+  return {
+    quote,
+    items: items.sort((a, b) => a.sortOrder - b.sortOrder),
+    project,
+    managerPhone: manager?.phone || "",
+    orgPhone: org?.phone || "",
+    availableQuotes: availableQuotes.map(({ version, ...rest }) => rest),
+  };
+}
+
+// 공개 견적서 상세 번들 조회 (토큰 기반, 발행 건만 허용)
+export const getPublicBundleByToken = query({
+  args: { accessToken: v.string() },
+  handler: async (ctx, args) => {
+    const quote = await ctx.db
+      .query("quotes")
+      .withIndex("by_accessToken", (q) => q.eq("accessToken", args.accessToken))
+      .first();
+
+    if (!quote || quote.status !== "published") return null;
+
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_projectId", (q) => q.eq("projectId", quote.projectId))
+      .first();
+
+    if (!project) return null;
+    return await buildPublicQuoteBundle(ctx, quote, project);
+  },
+});
+
+// 고객 이름 + 휴대폰 번호로 발행된 견적서 조회 (토큰 없이 단독 로그인용)
+export const findPublishedQuotesByCustomer = query({
+  args: {
+    customerName: v.string(),
+    customerPhone: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const targetName = normalizeCustomerName(args.customerName);
+    const targetPhone = normalizeCustomerPhone(args.customerPhone);
+    if (!targetName || !targetPhone) return null;
+
+    const allProjects = await ctx.db.query("projects").collect();
+    const matchedProjects = allProjects.filter(
+      (p) =>
+        normalizeCustomerName(p.customerName) === targetName &&
+        normalizeCustomerPhone(p.customerPhone) === targetPhone
+    );
+    if (matchedProjects.length === 0) return null;
+
+    const candidates = [];
+    for (const cp of matchedProjects) {
+      const pQuotes = await ctx.db
+        .query("quotes")
+        .withIndex("by_project", (q) => q.eq("projectId", cp.projectId))
+        .collect();
+      for (const pq of pQuotes) {
+        if (pq.status === "published" && pq.accessToken) {
+          candidates.push({ quote: pq, project: cp });
+        }
+      }
+    }
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => {
+      const pa = String(a.quote.publishedAt || a.quote.createdAt || "");
+      const pb = String(b.quote.publishedAt || b.quote.createdAt || "");
+      return pb.localeCompare(pa) || (b.quote.version || 0) - (a.quote.version || 0);
+    });
+
+    const latest = candidates[0];
+    return await buildPublicQuoteBundle(ctx, latest.quote, latest.project);
+  },
+});
+
+// 공개 견적서 열람 이력 기록
+export const recordPublicQuoteView = mutation({
+  args: {
+    projectId: v.number(),
+    quoteVersion: v.number(),
+    accessToken: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+    await ctx.db.insert("quoteViews", {
+      projectId: args.projectId,
+      quoteId: args.quoteVersion,
+      accessToken: args.accessToken,
+      viewedAt: now,
+    });
+    return { ok: true, viewedAt: now };
+  },
+});
+
+// 모바일 견적서 고객 상담 요청 접수
+export const recordPublicConsultRequest = mutation({
+  args: {
+    projectId: v.number(),
+    customerName: v.string(),
+    customerPhone: v.string(),
+    product: v.optional(v.string()),
+    address: v.optional(v.string()),
+    planSummary: v.optional(v.string()),
+    topics: v.array(v.string()),
+    preferredTime: v.string(),
+    memo: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+    const summaryParts = [
+      "[모바일 견적서 상담 요청]",
+      args.planSummary ? `선택 조건: ${args.planSummary}` : null,
+      `문의 항목: ${args.topics.length ? args.topics.join(", ") : "견적 전반 상담"}`,
+      `희망 연락시간: ${args.preferredTime}`,
+      args.memo ? `고객 메모: ${args.memo}` : null,
+    ].filter(Boolean);
+
+    await ctx.db.insert("consultations", {
+      projectId: args.projectId,
+      authorName: `${args.customerName}(고객)`,
+      type: "notes",
+      content: summaryParts.join(" · "),
+      isImportant: true,
+      createdAt: now,
+    });
+
+    await ctx.db.insert("auditLogs", {
+      projectId: args.projectId,
+      userName: `${args.customerName}(고객)`,
+      action: "모바일 상담 접수",
+      detail: `${args.topics.length ? args.topics.join(", ") : "견적 상담"} / 희망시간: ${args.preferredTime}`,
+      createdAt: now,
+    });
+
+    await ctx.db.insert("customerConsultRequests", {
+      name: args.customerName,
+      phone: args.customerPhone,
+      address: args.address || "",
+      product: args.product || "창호",
+      status: "신규접수",
+      source: "모바일견적서",
+      createdAt: now,
+    });
+
+    return { ok: true, createdAt: now };
+  },
+});
+
 // 견적서 등록 또는 업데이트
 export const upsertQuote = mutation({
   args: {

@@ -64,9 +64,9 @@ function setScope(scope) {
 }
 
 const scenes = {
-  day: { image: 'assets/hero.webp', alt: '햇살이 들어오는 거실 공간 연출', kicker: 'LIVING ROOM', lines: ['빛이 머무는 곳,', '가족이 모이는 거실.'], position: '66% 57%' },
-  evening: { image: 'assets/living.webp', alt: '가족이 함께하는 저녁 거실 공간 연출', kicker: 'FAMILY MOMENT', lines: ['하루의 끝에서,', '함께 쉬어가는 공간.'], position: 'center 60%' },
-  corner: { image: 'assets/room.webp', alt: '창가에서 휴식하는 가족 공간 연출', kicker: 'A QUIET AFTERNOON', lines: ['창가에 앉아,', '나누는 작은 여유.'], position: 'center 38%' }
+  day: { image: '/landing/assets/hero.webp', alt: '햇살이 들어오는 거실 공간 연출', kicker: 'LIVING ROOM', lines: ['빛이 머무는 곳,', '가족이 모이는 거실.'], position: '66% 57%' },
+  evening: { image: '/landing/assets/living.webp', alt: '가족이 함께하는 저녁 거실 공간 연출', kicker: 'FAMILY MOMENT', lines: ['하루의 끝에서,', '함께 쉬어가는 공간.'], position: 'center 60%' },
+  corner: { image: '/landing/assets/room.webp', alt: '창가에서 휴식하는 가족 공간 연출', kicker: 'A QUIET AFTERNOON', lines: ['창가에 앉아,', '나누는 작은 여유.'], position: 'center 38%' }
 };
 const tabs = $$('.space-tabs [role="tab"]');
 function showScene(tab) {

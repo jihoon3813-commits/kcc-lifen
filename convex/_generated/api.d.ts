@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as crm from "../crm.js";
 import type * as http from "../http.js";
 import type * as landing from "../landing.js";
+import type * as partners from "../partners.js";
 import type * as projects from "../projects.js";
 import type * as quotes from "../quotes.js";
 import type * as rentals from "../rentals.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   crm: typeof crm;
   http: typeof http;
   landing: typeof landing;
+  partners: typeof partners;
   projects: typeof projects;
   quotes: typeof quotes;
   rentals: typeof rentals;

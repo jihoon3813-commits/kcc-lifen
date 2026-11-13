@@ -304,11 +304,13 @@ export const addConsultationNote = mutation({
 export const listProductsAndLinks = query({
   args: {},
   handler: async (ctx) => {
-    const [products, landingLinks, projects, landingEvents] = await Promise.all([
+    const [products, landingLinks, projects, landingEvents, quotes, contracts] = await Promise.all([
       ctx.db.query("products").collect(),
       ctx.db.query("landingLinks").collect(),
       ctx.db.query("projects").collect(),
       ctx.db.query("landingEvents").collect(),
+      ctx.db.query("quotes").collect(),
+      ctx.db.query("contracts").collect(),
     ]);
 
     return {
@@ -316,6 +318,8 @@ export const listProductsAndLinks = query({
       landingLinks: landingLinks.sort((a, b) => b.linkId - a.linkId),
       projects,
       landingEvents,
+      quotes,
+      contracts,
     };
   },
 });
@@ -448,18 +452,29 @@ export const recordLandingEvent = mutation({
   },
   handler: async (ctx, args) => {
     const now = new Date().toISOString();
-    await ctx.db.insert("landingEvents", {
-      ...args,
-      createdAt: now,
-    });
-    if (args.landingLinkId && args.eventType === "view") {
-      const link = await ctx.db
+    let resolvedLink = null;
+    if (args.landingLinkId) {
+      resolvedLink = await ctx.db
         .query("landingLinks")
         .withIndex("by_linkId", (q) => q.eq("linkId", args.landingLinkId))
         .first();
-      if (link) {
-        await ctx.db.patch(link._id, { clicks: (link.clicks || 0) + 1, updatedAt: now });
-      }
+    } else if (args.channel) {
+      resolvedLink = await ctx.db
+        .query("landingLinks")
+        .withIndex("by_code", (q) => q.eq("code", args.channel))
+        .first();
+    }
+
+    await ctx.db.insert("landingEvents", {
+      ...args,
+      landingLinkId: args.landingLinkId ?? resolvedLink?.linkId,
+      createdAt: now,
+    });
+    if (resolvedLink && (args.eventType === "view" || args.eventType === "page_view")) {
+      await ctx.db.patch(resolvedLink._id, {
+        clicks: (resolvedLink.clicks || 0) + 1,
+        updatedAt: now,
+      });
     }
     return { success: true };
   },
