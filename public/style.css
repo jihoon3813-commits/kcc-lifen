@@ -3845,3 +3845,20 @@
     align-items: stretch;
   }
 }
+
+/* Sidebar Brand Logo Card */
+.brand-logo-card {
+  max-width: 100%;
+}
+.brand-logo-card img {
+  max-width: 100%;
+  height: auto;
+}
+@media (max-width: 620px) {
+  .brand-logo-card {
+    padding: 3px 5px !important;
+  }
+  .brand-logo-card img {
+    height: 18px !important;
+  }
+}
