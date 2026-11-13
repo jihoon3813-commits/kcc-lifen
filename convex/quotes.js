@@ -89,3 +89,236 @@ export const upsertQuote = mutation({
     }
   },
 });
+
+// 견적서 생성/발행 (품목 + 프로젝트 상태/링크 + 감사로그 일괄 반영)
+export const createProjectQuote = mutation({
+  args: {
+    projectId: v.number(),
+    title: v.optional(v.string()),
+    quoteType: v.string(),
+    status: v.string(),
+    totalCost: v.number(),
+    supplyCost: v.number(),
+    marginRate: v.number(),
+    materialSubtotal: v.number(),
+    extraSubtotal: v.number(),
+    salePrice: v.number(),
+    vat: v.number(),
+    originalPrice: v.number(),
+    totalPrice: v.number(),
+    discountAmount: v.number(),
+    marginAmount: v.number(),
+    metaJson: v.optional(v.string()),
+    memo: v.optional(v.string()),
+    accessToken: v.string(),
+    isPublish: v.boolean(),
+    userName: v.optional(v.string()),
+    items: v.array(
+      v.object({
+        sortOrder: v.number(),
+        name: v.string(),
+        spec: v.optional(v.string()),
+        category: v.string(),
+        detailJson: v.optional(v.string()),
+        quantity: v.number(),
+        marginRate: v.number(),
+        costUnitPrice: v.number(),
+        costTotal: v.number(),
+        saleUnitPrice: v.number(),
+        saleTotal: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .first();
+
+    if (!project) {
+      return { found: false };
+    }
+
+    const existingQuotes = await ctx.db
+      .query("quotes")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .collect();
+
+    const maxVer = existingQuotes.reduce((max, q) => Math.max(max, Number(q.version) || 0), 0);
+    const nextVer = maxVer + 1;
+    const now = new Date().toISOString();
+    const publishedAt = args.isPublish ? now : undefined;
+    const quoteTitle = args.title && args.title.trim()
+      ? args.title.trim()
+      : `${project.title || project.customerName || "고객"} 견적서 (v${nextVer})`;
+
+    const quoteDocId = await ctx.db.insert("quotes", {
+      projectId: args.projectId,
+      version: nextVer,
+      title: quoteTitle,
+      quoteType: args.quoteType,
+      status: args.status,
+      totalCost: args.totalCost,
+      supplyCost: args.supplyCost,
+      marginRate: args.marginRate,
+      materialSubtotal: args.materialSubtotal,
+      extraSubtotal: args.extraSubtotal,
+      salePrice: args.salePrice,
+      vat: args.vat,
+      originalPrice: args.originalPrice,
+      totalPrice: args.totalPrice,
+      discountAmount: args.discountAmount,
+      metaJson: args.metaJson,
+      memo: args.memo,
+      accessToken: args.accessToken,
+      publishedAt,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    for (const item of args.items) {
+      await ctx.db.insert("quoteItems", {
+        projectId: args.projectId,
+        quoteVersion: nextVer,
+        sortOrder: item.sortOrder,
+        name: item.name,
+        spec: item.spec,
+        category: item.category,
+        detailJson: item.detailJson,
+        quantity: item.quantity,
+        marginRate: item.marginRate,
+        costUnitPrice: item.costUnitPrice,
+        costTotal: item.costTotal,
+        saleUnitPrice: item.saleUnitPrice,
+        saleTotal: item.saleTotal,
+      });
+    }
+
+    const publicUrl = `/quote.html?token=${args.accessToken}`;
+
+    if (args.isPublish) {
+      let nextStatus = project.status;
+      if (
+        args.quoteType === "최종견적" &&
+        ["신규접수", "상담중", "가견적요청", "견적안내", "실측예정", "실측완료"].includes(project.status)
+      ) {
+        nextStatus = "최종견적";
+      } else if (["신규접수", "가견적요청"].includes(project.status)) {
+        nextStatus = "견적안내";
+      }
+
+      const patch = {
+        status: nextStatus,
+        updatedAt: now,
+      };
+      if (args.quoteType === "최종견적") {
+        patch.finalQuoteUrl = publicUrl;
+      } else {
+        patch.roughQuoteUrl = publicUrl;
+      }
+      await ctx.db.patch(project._id, patch);
+    }
+
+    await ctx.db.insert("auditLogs", {
+      projectId: args.projectId,
+      userName: args.userName || "관리자",
+      action: args.isPublish ? `${args.quoteType} 발행` : "가견적 임시저장",
+      detail: `견적 v${nextVer} (${quoteTitle}): 공급원가 ${args.supplyCost.toLocaleString()}원, 절삭총액 ${args.originalPrice.toLocaleString()}원, 일시불할인 ${args.discountAmount.toLocaleString()}원, 최종합계 ${args.totalPrice.toLocaleString()}원 (마진 ${args.marginAmount.toLocaleString()}원)`,
+      createdAt: now,
+    });
+
+    return {
+      found: true,
+      quoteDocId: String(quoteDocId),
+      version: nextVer,
+      quoteType: args.quoteType,
+      title: quoteTitle,
+      accessToken: args.accessToken,
+      publicUrl,
+      orgId: project.orgId,
+      partnerName: project.partnerName,
+    };
+  },
+});
+
+// 프로젝트별 발행 견적서 미리보기/발송용 조회
+export const getPreviewByProject = query({
+  args: { projectId: v.number() },
+  handler: async (ctx, args) => {
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .first();
+
+    if (!project) return null;
+
+    const [quotes, quoteItems, dispatches, views, organizations, users] = await Promise.all([
+      ctx.db.query("quotes").withIndex("by_project", (q) => q.eq("projectId", args.projectId)).collect(),
+      ctx.db.query("quoteItems").withIndex("by_project", (q) => q.eq("projectId", args.projectId)).collect(),
+      ctx.db.query("quoteDispatches").withIndex("by_project", (q) => q.eq("projectId", args.projectId)).collect(),
+      ctx.db.query("quoteViews").withIndex("by_project", (q) => q.eq("projectId", args.projectId)).collect(),
+      ctx.db.query("organizations").collect(),
+      ctx.db.query("users").collect(),
+    ]);
+
+    const publishedQuotes = quotes
+      .filter((q) => q.status === "published")
+      .sort((a, b) => b.version - a.version);
+
+    const manager = users.find((u) => u.name === project.ownerName);
+    const org = organizations.find((o) => Number(o.orgId) === Number(project.orgId));
+
+    return {
+      project,
+      quotes: publishedQuotes,
+      quoteItems,
+      dispatches: dispatches.reverse().slice(0, 20),
+      views,
+      organizations,
+      managerPhone: manager?.phone || "",
+      orgPhone: org?.phone || "",
+    };
+  },
+});
+
+// 견적서 발송 이력 저장
+export const recordQuoteDispatch = mutation({
+  args: {
+    projectId: v.number(),
+    quoteVersion: v.number(),
+    channel: v.string(),
+    recipientName: v.string(),
+    recipientPhone: v.string(),
+    message: v.string(),
+    quoteUrl: v.string(),
+    provider: v.string(),
+    status: v.string(),
+    sentBy: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+    await ctx.db.insert("quoteDispatches", {
+      projectId: args.projectId,
+      quoteId: args.quoteVersion,
+      channel: args.channel,
+      recipientName: args.recipientName,
+      recipientPhone: args.recipientPhone,
+      message: args.message,
+      quoteUrl: args.quoteUrl,
+      provider: args.provider,
+      status: args.status,
+      sentBy: args.sentBy,
+      createdAt: now,
+    });
+
+    await ctx.db.insert("auditLogs", {
+      projectId: args.projectId,
+      userName: args.sentBy,
+      action: `견적서 ${args.channel === "kakao" ? "카카오톡" : "문자"} 발송`,
+      detail: `${args.recipientName} (${args.recipientPhone}) · ${args.provider} · ${args.status === "sent" ? "발송완료" : "발송실패"}`,
+      createdAt: now,
+    });
+
+    return { ok: true, createdAt: now };
+  },
+});

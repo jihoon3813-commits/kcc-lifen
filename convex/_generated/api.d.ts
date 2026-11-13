@@ -15,6 +15,7 @@ import type * as landing from "../landing.js";
 import type * as projects from "../projects.js";
 import type * as quotes from "../quotes.js";
 import type * as rentals from "../rentals.js";
+import type * as settings from "../settings.js";
 import type * as sync from "../sync.js";
 
 import type {
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   projects: typeof projects;
   quotes: typeof quotes;
   rentals: typeof rentals;
+  settings: typeof settings;
   sync: typeof sync;
 }>;
 

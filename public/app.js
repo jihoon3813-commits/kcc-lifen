@@ -323,10 +323,29 @@ function channelTone(ch) {
   if (s.includes('현수막') || s.includes('전단') || s.includes('QR') || s.includes('오프라인')) return 'ch-qr';
   return 'ch-default';
 }
+function findCustomerLandingLink(c) {
+  if (!c) return null;
+  const links = Array.isArray(db.landingLinks) ? db.landingLinks : [];
+  if (!links.length) return null;
+  if (c.landingLinkId) {
+    const byId = links.find(ll => Number(ll.id || ll.linkId) === Number(c.landingLinkId));
+    if (byId) return byId;
+  }
+  const codeCandidates = [c.landingLinkCode, c.source, c.adChannel]
+    .map(v => String(v || '').trim())
+    .filter(Boolean);
+  if (!codeCandidates.length) return null;
+  return links.find(ll => ll.code && codeCandidates.includes(String(ll.code).trim())) || null;
+}
 function getCustomerChannel(c) {
   if (!c) return '직접등록';
-  const raw = c.adChannel || c.source || '직접등록';
-  return raw === '랜딩페이지' ? '기본 랜딩(미분류)' : raw;
+  const raw = String(c.adChannel || c.source || '직접등록').trim();
+  if (raw === '랜딩페이지') return '기본 랜딩(미분류)';
+  const ll = findCustomerLandingLink(c);
+  if (ll && ll.channel && (!c.adChannel || c.adChannel === c.source || c.adChannel === ll.code)) {
+    return ll.channel;
+  }
+  return raw;
 }
 function buildTrackingUrl(link, origin = window.location.origin) {
   if (!link) return '';
@@ -557,7 +576,7 @@ async function syncFromServer() {
         return;
       }
     }
-    const [cRes, pRes, kRes, aRes, prRes, lRes, csRes, uRes, rRes, fRes, anRes] = await Promise.all([
+    const [cRes, pRes, kRes, aRes, prRes, lRes, csRes, uRes, rRes, fRes, anRes, qpRes] = await Promise.all([
       apiFetch('/api/customers'),
       apiFetch('/api/partners'),
       apiFetch('/api/contracts'),
@@ -568,7 +587,8 @@ async function syncFromServer() {
       apiFetch('/api/auth/users'),
       apiFetch('/api/auth/roster'),
       apiFetch('/api/settings/forms'),
-      apiFetch('/api/analytics/overview?period=' + encodeURIComponent(typeof statsPeriod !== 'undefined' ? statsPeriod : '30'))
+      apiFetch('/api/analytics/overview?period=' + encodeURIComponent(typeof statsPeriod !== 'undefined' ? statsPeriod : '30')),
+      apiFetch('/api/settings/quote-phone')
     ]);
 
     if (cRes.ok) {
@@ -621,6 +641,11 @@ async function syncFromServer() {
     }
     if (anRes && anRes.ok) {
       db.analytics = await anRes.json();
+    }
+    if (qpRes && qpRes.ok) {
+      const qpData = await qpRes.json();
+      quoteConsultPhone = String(qpData?.phone || '').trim();
+      try { localStorage.setItem('kcc_quote_consult_phone', quoteConsultPhone); } catch {}
     }
     save();
     render();
@@ -892,7 +917,7 @@ function buildDraftMobileQuote(c, ed, totals) {
       lowupfront: { ...plan222Obj, key: 'lowupfront' }
     },
     manager_name: safeMeta?.supplier_manager || (c.owner && c.owner !== '미배정' ? c.owner : '전담 상담사'),
-    manager_phone: safeMeta?.supplier_phone || '1588-0000',
+    manager_phone: quoteConsultPhone || safeMeta?.supplier_phone || '1588-0000',
     partner_name: safeMeta?.supplier_name || (c.partner === '직영' ? '(주)라이프앤조이' : c.partner),
     published_at: safeMeta?.quote_date || new Date().toISOString().slice(0, 10),
     items
@@ -1176,6 +1201,7 @@ async function openMessagingIntegrationDialog() {
 }
 
 let page='customers', customerTab='all', contractTab='all', settingsTab='labels', role='본사 관리자', query='', stageFilter='', productFilter='', partnerFilter='', sourceFilter='', linkFilter='', periodFilter='all', sortOrder='new', productLinkCatFilter='all', productLinkQuery='', selected=new Set(), detailId=null, detailTab='notes', editor=null, statsPeriod='30', restoreFocus=null, quotePreviewId=null;
+let quoteConsultPhone = (()=>{try{return localStorage.getItem('kcc_quote_consult_phone')||'';}catch{return '';}})();
 const menus=[['customers','고객관리','users'],['quotes','견적관리','file'],['contracts','계약관리','contract'],['products','상품관리','box'],['partners','파트너관리','building'],['stats','통계관리','chart'],['settings','설정','settings']];
 const stages=['신규접수','상담중','가견적요청','견적안내','실측예정','최종견적','계약진행','시공완료','보류'];
 function getContractStatuses() {
@@ -1409,7 +1435,7 @@ function filteredCustomers() {
     return true;
   }).sort((a, b) => sortOrder === 'old' ? a.id - b.id : b.date.localeCompare(a.date) || b.id - a.id);
 }
-function customerRows(){const list=filteredCustomers();return list.length?list.map(c=>{const ch=getCustomerChannel(c);const camp=c.adCampaign||'';return `<article class="customer-row" data-action="customer" data-id="${c.id}" tabindex="0" aria-label="${esc(c.name)} 고객 상세"><input type="checkbox" data-select="${c.id}" ${selected.has(c.id)?'checked':''} aria-label="${c.name} 선택"><div><div class="row-top">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span class="row-code">No. ${c.id}</span><span class="row-code">${c.date.slice(5).replace('-','.')}</span></div><div class="name-line">${badge(c.product,c.product==='주방'?'purple':c.product==='욕실'?'green':'')}<b>${esc(c.name)}</b><span>${esc(c.phone)}</span></div><div class="row-address">${icon('pin')}${esc(c.address)}</div><div class="row-meta"><span class="ch-pill ${channelTone(ch)}">${esc(ch)}</span>${camp?`<span class="ch-campaign-label" title="유입 광고 캠페인/링크명">${esc(camp)}</span>`:''}<span>· ${esc(c.partner)}</span>${c.measure?`<span>· 실측 ${c.measure.slice(5)}</span>`:''}</div></div><div class="row-activity"><div class="line"><span class="tag">상담</span><div><p>${esc(c.note)}</p><small>${c.date.slice(5)} 09:30 · ${esc(c.owner)}</small></div></div><div class="line feedback"><span class="tag feedback">피드백</span><p>${esc(c.feedback)}</p></div></div><div class="row-end"><div class="row-owner"><span class="mini-avatar">${c.owner==='미배정'?'–':esc(c.owner.slice(-2))}</span>${esc(c.owner)}</div><div class="row-links">${c.quote?(c.roughQuote&&c.finalQuote?`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="가견적">가견적 ↗</button><button class="link-chip" style="background:#eef8f4;border-color:#a8dac6;color:#1f6853" data-action="preview" data-id="${c.id}" data-type="최종견적">최종견적 ↗</button>`:`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="${esc(c.quoteType||'가견적')}">${esc(c.quoteType||'가견적')} ↗</button>`):`<button class="link-chip muted" data-action="new-quote" data-id="${c.id}">견적 작성</button>`}${c.quote?`<button class="link-chip" style="background:#fffbeb;border-color:#f2d675;color:#855a00" data-action="send-quote" data-id="${c.id}">문자·카톡</button>`:''}<button class="link-chip" data-action="customer" data-id="${c.id}">상세보기</button></div><div class="row-bottom">${c.quote?(c.viewed?'● 고객 열람 완료':'○ 아직 열람하지 않음')+(c.dispatchCount?` · 발송 ${c.dispatchCount}회`:''):'견적 발행 전'}</div></div></article>`}).join(''):`<div class="empty">${icon('search')}<strong>조건에 맞는 고객이 없습니다.</strong>검색어나 필터를 변경해 주세요.</div>`}
+function customerRows(){const list=filteredCustomers();return list.length?list.map(c=>{const ll=findCustomerLandingLink(c);const ch=getCustomerChannel(c);const camp=c.adCampaign||ll?.name||'';return `<article class="customer-row" data-action="customer" data-id="${c.id}" tabindex="0" aria-label="${esc(c.name)} 고객 상세"><input type="checkbox" data-select="${c.id}" ${selected.has(c.id)?'checked':''} aria-label="${c.name} 선택"><div><div class="row-top">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span class="row-code">No. ${c.id}</span><span class="row-code">${c.date.slice(5).replace('-','.')}</span></div><div class="name-line">${badge(c.product,c.product==='주방'?'purple':c.product==='욕실'?'green':'')}<b>${esc(c.name)}</b><span>${esc(c.phone)}</span></div><div class="row-address">${icon('pin')}${esc(c.address)}</div><div class="row-meta"><span class="ch-pill ${channelTone(ch)}">${esc(ch)}</span>${camp?`<span class="ch-campaign-label" title="유입 광고 캠페인/링크명">${esc(camp)}</span>`:''}<span>· ${esc(c.partner)}</span>${c.measure?`<span>· 실측 ${c.measure.slice(5)}</span>`:''}</div></div><div class="row-activity"><div class="line"><span class="tag">상담</span><div><p>${esc(c.note)}</p><small>${c.date.slice(5)} 09:30 · ${esc(c.owner)}</small></div></div><div class="line feedback"><span class="tag feedback">피드백</span><p>${esc(c.feedback)}</p></div></div><div class="row-end"><div class="row-owner"><span class="mini-avatar">${c.owner==='미배정'?'–':esc(c.owner.slice(-2))}</span>${esc(c.owner)}</div><div class="row-links">${c.quote?(c.roughQuote&&c.finalQuote?`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="가견적">가견적 ↗</button><button class="link-chip" style="background:#eef8f4;border-color:#a8dac6;color:#1f6853" data-action="preview" data-id="${c.id}" data-type="최종견적">최종견적 ↗</button>`:`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="${esc(c.quoteType||'가견적')}">${esc(c.quoteType||'가견적')} ↗</button>`):`<button class="link-chip muted" data-action="new-quote" data-id="${c.id}">견적 작성</button>`}${c.quote?`<button class="link-chip" style="background:#fffbeb;border-color:#f2d675;color:#855a00" data-action="send-quote" data-id="${c.id}">문자·카톡</button>`:''}<button class="link-chip" data-action="customer" data-id="${c.id}">상세보기</button></div><div class="row-bottom">${c.quote?(c.viewed?'● 고객 열람 완료':'○ 아직 열람하지 않음')+(c.dispatchCount?` · 발송 ${c.dispatchCount}회`:''):'견적 발행 전'}</div></div></article>`}).join(''):`<div class="empty">${icon('search')}<strong>조건에 맞는 고객이 없습니다.</strong>검색어나 필터를 변경해 주세요.</div>`}
 function customersPage(){
   const c = visibleCustomers();
   const channelOptions = getChannelFilterOptions();
@@ -3827,6 +3853,23 @@ function initFormPreviewEvents(formIdx, applicants, fields, pdfDoc, totalPages) 
   });
 }
 
+function renderQuotePhoneSettingsPanel(){
+  return `<div class="panel-head"><div><h3>모바일 견적서 전화상담 번호</h3><p>고객 모바일 견적서 하단의 <b>전화 상담</b> 버튼과 푸터 연락처에 표시되는 대표 전화번호를 설정합니다.</p></div></div>
+  <div class="panel-pad">
+    <form data-submit="quote-phone" style="max-width:460px;display:flex;flex-direction:column;gap:14px">
+      <div class="field">
+        <label for="quote-consult-phone-input">전화상담 연결 번호</label>
+        <input class="input" id="quote-consult-phone-input" name="phone" type="tel" value="${esc(quoteConsultPhone)}" placeholder="예: 02-2015-8500 또는 1588-0000" maxlength="25">
+      </div>
+      <div class="notice-text">한 번 저장하면 모든 고객 모바일 견적서 및 실시간 미리보기에 계속 유지되며, 언제든 수정할 수 있습니다. 번호를 비우고 저장하면 견적 원본/담당자 기본 번호가 표시됩니다.</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="submit" class="btn primary">${icon('check')}전화번호 저장</button>
+        ${quoteConsultPhone ? btn('기본값으로 초기화', 'clear-quote-phone', 'refresh', 'soft') : ''}
+      </div>
+    </form>
+  </div>`;
+}
+
 function settingsPage(){
   const tabs=[
     ['labels','진행라벨','box'],
@@ -3834,6 +3877,7 @@ function settingsPage(){
     ['contract-statuses','계약·수납상태','contract'],
     ['forms','양식관리','file'],
     ['users','계정·사용자관리','users'],
+    ['quote-phone','견적 전화상담','phone'],
     ['integrations','외부 연동','link'],
     ['reset','초기화 설정','refresh']
   ];
@@ -3843,6 +3887,7 @@ function settingsPage(){
   if(settingsTab==='contract-statuses')content=renderContractStatusesSettingsPanel();
   if(settingsTab==='forms')content=renderFormsSettingsPanel();
   if(settingsTab==='users')content=renderUsersSettingsPanel();
+  if(settingsTab==='quote-phone')content=renderQuotePhoneSettingsPanel();
   if(settingsTab==='integrations')content=`<div class="panel-head"><div><h3>외부 서비스 연동</h3><p>실제 서비스 개통 상태와 운영 연결을 관리합니다.</p></div></div><div class="panel-pad">${[['카드결제 PG','신규 결제 요청·승인·취소·정산','credit'],['문자·알림톡','견적 안내·본인 인증·업무 알림','send'],['렌탈사 접수','심사·약정·정산 결과 연결','file'],['랜딩페이지 수집','상담 신청·유입 이벤트 연결','link']].map(([n,t,i])=>`<div class="settings-row">${icon(i)}<div class="grow"><b>${n}</b><small>${t}</small></div>${badge('미연결','gray')}${btn('연결 안내','integration','info','sm',`data-name="${n}"`)}</div>`).join('')}</div>`;
   if(settingsTab==='reset')content=`<div class="panel-head"><h3>운영 데이터 초기화</h3></div><div class="panel-pad"><div class="notice-text">고객·견적·계약·렌탈·파트너·광고링크 데이터를 모두 비우고 기본 설정(최고관리자·기본 상품·동의서 양식)만 남깁니다.</div><div style="margin-top:20px">${btn('운영 데이터 초기화','reset-data','refresh','danger')}</div></div>`;
   return pageHead('설정','운영 기준과 사용자 권한을 관리하세요.','','SYSTEM SETTINGS')+`<div class="settings-layout"><nav class="settings-nav">${tabs.map(([v,t,i])=>`<button class="${settingsTab===v?'active':''}" data-action="settings-tab" data-value="${v}">${icon(i)}${t}</button>`).join('')}</nav><section class="panel">${content}</section></div>`;
@@ -5149,7 +5194,23 @@ switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':se
   window.scrollTo(0, 0);
   if (targetLink) toast(`[${targetLink.channel} · ${targetLink.name}] 유입 고객만 필터링하여 표시합니다.`);
   break;
-}case'detail-tab':openCustomer(id,v);break;case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();break;case'new-quote':openEditor(id, el.dataset.type || '');break;
+}case'detail-tab':openCustomer(id,v);break;case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();break;
+case'clear-quote-phone':{
+  (async()=>{
+    try{
+      const res = await apiFetch('/api/settings/quote-phone', { method: 'PUT', body: { phone: '' } });
+      const resData = await res.json();
+      if(!res.ok) throw new Error(resData.error || '초기화 실패');
+      quoteConsultPhone = '';
+      try{ localStorage.setItem('kcc_quote_consult_phone', ''); }catch{}
+      render();
+      toast('모바일 견적서 전화상담 번호를 기본값으로 초기화했습니다.');
+    }catch(err){
+      toast(err.message || '초기화에 실패했습니다.');
+    }
+  })();
+  break;
+}case'new-quote':openEditor(id, el.dataset.type || '');break;
   case'preview':openPreview(id, null, 'quote', el.dataset.type || '', el.dataset.quoteId || null);break;
   case'editor-preview':openPreview(editor.cid, { ...editor, ...editorTotal() }, 'quote', el.dataset.type || editor.type || '가견적');break;
   case'send-quote':openSendQuote(id, el.dataset.type || '');break;
@@ -5513,11 +5574,10 @@ case'publish-quote':{
         toast(qData.error || '견적 발행에 실패했습니다.');
         break;
       }
-    } catch (err) {}
-    const q={...JSON.parse(JSON.stringify(editor)),...t,date:now(),id:'Q-'+Date.now()};
-    db.quotes.push(q);c.quote=t.total;c.viewed=false;c.status=editor.type==='최종견적'?'최종견적':'견적안내';c.note=editor.type+' 발행 · '+won(t.total);
-    audit(c.id,editor.type+' 발행 '+won(t.total)+' · 마진금액 '+won(t.profit));
-    render();openPreview(c.id,q);toast('고객 견적을 발행했습니다.');
+    } catch (err) {
+      console.error('publish-quote error:', err);
+      toast('서버에 견적을 저장하지 못했습니다. 네트워크 또는 서버 상태를 확인해 주세요.');
+    }
     break;
   }
 case'sample-csv':download('homecc-estimate-sample.csv','품목,규격,수량,원가단가\n거실 발코니 이중창,맞춤규격,1,3200000\n안방 침실 창호,맞춤규격,2,1800000\n철거 및 설치,기본시공,1,1200000');break;
@@ -6989,6 +7049,26 @@ case'messaging-config':{
       }
     } catch {}
     toast('설정 저장에 실패했습니다.');
+    break;
+  }
+  case'quote-phone':{
+    const phone = String(d.phone || '').trim();
+    try {
+      const res = await apiFetch('/api/settings/quote-phone', {
+        method: 'PUT',
+        body: { phone }
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || '저장에 실패했습니다.');
+      quoteConsultPhone = String(resData.phone || '').trim();
+      try { localStorage.setItem('kcc_quote_consult_phone', quoteConsultPhone); } catch {}
+      render();
+      toast(quoteConsultPhone
+        ? `모바일 견적서 전화상담 번호가 [${quoteConsultPhone}](으)로 저장되었습니다.`
+        : '모바일 견적서 전화상담 번호가 기본값으로 초기화되었습니다.');
+    } catch (err) {
+      toast(err.message || '전화상담 번호 저장에 실패했습니다.');
+    }
     break;
   }
   case'reset':{
