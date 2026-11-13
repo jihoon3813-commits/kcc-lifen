@@ -10,6 +10,8 @@ import { formatKstDateSlice } from "../_lib/crmHelper.js";
 import {
   loadPaymentLedger,
   savePaymentLedger,
+  buildContractPaymentMeta,
+  computeConfirmedPaidAmount,
   createPaymentOrderInLedger,
   syncContractTotalsToConvex,
 } from "../_lib/paymentLedger.js";
@@ -217,6 +219,23 @@ export default async function handler(req, res) {
 
       if (body.amount !== undefined && Number(body.amount) >= 0) {
         sch.amount = Number(body.amount);
+        if (meta.payCategory === "rental") {
+          if (sch.id === "upfront") {
+            meta.rentalUpfront = sch.amount;
+            meta.rentalTotalFee =
+              Number(meta.rentalMonthly || 111000) * Number(meta.rentalMonths || 60) +
+              sch.amount;
+          }
+        } else if (Array.isArray(meta.schedules) && meta.schedules.length > 0) {
+          const sumAmt = meta.schedules.reduce((acc, s) => acc + Number(s.amount || 0), 0);
+          if (sumAmt > 0) {
+            meta.quoteTotal = sumAmt;
+            const depSch = meta.schedules.find((s) => s.id === "deposit");
+            const balSch = meta.schedules.find((s) => s.id === "balance");
+            if (depSch) meta.depositAmount = Number(depSch.amount || 0);
+            if (balSch) meta.balanceAmount = Number(balSch.amount || 0);
+          }
+        }
       }
       const nextPaid = Boolean(body.paid);
       const nextDate = String(body.paidDate || todayKst).slice(0, 10) || todayKst;
@@ -347,6 +366,205 @@ export default async function handler(req, res) {
 
     if (!action && (req.method === "PATCH" || req.method === "PUT")) {
       const body = parseBody(req) || {};
+      const nowIso = new Date().toISOString();
+      const customerName = String(
+        body.customerName || body.customer_name || target.customerName || proj?.customerName || ""
+      );
+      const customerPhone = String(
+        body.customerPhone ||
+          body.customer_phone ||
+          target.customerPhone ||
+          proj?.customerPhone ||
+          ""
+      );
+      const contractDate = String(
+        body.contractDate || body.contract_date || target.contractDate || formatKstDateSlice(nowIso)
+      );
+
+      if (body.updatePaymentTerms || body.payCategory !== undefined) {
+        const ledger = await loadPaymentLedger();
+        const prevMeta = ensureContractMeta(ledger, target, rentalApp);
+        const quoteTotal = Math.max(
+          0,
+          Number(
+            body.quoteTotal ??
+              body.totalAmount ??
+              body.amount ??
+              prevMeta.quoteTotal ??
+              target.totalAmount ??
+              0
+          )
+        );
+
+        const nextMeta = buildContractPaymentMeta({
+          ...body,
+          contractNo: target.contractNo,
+          projectId: target.projectId,
+          quoteTotal,
+        });
+        nextMeta.createdAt = prevMeta.createdAt || nextMeta.createdAt;
+        nextMeta.updatedAt = nowIso;
+        nextMeta.note =
+          body.note !== undefined ? String(body.note || "").trim() : String(prevMeta.note || "");
+
+        // 이미 카드결제 승인(paid)이 완료된 내역이 있으면 보존
+        for (const sch of nextMeta.schedules || []) {
+          const prevSch = (prevMeta.schedules || []).find((p) => p.id === sch.id);
+          const paidCardOrder = (ledger.paymentOrders || []).find(
+            (o) =>
+              o.contractNo === target.contractNo &&
+              o.status === "paid" &&
+              (o.orderId === prevSch?.paymentOrderId || o.scheduleId === sch.id)
+          );
+          if (paidCardOrder && sch.method === "card") {
+            sch.paid = true;
+            sch.paidDate =
+              prevSch?.paidDate || formatKstDateSlice(paidCardOrder.approvedAt || nowIso);
+            sch.paidAt = prevSch?.paidAt || paidCardOrder.approvedAt || nowIso;
+            sch.paymentOrderId = paidCardOrder.orderId;
+          }
+        }
+
+        // 카드 일정 동기화: 기존 대기중(pending) 카드결제 주문 금액/할부 업데이트 또는 신규 생성, 불필요해진 대기 주문 취소
+        const activeCardSchedules = (nextMeta.schedules || []).filter(
+          (s) => s.method === "card" && !s.paid && Number(s.amount || 0) > 0
+        );
+        const activeCardIds = new Set(activeCardSchedules.map((s) => s.id));
+
+        for (const ord of ledger.paymentOrders || []) {
+          if (ord.contractNo === target.contractNo && ord.status === "pending") {
+            if (!activeCardIds.has(ord.scheduleId)) {
+              ord.status = "cancelled";
+              ord.cancelledAt = nowIso;
+              ord.updatedAt = nowIso;
+            }
+          }
+        }
+
+        ledger.contractMeta[target.contractNo] = nextMeta;
+
+        let activeOrder = null;
+        const primaryCardTargetId =
+          nextMeta.payCategory === "card"
+            ? nextMeta.payOption === "balance"
+              ? "balance"
+              : nextMeta.payOption === "deposit"
+              ? "deposit"
+              : "full"
+            : nextMeta.payCategory === "rental" && nextMeta.rentalUpfrontMethod === "card"
+            ? "upfront"
+            : "";
+
+        for (const sch of activeCardSchedules) {
+          const existingPending = (ledger.paymentOrders || []).find(
+            (o) =>
+              o.contractNo === target.contractNo &&
+              o.scheduleId === sch.id &&
+              o.status === "pending"
+          );
+          const nextPhaseLabel = sch.id === "upfront" ? "렌탈 초기납입금" : sch.label || "카드결제";
+          const nextInst = Number(
+            sch.installmentMonths ??
+              (sch.id === "upfront"
+                ? nextMeta.rentalUpfrontInstallmentMonths
+                : nextMeta.installmentMonths) ??
+              0
+          );
+          if (existingPending) {
+            existingPending.amount = Number(sch.amount || 0);
+            existingPending.installmentMonths = nextInst;
+            existingPending.phaseLabel = nextPhaseLabel;
+            existingPending.customerName = customerName || existingPending.customerName;
+            existingPending.customerPhone = customerPhone || existingPending.customerPhone;
+            existingPending.memo = nextMeta.note || existingPending.memo || "";
+            existingPending.updatedAt = nowIso;
+            sch.paymentOrderId = existingPending.orderId;
+            if (!activeOrder || sch.id === primaryCardTargetId) activeOrder = existingPending;
+          } else if (sch.id === primaryCardTargetId || activeCardSchedules.length === 1) {
+            const created = createPaymentOrderInLedger(ledger, {
+              contractNo: target.contractNo,
+              projectId: target.projectId,
+              customerName: customerName || "고객",
+              customerPhone,
+              customerAddress: proj?.customerAddress || "",
+              product: proj?.product || "창호",
+              partner: proj?.partnerName || "직영",
+              scheduleId: sch.id,
+              phaseLabel: nextPhaseLabel,
+              amount: Number(sch.amount || 0),
+              installmentMonths: nextInst,
+              memo: nextMeta.note || "",
+            });
+            if (!activeOrder || sch.id === primaryCardTargetId) activeOrder = created;
+          }
+        }
+
+        await savePaymentLedger(ledger);
+
+        const confirmedPaid = computeConfirmedPaidAmount(
+          nextMeta,
+          0,
+          nextMeta.payCategory === "rental"
+        );
+        const effectiveTotal =
+          nextMeta.payCategory === "rental"
+            ? Number(nextMeta.rentalTotalFee || quoteTotal)
+            : quoteTotal;
+        const nextBalance = Math.max(0, effectiveTotal - confirmedPaid);
+
+        let nextStatus = String(body.status || "").trim();
+        if (!nextStatus) {
+          if (nextMeta.payCategory === "rental") {
+            nextStatus = confirmedPaid > 0 ? "초기납입완료" : "약정대기";
+          } else if (confirmedPaid >= effectiveTotal && effectiveTotal > 0) {
+            nextStatus = "수납완료";
+          } else if (confirmedPaid > 0) {
+            nextStatus = "선금완료";
+          } else {
+            nextStatus = "미수납";
+          }
+        }
+
+        await convexClient.mutation(api.crm.upsertContract, {
+          contractNo: target.contractNo,
+          projectId: target.projectId,
+          customerName,
+          customerPhone,
+          status: nextStatus,
+          totalAmount: effectiveTotal,
+          depositAmount: confirmedPaid,
+          balanceAmount: nextBalance,
+          contractDate,
+          signedAt: confirmedPaid > 0 ? target.signedAt || nowIso : target.signedAt,
+        });
+
+        if (nextMeta.payCategory === "rental") {
+          await convexClient
+            .mutation(api.rentals.upsertApplication, {
+              appNo: rentalApp?.appNo || target.contractNo,
+              projectId: target.projectId,
+              customerName,
+              customerPhone,
+              installationAddress: rentalApp?.installationAddress || proj?.customerAddress || "",
+              productSummary: `KCC 홈씨씨 ${proj?.product || "창호"} (${nextMeta.rentalMonths || 60}개월 · 월 ${Number(nextMeta.rentalMonthly || 111000).toLocaleString("ko-KR")}원)`,
+              monthlyFee: Number(nextMeta.rentalMonthly || 111000),
+              rentalPeriod: Number(nextMeta.rentalMonths || 60),
+              totalRentalFee: effectiveTotal,
+              status: rentalApp?.status || "received",
+              underwritingMemo: nextMeta.note || rentalApp?.underwritingMemo || "",
+            })
+            .catch(() => {});
+        }
+
+        return res.status(200).json({
+          updated: true,
+          contractNo: target.contractNo,
+          meta: nextMeta,
+          paymentOrder: activeOrder,
+          message: "결제방식 및 계약금액이 수정되었습니다.",
+        });
+      }
+
       const totalAmount = Number(body.totalAmount ?? body.total_amount ?? target.totalAmount);
       const depositAmount = Number(
         body.depositAmount ?? body.deposit_amount ?? target.depositAmount
@@ -355,24 +573,27 @@ export default async function handler(req, res) {
         body.balanceAmount ?? body.balance_amount ?? Math.max(0, totalAmount - depositAmount)
       );
 
-      if (body.note !== undefined) {
+      if (body.note !== undefined || body.totalAmount !== undefined) {
         const ledger = await loadPaymentLedger();
         const meta = ensureContractMeta(ledger, target, rentalApp);
-        meta.note = String(body.note || "").trim();
-        meta.updatedAt = new Date().toISOString();
+        if (body.note !== undefined) meta.note = String(body.note || "").trim();
+        if (body.totalAmount !== undefined && meta.payCategory !== "rental") {
+          meta.quoteTotal = totalAmount;
+        }
+        meta.updatedAt = nowIso;
         await savePaymentLedger(ledger);
       }
 
       await convexClient.mutation(api.crm.upsertContract, {
         contractNo: target.contractNo,
         projectId: target.projectId,
-        customerName: String(body.customerName || body.customer_name || target.customerName),
-        customerPhone: String(body.customerPhone || body.customer_phone || target.customerPhone),
+        customerName,
+        customerPhone,
         status: String(body.status || target.status),
         totalAmount,
         depositAmount,
         balanceAmount,
-        contractDate: body.contractDate || body.contract_date || target.contractDate,
+        contractDate,
         signedAt: body.signedAt || target.signedAt,
       });
       return res.status(200).json({ updated: true, message: "계약 정보가 수정되었습니다." });

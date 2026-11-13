@@ -446,7 +446,9 @@ export async function syncContractTotalsToConvex(contractNo, meta, fallbackOrder
     if (!existing && !meta) return null;
 
     const totalAmount = Number(
-      existing?.totalAmount ?? meta?.quoteTotal ?? fallbackOrder?.amount ?? 0
+      meta && meta.quoteTotal !== undefined && Number(meta.quoteTotal) > 0
+        ? meta.quoteTotal
+        : existing?.totalAmount ?? meta?.quoteTotal ?? fallbackOrder?.amount ?? 0
     );
     const paidAmount = meta
       ? computeConfirmedPaidAmount(meta, 0, meta.payCategory === "rental")

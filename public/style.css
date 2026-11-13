@@ -4471,3 +4471,110 @@ tr.quote-inquiry-detail-row > td {
     grid-template-columns: 1fr;
   }
 }
+
+/* === Quote Master Table & Quote-to-Contract Auto Preset UI === */
+.quote-kind-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+.quote-kind-tag.is-final {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+.quote-kind-tag.is-rough {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.quote-dual-compare {
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  width: fit-content;
+}
+.quote-dual-compare b {
+  color: #047857;
+}
+.quote-rental-est-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.quote-contract-linked-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #3730a3;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.quote-contract-linked-chip:hover {
+  background: #e0e7ff;
+}
+.quote-price-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: #f8faff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+}
+.quote-price-preset-row .preset-lbl {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #475569;
+}
+.quote-price-preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.quote-price-preset-chip:hover {
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+.quote-price-preset-chip.is-selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.quote-price-preset-chip b {
+  font-weight: 800;
+}
+.quote-price-preset-empty {
+  padding: 7px 10px;
+  font-size: 11.5px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #e2e8f0;
+  border-radius: 8px;
+}

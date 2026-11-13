@@ -302,10 +302,18 @@ router.patch('/:id', requireAuth, checkPartnerAccess, (req, res) => {
     return res.status(403).json({ error: '접근 권한이 없습니다.' });
   }
 
-  const { status, type, note } = req.body || {};
+  const { status, type, note, quoteTotal, totalAmount, amount } = req.body || {};
   const updates = [];
   const params = [];
   const logParts = [];
+
+  const nextAmtRaw = quoteTotal ?? totalAmount ?? amount;
+  if (nextAmtRaw !== undefined && Number(nextAmtRaw) >= 0 && Number(nextAmtRaw) !== Number(contract.amount)) {
+    const cleanAmt = Math.round(Number(nextAmtRaw));
+    updates.push('amount = ?');
+    params.push(cleanAmt);
+    logParts.push(`계약금액 변경: ${Number(contract.amount || 0).toLocaleString()}원 → ${cleanAmt.toLocaleString()}원`);
+  }
 
   if (status !== undefined && String(status).trim() && String(status).trim() !== contract.status) {
     const cleanStatus = String(status).trim();
