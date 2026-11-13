@@ -92,8 +92,8 @@
     },
     {
       "path": "dist/assets/logo.png",
-      "bytes": 12713,
-      "sha256": "66754e40fda01e35907dc393c490fcf58a6437cc1faf3851936645bba020e408"
+      "bytes": 14724,
+      "sha256": "2ad7215c7acdb57dc13cbc696177dd97134c3d2ebb8577e549908f3277d13834"
     },
     {
       "path": "dist/assets/measure.webp",

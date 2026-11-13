@@ -4286,8 +4286,15 @@ function syncCloneLinkUrlPreview() {
   const selOpt = prodSel?.options[prodSel.selectedIndex];
   const baseUrl = selOpt?.dataset?.url || '/landing/';
   const codeRaw = ($('#clone-link-code', form)?.value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-  const code = codeRaw || '자동생성코드';
   const chVal = ($('#clone-link-channel', form)?.value || '').trim();
+  let defaultSlug = 'ad_auto';
+  if (chVal.includes('네이버')) defaultSlug = 'naver_auto';
+  else if (chVal.includes('당근')) defaultSlug = 'daangn_auto';
+  else if (chVal.includes('인스타') || chVal.includes('페이스북') || chVal.includes('메타')) defaultSlug = 'meta_auto';
+  else if (chVal.includes('카카오')) defaultSlug = 'kakao_auto';
+  else if (chVal.includes('유튜브') || chVal.includes('구글')) defaultSlug = 'google_auto';
+
+  const code = codeRaw || defaultSlug;
   const medVal = ($('#clone-link-medium', form)?.value || '').trim();
   const nameVal = ($('#clone-link-name', form)?.value || '').trim();
   const partnerVal = ($('#clone-link-partner', form)?.value || '직영').trim();
@@ -4989,7 +4996,13 @@ case'copy-cloned-link':{
 }
 case'copy-clone-preview':{
   const txt = ($('#clone-url-preview')?.textContent || '').trim();
-  if (txt) copy(txt);
+  if (txt) {
+    const isEdit = Boolean($('#clone-link-form')?.dataset?.id);
+    copy(txt);
+    if (!isEdit) {
+      toast('미리보기 링크를 복사했습니다. (하단의 [광고링크 생성] 버튼을 눌러야 정식 코드가 저장됩니다)');
+    }
+  }
   break;
 }
 case'pick-ad-channel':{
