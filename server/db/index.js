@@ -140,6 +140,141 @@ export function ensureDefaultContractStatuses() {
   }
 }
 
+export function ensureDefaultLandingLinks() {
+  const initFlag = db.prepare("SELECT config_json FROM integration_configs WHERE key = 'landing_links_initialized'").get();
+  if (initFlag) return;
+
+  const products = db.prepare('SELECT id, name, category, url FROM products ORDER BY id ASC').all();
+  if (!products.length) return;
+
+  const winProd = products.find(p => p.category === '창호') || products[0];
+  const targetUrl = (winProd.url && winProd.url.startsWith('/')) ? winProd.url : '/landing/';
+
+  const defaults = [
+    {
+      code: 'win_naver_sa',
+      product_id: winProd.id,
+      product_name: winProd.name,
+      product_category: winProd.category || '창호',
+      name: '파워링크_창호교체_수도권',
+      channel: '네이버 검색광고',
+      medium: '검색광고',
+      campaign: '파워링크_창호교체_수도권',
+      partner_name: '직영',
+      target_url: targetUrl,
+      memo: '창호 교체 핵심 키워드 검색광고 메인'
+    },
+    {
+      code: 'win_insta_feed',
+      product_id: winProd.id,
+      product_name: winProd.name,
+      product_category: winProd.category || '창호',
+      name: '릴스·피드_겨울단열_30평대',
+      channel: '인스타그램',
+      medium: '배너·피드',
+      campaign: '릴스·피드_겨울단열_30평대',
+      partner_name: '직영',
+      target_url: targetUrl,
+      memo: '인스타그램 카드뉴스 및 릴스 광고'
+    },
+    {
+      code: 'win_kakao_biz',
+      product_id: winProd.id,
+      product_name: winProd.name,
+      product_category: winProd.category || '창호',
+      name: '비즈보드_60개월렌탈_특가',
+      channel: '카카오 광고',
+      medium: '배너·피드',
+      campaign: '비즈보드_60개월렌탈_특가',
+      partner_name: '직영',
+      target_url: targetUrl,
+      memo: '카카오톡 상단 비즈보드 배너'
+    },
+    {
+      code: 'partner_hanbit_win',
+      product_id: winProd.id,
+      product_name: winProd.name,
+      product_category: winProd.category || '창호',
+      name: '한빛인테리어_블로그·매장QR',
+      channel: '파트너 전용링크',
+      medium: '파트너추천',
+      campaign: '한빛인테리어_블로그·매장QR',
+      partner_name: '한빛인테리어',
+      target_url: targetUrl,
+      memo: '한빛인테리어 매장 상담 및 블로그 배포용'
+    }
+  ];
+
+  const insertLink = db.prepare(`
+    INSERT OR IGNORE INTO landing_links (
+      code, product_id, product_name, product_category, name, channel, medium, campaign,
+      partner_name, target_url, include_utm, memo, is_active, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1, '시스템')
+  `);
+  for (const item of defaults) {
+    insertLink.run(
+      item.code,
+      item.product_id,
+      item.product_name,
+      item.product_category,
+      item.name,
+      item.channel,
+      item.medium,
+      item.campaign,
+      item.partner_name,
+      item.target_url,
+      item.memo
+    );
+  }
+
+  // Link existing matching seeded projects to default links for immediate demonstration
+  const naverLink = db.prepare("SELECT id, name, channel FROM landing_links WHERE code = 'win_naver_sa'").get();
+  if (naverLink) {
+    db.prepare(`
+      UPDATE projects
+      SET landing_link_id = ?, ad_channel = ?, ad_campaign = ?
+      WHERE source = '네이버 검색광고' AND product = '창호' AND landing_link_id IS NULL
+    `).run(naverLink.id, naverLink.channel, naverLink.name);
+    db.prepare(`
+      UPDATE landing_events
+      SET landing_link_id = ?, campaign_name = ?
+      WHERE (utm_source = 'naver' OR channel = '네이버 검색광고') AND landing_link_id IS NULL
+    `).run(naverLink.id, naverLink.name);
+  }
+
+  const instaLink = db.prepare("SELECT id, name, channel FROM landing_links WHERE code = 'win_insta_feed'").get();
+  if (instaLink) {
+    db.prepare(`
+      UPDATE projects
+      SET landing_link_id = ?, ad_channel = ?, ad_campaign = ?
+      WHERE source = '인스타그램' AND product = '창호' AND landing_link_id IS NULL
+    `).run(instaLink.id, instaLink.channel, instaLink.name);
+  }
+
+  const kakaoLink = db.prepare("SELECT id, name, channel FROM landing_links WHERE code = 'win_kakao_biz'").get();
+  if (kakaoLink) {
+    db.prepare(`
+      UPDATE projects
+      SET landing_link_id = ?, ad_channel = ?, ad_campaign = ?
+      WHERE source = '카카오 광고' AND product = '창호' AND landing_link_id IS NULL
+    `).run(kakaoLink.id, kakaoLink.channel, kakaoLink.name);
+  }
+
+  const hanbitLink = db.prepare("SELECT id, name, channel FROM landing_links WHERE code = 'partner_hanbit_win'").get();
+  if (hanbitLink) {
+    db.prepare(`
+      UPDATE projects
+      SET landing_link_id = ?, ad_channel = ?, ad_campaign = ?
+      WHERE source = '파트너 전용링크' AND partner_name = '한빛인테리어' AND product = '창호' AND landing_link_id IS NULL
+    `).run(hanbitLink.id, hanbitLink.channel, hanbitLink.name);
+  }
+
+  db.prepare(`
+    INSERT OR REPLACE INTO integration_configs (key, config_json, updated_by, updated_at)
+    VALUES ('landing_links_initialized', '{"initialized":true}', 'system', CURRENT_TIMESTAMP)
+  `).run();
+}
+
 export function ensureApprovedRentalTerms() {
   // 사용자 요청: '(렌탈) 개인정보 동의서'만 유지하고 나머지 양식은 삭제
   // 1. 기존 비-렌탈 불필요 양식 정리
@@ -346,6 +481,29 @@ export function initDatabase() {
   if (!cols.includes('final_quote_url')) {
     db.exec("ALTER TABLE projects ADD COLUMN final_quote_url TEXT");
   }
+  if (!cols.includes('landing_link_id')) {
+    db.exec("ALTER TABLE projects ADD COLUMN landing_link_id INTEGER");
+  }
+  if (!cols.includes('ad_channel')) {
+    db.exec("ALTER TABLE projects ADD COLUMN ad_channel TEXT");
+  }
+  if (!cols.includes('ad_campaign')) {
+    db.exec("ALTER TABLE projects ADD COLUMN ad_campaign TEXT");
+  }
+
+  db.exec(`
+    UPDATE projects
+    SET ad_channel = CASE WHEN source = '랜딩페이지' THEN '기본 랜딩(미분류)' ELSE source END
+    WHERE ad_channel IS NULL OR ad_channel = ''
+  `);
+
+  const evCols = db.prepare("PRAGMA table_info(landing_events)").all().map(c => c.name);
+  if (!evCols.includes('landing_link_id')) {
+    db.exec("ALTER TABLE landing_events ADD COLUMN landing_link_id INTEGER");
+  }
+  if (!evCols.includes('campaign_name')) {
+    db.exec("ALTER TABLE landing_events ADD COLUMN campaign_name TEXT");
+  }
 
   const quoteCols = db.prepare("PRAGMA table_info(quotes)").all().map(c => c.name);
   if (!quoteCols.includes('quote_type')) {
@@ -413,6 +571,7 @@ export function initDatabase() {
   const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get().cnt;
   if (userCount > 0) {
     ensureApprovedRentalTerms();
+    ensureDefaultLandingLinks();
     const existingApps = db.prepare('SELECT * FROM rental_applications').all();
     for (const appRow of existingApps) {
       hydrateLegacyRentalApplication(appRow);

@@ -207,7 +207,8 @@ const initial=()=>({customers:[
 {id:3108,name:'김하린',phone:'010-0000-1008',address:'경기 남양주시 다산동 · 25평',product:'주방',status:'가견적요청',label:'일반',source:'네이버 블로그',partner:'리움디자인',owner:'마지희',date:'2026-11-10',note:'아일랜드 확장과 수납장 교체 2가지 안으로 요청.',feedback:'고객 전달 규격 확인 완료.',measure:'',build:'',quote:0,viewed:false},
 {id:3109,name:'이수아',phone:'010-0000-1009',address:'경기 수원시 영통구 · 36평',product:'창호',status:'견적안내',label:'일반',source:'네이버 검색광고',partner:'직영',owner:'김정연',date:'2026-11-09',note:'전체 교체 견적 전달. 가족과 상의 후 실측 신청 예정.',feedback:'내관도와 제품 사양을 함께 안내했습니다.',measure:'',build:'',quote:14850000,viewed:true},
 {id:3110,name:'서민재',phone:'010-0000-1010',address:'서울 노원구 중계동 · 27평',product:'욕실',status:'시공완료',label:'완료',source:'직접등록',partner:'직영',owner:'마지희',date:'2026-11-06',note:'시공 완료 및 고객 검수 확인. 잔금 수납 완료.',feedback:'공사 완료 사진 4장이 등록되었습니다.',measure:'2026-11-02',build:'2026-11-10',quote:5500000,viewed:true}
-],partners:[{id:'P001',name:'한빛인테리어',person:'이현우',email:'hanbit@example.com',type:'인테리어',active:true},{id:'P002',name:'리움디자인',person:'박수진',email:'rium@example.com',type:'영업대행',active:true},{id:'P003',name:'온유하우스',person:'정지훈',email:'onyou@example.com',type:'인테리어',active:false}],users:[{id:1,username:'admin',name:'김지훈',role:'hq_admin',org:'라이프앤조이',email:'admin@example.com',active:true},{id:2,username:'youngjin',name:'오영진',role:'consultant',org:'라이프앤조이',email:'youngjin@example.com',active:true},{id:3,username:'jeongyeon',name:'김정연',role:'estimator',org:'라이프앤조이',email:'jeongyeon@example.com',active:true},{id:4,username:'jihee',name:'마지희',role:'accountant',org:'라이프앤조이',email:'jihee@example.com',active:true},{id:5,username:'partner_hanbit',name:'한빛인테리어',role:'partner',org:'한빛인테리어',email:'hanbit@example.com',active:true}],labels:[{name:'일반',color:'#7194dd'},{name:'긴급',color:'#e88485'},{name:'체크',color:'#c39b56'},{name:'완료',color:'#74b6a1'}],contractStatuses:DEFAULT_CONTRACT_STATUSES.map(x=>({...x})),notes:{3102:[{date:'11.12 11:10',by:'오영진',text:'전체 창호 교체 희망. 12월 초 입주 전 공사 요청. 가족과 상의 후 실측 일정을 잡기로 했습니다.',type:'notes',important:true},{date:'11.12 10:35',by:'오영진',text:'32평 아파트 전체 창호와 거실 발코니 확장부 확인. 단열 성능과 외부 소음 차단을 우선으로 안내했습니다.',type:'notes'},{date:'11.12 10:05',by:'오영진',text:'평면도 수령 완료. 거실과 침실별 규격을 정리하여 가견적 산출을 요청했습니다.',type:'notes'},{date:'11.12 09:45',by:'오영진',text:'첫 상담 완료. 통화 가능 시간은 오후 1시 이후이며, 견적서는 모바일로 확인하기를 희망합니다.',type:'notes'}],3104:[{date:'11.11 16:40',by:'오영진',text:'11/12 오후 2시 방문 실측 확정. 경비실 호출 필요. 고객에게 방문 담당자와 연락 방법을 안내했습니다.',type:'notes',important:true},{date:'11.11 14:20',by:'오영진',text:'고객이 가견적서를 확인했습니다. 실측 후 공사 범위와 최종 금액을 확정하기로 했습니다.',type:'notes'},{date:'11.11 10:10',by:'오영진',text:'전체 창호 교체 상담. 공사 일정은 12월 1일을 희망하며 거주 중 시공이 가능한지 문의했습니다.',type:'notes'}]},history:{3102:[{date:'11.12 10:35',by:'오영진',text:'공사 희망사항 추가 · 단열 및 방음 우선'},{date:'11.12 10:10',by:'오영진',text:'진행구분 변경 · 상담중 → 가견적요청'},{date:'11.12 10:05',by:'오영진',text:'평면도 수령 및 영업지원팀 전달'},{date:'11.12 09:45',by:'오영진',text:'진행라벨 변경 · 일반 → 긴급'}]},quotes:[],applications:[{id:'R-261112-001',cid:3106,plan:'60개월',monthly:264000,status:'서류검토',date:'2026-11-12',createdAt:new Date(Date.now()-2*3600*1000).toISOString()}],contracts:[{id:'C-261112-001',cid:3106,type:'렌탈',amount:13200000,paid:0,status:'약정대기',date:'2026-11-12',createdAt:new Date(Date.now()-3*3600*1000).toISOString()},{id:'C-261110-002',cid:3107,type:'일시불(현금)',amount:11000000,paid:3300000,status:'선금완료',date:'2026-11-10',createdAt:'2026-11-10T14:20:00+09:00'},{id:'C-261106-003',cid:3110,type:'일시불(현금)',amount:5500000,paid:5500000,status:'수납완료',date:'2026-11-06',createdAt:'2026-11-06T17:00:00+09:00'}],products:[{name:'KCC 홈씨씨 창호',category:'창호',desc:'우리 집에 맞는 창호 교체, 상담부터 시공까지.',url:'https://kcchomecc-partner.com/products/rental',icon:'window',color:'#edf3f9',views:1248,active:true},{name:'KCC 홈씨씨 키친',category:'주방',desc:'생활의 중심이 되는 주방, 맞춤 리모델링 상담.',url:'',icon:'kitchen',color:'#f4f1ec',views:682,active:true},{name:'KCC 홈씨씨 욕실',category:'욕실',desc:'매일의 편안함을 만드는 욕실 리모델링.',url:'',icon:'bath',color:'#edf4f1',views:391,active:false}],
+],partners:[{id:'P001',name:'한빛인테리어',person:'이현우',email:'hanbit@example.com',type:'인테리어',active:true},{id:'P002',name:'리움디자인',person:'박수진',email:'rium@example.com',type:'영업대행',active:true},{id:'P003',name:'온유하우스',person:'정지훈',email:'onyou@example.com',type:'인테리어',active:false}],users:[{id:1,username:'admin',name:'김지훈',role:'hq_admin',org:'라이프앤조이',email:'admin@example.com',active:true},{id:2,username:'youngjin',name:'오영진',role:'consultant',org:'라이프앤조이',email:'youngjin@example.com',active:true},{id:3,username:'jeongyeon',name:'김정연',role:'estimator',org:'라이프앤조이',email:'jeongyeon@example.com',active:true},{id:4,username:'jihee',name:'마지희',role:'accountant',org:'라이프앤조이',email:'jihee@example.com',active:true},{id:5,username:'partner_hanbit',name:'한빛인테리어',role:'partner',org:'한빛인테리어',email:'hanbit@example.com',active:true}],labels:[{name:'일반',color:'#7194dd'},{name:'긴급',color:'#e88485'},{name:'체크',color:'#c39b56'},{name:'완료',color:'#74b6a1'}],contractStatuses:DEFAULT_CONTRACT_STATUSES.map(x=>({...x})),notes:{3102:[{date:'11.12 11:10',by:'오영진',text:'전체 창호 교체 희망. 12월 초 입주 전 공사 요청. 가족과 상의 후 실측 일정을 잡기로 했습니다.',type:'notes',important:true},{date:'11.12 10:35',by:'오영진',text:'32평 아파트 전체 창호와 거실 발코니 확장부 확인. 단열 성능과 외부 소음 차단을 우선으로 안내했습니다.',type:'notes'},{date:'11.12 10:05',by:'오영진',text:'평면도 수령 완료. 거실과 침실별 규격을 정리하여 가견적 산출을 요청했습니다.',type:'notes'},{date:'11.12 09:45',by:'오영진',text:'첫 상담 완료. 통화 가능 시간은 오후 1시 이후이며, 견적서는 모바일로 확인하기를 희망합니다.',type:'notes'}],3104:[{date:'11.11 16:40',by:'오영진',text:'11/12 오후 2시 방문 실측 확정. 경비실 호출 필요. 고객에게 방문 담당자와 연락 방법을 안내했습니다.',type:'notes',important:true},{date:'11.11 14:20',by:'오영진',text:'고객이 가견적서를 확인했습니다. 실측 후 공사 범위와 최종 금액을 확정하기로 했습니다.',type:'notes'},{date:'11.11 10:10',by:'오영진',text:'전체 창호 교체 상담. 공사 일정은 12월 1일을 희망하며 거주 중 시공이 가능한지 문의했습니다.',type:'notes'}]},history:{3102:[{date:'11.12 10:35',by:'오영진',text:'공사 희망사항 추가 · 단열 및 방음 우선'},{date:'11.12 10:10',by:'오영진',text:'진행구분 변경 · 상담중 → 가견적요청'},{date:'11.12 10:05',by:'오영진',text:'평면도 수령 및 영업지원팀 전달'},{date:'11.12 09:45',by:'오영진',text:'진행라벨 변경 · 일반 → 긴급'}]},quotes:[],applications:[{id:'R-261112-001',cid:3106,plan:'60개월',monthly:264000,status:'서류검토',date:'2026-11-12',createdAt:new Date(Date.now()-2*3600*1000).toISOString()}],contracts:[{id:'C-261112-001',cid:3106,type:'렌탈',amount:13200000,paid:0,status:'약정대기',date:'2026-11-12',createdAt:new Date(Date.now()-3*3600*1000).toISOString()},{id:'C-261110-002',cid:3107,type:'일시불(현금)',amount:11000000,paid:3300000,status:'선금완료',date:'2026-11-10',createdAt:'2026-11-10T14:20:00+09:00'},{id:'C-261106-003',cid:3110,type:'일시불(현금)',amount:5500000,paid:5500000,status:'수납완료',date:'2026-11-06',createdAt:'2026-11-06T17:00:00+09:00'}],products:[{name:'KCC 홈씨씨 창호',category:'창호',desc:'우리 집에 맞는 창호 교체, 상담부터 시공까지.',url:'/landing/',icon:'window',color:'#edf3f9',views:1248,active:true},{name:'KCC 홈씨씨 키친',category:'주방',desc:'생활의 중심이 되는 주방, 맞춤 리모델링 상담.',url:'',icon:'kitchen',color:'#f4f1ec',views:682,active:true},{name:'KCC 홈씨씨 욕실',category:'욕실',desc:'매일의 편안함을 만드는 욕실 리모델링.',url:'',icon:'bath',color:'#edf4f1',views:391,active:false}],
+landingLinks:[],analytics:null,
 forms:[{id:'rental_privacy',name:'(렌탈) 개인정보 동의서',version:1,text:DEFAULT_RENTAL_PRIVACY_CONTENT,fieldsConfig:DEFAULT_FORM_FIELDS}]});
 let db;try{db=JSON.parse(localStorage.getItem('homecc_crm_v3_demo'))||initial()}catch{db=initial()}
 if(Array.isArray(db.forms)){
@@ -223,6 +224,70 @@ if(Array.isArray(db.forms)){
 }
 if (!Array.isArray(db.contractStatuses) || !db.contractStatuses.length) {
   db.contractStatuses = DEFAULT_CONTRACT_STATUSES.map(x => ({ ...x }));
+}
+if (!Array.isArray(db.landingLinks)) {
+  db.landingLinks = [];
+}
+
+const AD_CHANNEL_PRESETS = [
+  '네이버 검색광고',
+  '네이버 브랜드검색',
+  '네이버 블로그·카페',
+  '당근마켓',
+  '인스타그램',
+  '카카오 광고',
+  '페이스북(메타)',
+  '유튜브',
+  '구글 검색/GDN',
+  '현수막·전단 QR',
+  '파트너 전용링크'
+];
+const AD_MEDIUM_OPTIONS = [
+  '검색광고',
+  '배너·피드',
+  '릴스·숏폼',
+  '지역타겟 광고',
+  '콘텐츠·리뷰',
+  '오프라인·QR',
+  '파트너추천',
+  '기타'
+];
+function channelTone(ch) {
+  const s = String(ch || '').trim();
+  if (!s) return 'ch-default';
+  if (s.includes('네이버')) return 'ch-naver';
+  if (s.includes('당근')) return 'ch-daangn';
+  if (s.includes('카카오')) return 'ch-kakao';
+  if (s.includes('인스타') || s.includes('페이스북') || s.includes('메타')) return 'ch-social';
+  if (s.includes('유튜브') || s.includes('구글')) return 'ch-video';
+  if (s.includes('파트너') || s.includes('소개')) return 'ch-partner';
+  if (s.includes('현수막') || s.includes('전단') || s.includes('QR') || s.includes('오프라인')) return 'ch-qr';
+  return 'ch-default';
+}
+function getCustomerChannel(c) {
+  if (!c) return '직접등록';
+  const raw = c.adChannel || c.source || '직접등록';
+  return raw === '랜딩페이지' ? '기본 랜딩(미분류)' : raw;
+}
+function buildTrackingUrl(link, origin = window.location.origin) {
+  if (!link) return '';
+  const base = link.targetUrl || '/landing/';
+  try {
+    const u = new URL(base, origin);
+    if (link.code) u.searchParams.set('ch', link.code);
+    if (link.partnerName && link.partnerName !== '직영') {
+      u.searchParams.set('partner', link.partnerName);
+    }
+    if (link.includeUtm) {
+      if (link.channel) u.searchParams.set('utm_source', link.channel);
+      if (link.medium) u.searchParams.set('utm_medium', link.medium);
+      if (link.name) u.searchParams.set('utm_campaign', link.name);
+    }
+    return u.href;
+  } catch {
+    const sep = base.includes('?') ? '&' : '?';
+    return origin + (base.startsWith('/') ? base : '/' + base) + (link.code ? `${sep}ch=${encodeURIComponent(link.code)}` : '');
+  }
 }
 
 let authToken = localStorage.getItem('kcc_auth_token') || '';
@@ -338,7 +403,7 @@ async function syncFromServer() {
     if (!authToken) {
       await apiSwitchRole(activeUsername || role);
     }
-    const [cRes, pRes, kRes, aRes, prRes, lRes, csRes, uRes, rRes, fRes] = await Promise.all([
+    const [cRes, pRes, kRes, aRes, prRes, lRes, csRes, uRes, rRes, fRes, anRes] = await Promise.all([
       apiFetch('/api/customers'),
       apiFetch('/api/partners'),
       apiFetch('/api/contracts'),
@@ -348,7 +413,8 @@ async function syncFromServer() {
       apiFetch('/api/settings/contract-statuses'),
       apiFetch('/api/auth/users'),
       apiFetch('/api/auth/roster'),
-      apiFetch('/api/settings/forms')
+      apiFetch('/api/settings/forms'),
+      apiFetch('/api/analytics/overview?period=' + encodeURIComponent(typeof statsPeriod !== 'undefined' ? statsPeriod : '30'))
     ]);
 
     if (cRes.ok) {
@@ -370,6 +436,9 @@ async function syncFromServer() {
     if (prRes.ok) {
       const data = await prRes.json();
       db.products = data.products;
+      if (Array.isArray(data.landingLinks)) {
+        db.landingLinks = data.landingLinks;
+      }
     }
     if (lRes.ok) {
       const data = await lRes.json();
@@ -396,11 +465,25 @@ async function syncFromServer() {
       const data = await fRes.json();
       db.forms = data.forms;
     }
+    if (anRes && anRes.ok) {
+      db.analytics = await anRes.json();
+    }
     save();
     render();
   } catch (err) {
     console.warn('API sync warning:', err);
   }
+}
+
+async function refreshAnalytics(period = statsPeriod) {
+  try {
+    const res = await apiFetch('/api/analytics/overview?period=' + encodeURIComponent(period));
+    if (res.ok) {
+      db.analytics = await res.json();
+      save();
+      if (page === 'stats') render();
+    }
+  } catch {}
 }
 
 function trunc10(val) {
@@ -876,7 +959,7 @@ async function openMessagingIntegrationDialog() {
   );
 }
 
-let page='customers', customerTab='all', contractTab='all', settingsTab='labels', role='본사 관리자', query='', stageFilter='', productFilter='', partnerFilter='', periodFilter='all', sortOrder='new', selected=new Set(), detailId=null, detailTab='notes', editor=null, statsPeriod='7', restoreFocus=null, quotePreviewId=null;
+let page='customers', customerTab='all', contractTab='all', settingsTab='labels', role='본사 관리자', query='', stageFilter='', productFilter='', partnerFilter='', sourceFilter='', linkFilter='', periodFilter='all', sortOrder='new', productLinkCatFilter='all', productLinkQuery='', selected=new Set(), detailId=null, detailTab='notes', editor=null, statsPeriod='30', restoreFocus=null, quotePreviewId=null;
 const menus=[['customers','고객관리','users'],['quotes','견적관리','file'],['contracts','계약관리','contract'],['products','상품관리','box'],['partners','파트너관리','building'],['stats','통계관리','chart'],['settings','설정','settings']];
 const stages=['신규접수','상담중','가견적요청','견적안내','실측예정','최종견적','계약진행','시공완료','보류'];
 function getContractStatuses() {
@@ -971,9 +1054,49 @@ function render(){
     $('#app').innerHTML=`<div class="app"><div class="sidebar-backdrop ${mobileNavOpen?'open':''}" data-action="close-nav" aria-hidden="true"></div><aside class="sidebar ${mobileNavOpen?'open':''}" id="app-sidebar" aria-label="전체 좌측 메뉴"><div class="brand"><div class="brand-top">${symbol()}<strong>KCC 홈씨씨</strong><button type="button" class="sidebar-close-btn" data-action="close-nav" aria-label="메뉴 닫기">${icon('close')}</button></div><small>CRM WORKSPACE</small></div><div class="workspace"><span>운영 파트너</span><strong>${esc(activeU.org==='라이프앤조이'?'(주)라이프앤조이':activeU.org)}</strong></div><div class="nav-label">WORKSPACE</div><nav>${allowedMenus.map(m=>`<button class="nav-btn ${page===m[0]?'active':''}" data-action="nav" data-page="${m[0]}" title="${m[1]}" aria-label="${m[1]}" ${page===m[0]?'aria-current="page"':''}>${icon(m[2])}<span>${m[1]}</span>${m[0]==='customers'?`<em>${visibleCustomers().length}</em>`:''}${m[0]==='contracts'&&newSummary.totalNew>0?`<em class="nav-red-count" title="24시간 이내 일시불·렌탈 신규신청 ${newSummary.totalNew}건">${newSummary.totalNew}</em>`:''}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-mobile-user"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)} · ${esc(activeU.org)}</small></div></div><div class="sidebar-note"><b><span class="dot"></span>운영 시스템</b>실시간 DB 및 권한 연동 중</div><div class="version"><span>KCC HOMECC</span><span>Ver. 3.0</span></div></div></aside><div class="shell"><header class="topbar"><div class="topbar-left"><button type="button" class="mobile-more-btn ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}" aria-label="좌측 메뉴 더보기">${icon('menu')}<span>더보기</span></button><div class="breadcrumb"><span>${esc(activeU.org)}</span>${icon('chevron')}<b>${current[1]}</b></div></div><div class="top-actions"><select class="role-select" id="role-switch" aria-label="사용자 화면 전환">${rosterList.map(u=>`<option value="${esc(u.username)}" ${u.username===activeU.username?'selected':''}>${esc(u.name)} (${esc(u.role_label)})</option>`).join('')}</select><button class="bell" data-action="notifications" aria-label="업무 알림">${icon('bell')}</button><div class="user"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)}</small></div></div></div></header><main id="main">${({customers:customersPage,quotes:quotesPage,contracts:contractsPage,products:productsPage,partners:partnersPage,stats:statsPage,settings:settingsPage}[page])()}<div class="page-footer"><span>© LIFE & JOY · KCC HOMECC CRM 3.0</span><span>실운영 데이터 연동 시스템</span></div></main><nav class="mobile-bottom-nav" aria-label="모바일 빠른 메뉴" style="grid-template-columns:repeat(${quickTabs.length+1},1fr)">${quickTabs.map(t=>`<button type="button" class="m-tab ${!mobileNavOpen&&page===t[0]?'active':''}" data-action="nav" data-page="${t[0]}" ${page===t[0]?'aria-current="page"':''}>${icon(t[2])}<span>${t[1]}</span>${t[0]==='contracts'&&newSummary.totalNew>0?`<span class="m-red-count">${newSummary.totalNew}</span>`:''}</button>`).join('')}<button type="button" class="m-tab more-trigger ${mobileNavOpen||isSecondaryPage?'active':''} ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}">${icon('grid')}<span>더보기</span></button></nav></div></div>`}
 function pageHead(title,sub,actions='',eyebrow='WORKSPACE'){return `<div class="page-head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${sub}</p></div><div class="head-actions"><span class="date-label">2026. 11. 12. 목요일</span>${actions}</div></div>`}
 function metric(label,value,unit,foot,ic,color='',action='',data=''){return `<${action?'button':'div'} class="metric ${color}" ${action?`data-action="${action}" ${data}`:''}><span class="metric-label">${label}</span><span class="metric-icon">${icon(ic)}</span><strong>${value}<small>${unit}</small></strong><span class="metric-foot">${foot}</span></${action?'button':'div'}>`}
-function filteredCustomers(){return visibleCustomers().filter(c=>(!query||[c.name,c.phone,c.address,c.id].join(' ').includes(query))&&(!stageFilter||c.status===stageFilter)&&(!productFilter||c.product===productFilter)&&(!partnerFilter||c.partner===partnerFilter)&&(periodFilter==='all'||(periodFilter==='today'?c.date==='2026-11-12':c.date>='2026-11-06'))&&(customerTab==='all'||customerTab==='mine'&&c.owner==='오영진'||customerTab==='unassigned'&&c.owner==='미배정'||customerTab==='unread'&&c.quote>0&&!c.viewed)).sort((a,b)=>sortOrder==='old'?a.id-b.id:b.date.localeCompare(a.date)||a.id-b.id)}
-function customerRows(){const list=filteredCustomers();return list.length?list.map(c=>`<article class="customer-row" data-action="customer" data-id="${c.id}" tabindex="0" aria-label="${esc(c.name)} 고객 상세"><input type="checkbox" data-select="${c.id}" ${selected.has(c.id)?'checked':''} aria-label="${c.name} 선택"><div><div class="row-top">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span class="row-code">No. ${c.id}</span><span class="row-code">${c.date.slice(5).replace('-','.')}</span></div><div class="name-line">${badge(c.product,c.product==='주방'?'purple':c.product==='욕실'?'green':'')}<b>${esc(c.name)}</b><span>${esc(c.phone)}</span></div><div class="row-address">${icon('pin')}${esc(c.address)}</div><div class="row-meta"><span>${esc(c.source)}</span><span>· ${esc(c.partner)}</span>${c.measure?`<span>실측 ${c.measure.slice(5)}</span>`:''}</div></div><div class="row-activity"><div class="line"><span class="tag">상담</span><div><p>${esc(c.note)}</p><small>${c.date.slice(5)} 09:30 · ${esc(c.owner)}</small></div></div><div class="line feedback"><span class="tag feedback">피드백</span><p>${esc(c.feedback)}</p></div></div><div class="row-end"><div class="row-owner"><span class="mini-avatar">${c.owner==='미배정'?'–':esc(c.owner.slice(-2))}</span>${esc(c.owner)}</div><div class="row-links">${c.quote?(c.roughQuote&&c.finalQuote?`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="가견적">가견적 ↗</button><button class="link-chip" style="background:#eef8f4;border-color:#a8dac6;color:#1f6853" data-action="preview" data-id="${c.id}" data-type="최종견적">최종견적 ↗</button>`:`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="${esc(c.quoteType||'가견적')}">${esc(c.quoteType||'가견적')} ↗</button>`):`<button class="link-chip muted" data-action="new-quote" data-id="${c.id}">견적 작성</button>`}${c.quote?`<button class="link-chip" style="background:#fffbeb;border-color:#f2d675;color:#855a00" data-action="send-quote" data-id="${c.id}">문자·카톡</button>`:''}<button class="link-chip" data-action="customer" data-id="${c.id}">상세보기</button></div><div class="row-bottom">${c.quote?(c.viewed?'● 고객 열람 완료':'○ 아직 열람하지 않음')+(c.dispatchCount?` · 발송 ${c.dispatchCount}회`:''):'견적 발행 전'}</div></div></article>`).join(''):`<div class="empty">${icon('search')}<strong>조건에 맞는 고객이 없습니다.</strong>검색어나 필터를 변경해 주세요.</div>`}
-function customersPage(){const c=visibleCustomers();return pageHead('고객관리','고객의 첫 문의부터 계약까지, 한눈에 관리하세요.',btn('일정 보기','calendar','calendar','secondary')+btn('고객 등록','new-customer','plus','primary'),'CUSTOMER MANAGEMENT')+`<div class="metrics">${metric('전체 고객',c.length,'건','현재 등록된 전체 공사건','users','','filter-all')}${metric('견적 요청 대기',c.filter(x=>x.status==='가견적요청').length,'건','<span class="accent">원본 견적 수령</span>이 필요해요','file','orange','filter-stage','data-value="가견적요청"')}${metric('실측 예정',c.filter(x=>x.status==='실측예정').length,'건','담당팀과 방문 일정을 확인하세요','calendar','purple','filter-stage','data-value="실측예정"')}${metric('계약 진행',c.filter(x=>x.status==='계약진행').length,'건','서류 검토와 수납 상태 확인','contract','green','filter-stage','data-value="계약진행"')}</div><section class="panel"><div class="tabs">${[['all','전체 고객'],['mine','내 담당 고객'],['unassigned','미배정'],['unread','견적 미열람']].map(([v,l])=>`<button class="tab ${customerTab===v?'active':''}" data-action="customer-tab" data-value="${v}">${l}${v==='all'?`<span class="count">${c.length}</span>`:''}</button>`).join('')}</div><div class="filters"><div class="search-field">${icon('search')}<input class="input" id="customer-search" value="${esc(query)}" placeholder="고객명, 연락처, 주소 검색" aria-label="고객 검색"></div><select class="select" id="filter-period" aria-label="등록 기간"><option value="all" ${periodFilter==='all'?'selected':''}>등록 기간 전체</option><option value="today" ${periodFilter==='today'?'selected':''}>오늘</option><option value="7" ${periodFilter==='7'?'selected':''}>최근 7일</option></select><select class="select" id="filter-product" aria-label="상품군">${options(['창호','주방','욕실'],productFilter,'상품군 전체')}</select><select class="select" id="filter-stage" aria-label="진행구분">${options(stages,stageFilter,'진행구분 전체')}</select>${role==='본사 관리자'?`<select class="select" id="filter-partner" aria-label="소속 파트너">${options(['직영',...db.partners.map(p=>p.name)],partnerFilter,'파트너 전체')}</select>`:''}<button class="icon-btn" data-action="reset-filters" title="필터 초기화" aria-label="필터 초기화">${icon('refresh')}</button></div><div class="toolbar"><span id="list-count">검색 결과 <strong>${filteredCustomers().length}</strong>건 ${selected.size?`· <button data-action="assign" style="color:var(--blue)">${selected.size}명 담당자 배정</button>`:''}</span><div class="actions">${btn('엑셀용 CSV','export','download','sm')}<select class="sort" id="sort-order" aria-label="정렬 순서"><option value="new" ${sortOrder==='new'?'selected':''}>최근 등록순</option><option value="old" ${sortOrder==='old'?'selected':''}>고객번호 낮은순</option></select></div></div><div class="customers" id="customer-rows">${customerRows()}</div><div class="pagination"><span>전체 결과를 한 페이지에 표시합니다.</span><div class="pages"><button class="active" aria-label="현재 1페이지">1</button></div></div></section>`}
+function getChannelFilterOptions() {
+  const set = new Set();
+  visibleCustomers().forEach(c => {
+    const ch = getCustomerChannel(c);
+    if (ch) set.add(ch);
+  });
+  (db.landingLinks || []).forEach(ll => {
+    if (ll.channel) set.add(ll.channel);
+  });
+  return [...set];
+}
+function filteredCustomers() {
+  const qLow = query.trim().toLowerCase();
+  const todayKst = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+  const weekAgoMs = Date.now() - 6 * 86400000;
+  const weekAgoKst = new Date(weekAgoMs).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+  return visibleCustomers().filter(c => {
+    const ch = getCustomerChannel(c);
+    if (qLow) {
+      const hay = [c.name, c.phone, c.address, c.id, ch, c.source, c.adCampaign, c.partner].join(' ').toLowerCase();
+      if (!hay.includes(qLow)) return false;
+    }
+    if (stageFilter && c.status !== stageFilter) return false;
+    if (productFilter && c.product !== productFilter) return false;
+    if (partnerFilter && c.partner !== partnerFilter) return false;
+    if (sourceFilter && ch !== sourceFilter) return false;
+    if (linkFilter && Number(c.landingLinkId) !== Number(linkFilter)) return false;
+    if (periodFilter === 'today' && c.date !== todayKst) return false;
+    if (periodFilter === '7' && c.date < weekAgoKst) return false;
+    if (customerTab === 'mine' && c.owner !== '오영진') return false;
+    if (customerTab === 'unassigned' && c.owner !== '미배정') return false;
+    if (customerTab === 'unread' && !(c.quote > 0 && !c.viewed)) return false;
+    return true;
+  }).sort((a, b) => sortOrder === 'old' ? a.id - b.id : b.date.localeCompare(a.date) || b.id - a.id);
+}
+function customerRows(){const list=filteredCustomers();return list.length?list.map(c=>{const ch=getCustomerChannel(c);const camp=c.adCampaign||'';return `<article class="customer-row" data-action="customer" data-id="${c.id}" tabindex="0" aria-label="${esc(c.name)} 고객 상세"><input type="checkbox" data-select="${c.id}" ${selected.has(c.id)?'checked':''} aria-label="${c.name} 선택"><div><div class="row-top">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span class="row-code">No. ${c.id}</span><span class="row-code">${c.date.slice(5).replace('-','.')}</span></div><div class="name-line">${badge(c.product,c.product==='주방'?'purple':c.product==='욕실'?'green':'')}<b>${esc(c.name)}</b><span>${esc(c.phone)}</span></div><div class="row-address">${icon('pin')}${esc(c.address)}</div><div class="row-meta"><span class="ch-pill ${channelTone(ch)}">${esc(ch)}</span>${camp?`<span class="ch-campaign-label" title="유입 광고 캠페인/링크명">${esc(camp)}</span>`:''}<span>· ${esc(c.partner)}</span>${c.measure?`<span>· 실측 ${c.measure.slice(5)}</span>`:''}</div></div><div class="row-activity"><div class="line"><span class="tag">상담</span><div><p>${esc(c.note)}</p><small>${c.date.slice(5)} 09:30 · ${esc(c.owner)}</small></div></div><div class="line feedback"><span class="tag feedback">피드백</span><p>${esc(c.feedback)}</p></div></div><div class="row-end"><div class="row-owner"><span class="mini-avatar">${c.owner==='미배정'?'–':esc(c.owner.slice(-2))}</span>${esc(c.owner)}</div><div class="row-links">${c.quote?(c.roughQuote&&c.finalQuote?`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="가견적">가견적 ↗</button><button class="link-chip" style="background:#eef8f4;border-color:#a8dac6;color:#1f6853" data-action="preview" data-id="${c.id}" data-type="최종견적">최종견적 ↗</button>`:`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="${esc(c.quoteType||'가견적')}">${esc(c.quoteType||'가견적')} ↗</button>`):`<button class="link-chip muted" data-action="new-quote" data-id="${c.id}">견적 작성</button>`}${c.quote?`<button class="link-chip" style="background:#fffbeb;border-color:#f2d675;color:#855a00" data-action="send-quote" data-id="${c.id}">문자·카톡</button>`:''}<button class="link-chip" data-action="customer" data-id="${c.id}">상세보기</button></div><div class="row-bottom">${c.quote?(c.viewed?'● 고객 열람 완료':'○ 아직 열람하지 않음')+(c.dispatchCount?` · 발송 ${c.dispatchCount}회`:''):'견적 발행 전'}</div></div></article>`}).join(''):`<div class="empty">${icon('search')}<strong>조건에 맞는 고객이 없습니다.</strong>검색어나 필터를 변경해 주세요.</div>`}
+function customersPage(){
+  const c = visibleCustomers();
+  const channelOptions = getChannelFilterOptions();
+  const activeLinkObj = linkFilter ? (db.landingLinks || []).find(ll => Number(ll.id) === Number(linkFilter)) : null;
+  const linkFilterBanner = linkFilter ? `<div class="active-link-filter-bar"><div>${icon('link')}<span>선택된 광고링크 유입 고객만 보는 중:</span> <span class="ch-pill ${channelTone(activeLinkObj?.channel || sourceFilter)}">${esc(activeLinkObj?.channel || sourceFilter || '광고링크')}</span> <b>${esc(activeLinkObj?.name || ('링크 #' + linkFilter))}</b></div><button type="button" class="btn sm" data-action="clear-link-filter">${icon('close')}필터 해제 (전체 보기)</button></div>` : '';
+  return pageHead('고객관리','고객의 첫 문의부터 계약까지, 한눈에 관리하세요.',btn('일정 보기','calendar','calendar','secondary')+btn('고객 등록','new-customer','plus','primary'),'CUSTOMER MANAGEMENT')+`<div class="metrics">${metric('전체 고객',c.length,'건','현재 등록된 전체 공사건','users','','filter-all')}${metric('견적 요청 대기',c.filter(x=>x.status==='가견적요청').length,'건','<span class="accent">원본 견적 수령</span>이 필요해요','file','orange','filter-stage','data-value="가견적요청"')}${metric('실측 예정',c.filter(x=>x.status==='실측예정').length,'건','담당팀과 방문 일정을 확인하세요','calendar','purple','filter-stage','data-value="실측예정"')}${metric('계약 진행',c.filter(x=>x.status==='계약진행').length,'건','서류 검토와 수납 상태 확인','contract','green','filter-stage','data-value="계약진행"')}</div><section class="panel"><div class="tabs">${[['all','전체 고객'],['mine','내 담당 고객'],['unassigned','미배정'],['unread','견적 미열람']].map(([v,l])=>`<button class="tab ${customerTab===v?'active':''}" data-action="customer-tab" data-value="${v}">${l}${v==='all'?`<span class="count">${c.length}</span>`:''}</button>`).join('')}</div><div class="filters"><div class="search-field">${icon('search')}<input class="input" id="customer-search" value="${esc(query)}" placeholder="고객명, 연락처, 주소, 광고채널 검색" aria-label="고객 검색"></div><select class="select" id="filter-period" aria-label="등록 기간"><option value="all" ${periodFilter==='all'?'selected':''}>등록 기간 전체</option><option value="today" ${periodFilter==='today'?'selected':''}>오늘</option><option value="7" ${periodFilter==='7'?'selected':''}>최근 7일</option></select><select class="select" id="filter-product" aria-label="상품군">${options(['창호','주방','욕실'],productFilter,'상품군 전체')}</select><select class="select" id="filter-stage" aria-label="진행구분">${options(stages,stageFilter,'진행구분 전체')}</select><select class="select" id="filter-source" aria-label="유입채널">${options(channelOptions,sourceFilter,'유입채널 전체')}</select>${role==='본사 관리자'?`<select class="select" id="filter-partner" aria-label="소속 파트너">${options(['직영',...db.partners.map(p=>p.name)],partnerFilter,'파트너 전체')}</select>`:''}<button class="icon-btn" data-action="reset-filters" title="필터 초기화" aria-label="필터 초기화">${icon('refresh')}</button></div>${linkFilterBanner}<div class="toolbar"><span id="list-count">검색 결과 <strong>${filteredCustomers().length}</strong>건 ${selected.size?`· <button data-action="assign" style="color:var(--blue)">${selected.size}명 담당자 배정</button>`:''}</span><div class="actions">${btn('엑셀용 CSV','export','download','sm')}<select class="sort" id="sort-order" aria-label="정렬 순서"><option value="new" ${sortOrder==='new'?'selected':''}>최근 등록순</option><option value="old" ${sortOrder==='old'?'selected':''}>고객번호 낮은순</option></select></div></div><div class="customers" id="customer-rows">${customerRows()}</div><div class="pagination"><span>전체 결과를 한 페이지에 표시합니다.</span><div class="pages"><button class="active" aria-label="현재 1페이지">1</button></div></div></section>`;
+}
 function quotesPage(){const cs=visibleCustomers(), ready=cs.filter(c=>c.status==='가견적요청'), published=cs.filter(c=>c.quote>0);return pageHead('견적관리','원본 견적을 고객에게 전달할 최적의 제안으로 완성하세요.',btn('견적 만들기','new-quote','plus','primary'),'ESTIMATE WORKSPACE')+`<div class="metrics">${metric('원본 수령 대기',ready.length,'건','KCC 영업지원팀 요청 건','clock','orange')}${metric('발행된 견적',published.length,'건','고객별 최신 견적 기준','file')}${metric('고객 열람',published.filter(c=>c.viewed).length,'건','발행 이후 열람한 고객','eye','green')}${metric('견적 미열람',published.filter(c=>!c.viewed).length,'건','안내 링크를 확인해 주세요','send','purple')}</div><div class="banner">${icon('info')}<div><b>원본 엑셀 → 판매가 설정 → 고객견적 발행</b><br>공급원가와 내부 마진은 고객용 견적서에 표시되지 않습니다.</div></div><section class="panel"><div class="panel-head"><div><h3>견적 요청 및 발행 현황</h3><p>고객·공사건에 연결된 견적을 관리합니다.</p></div>${badge('예시 데이터','gray')}</div><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>고객 / 견적번호</th><th>상품</th><th>진행 상태</th><th>고객 견적금액</th><th>고객 열람</th><th>담당자</th><th>관리</th></tr></thead><tbody>${[...ready,...published].map(c=>`<tr><td class="card-primary"><b class="quote-customer-name">${esc(c.name)}</b><small>${c.quote?'Q':'REQ'}-${c.id} · ${esc(c.address)}</small></td><td data-label="상품">${badge(c.product,'gray')}</td><td data-label="진행 상태">${badge(c.quote?'발행완료':'원본대기',c.quote?'green':'orange')}</td><td data-label="고객 견적금액" class="money"><b>${c.quote?won(c.quote):'—'}</b></td><td data-label="고객 열람">${c.quote?badge(c.viewed?'열람완료':'미열람',c.viewed?'green':'gray'):'—'}</td><td data-label="담당자">${esc(c.owner)}</td><td class="card-actions"><div class="actions">${btn(c.quote?'수정본 작성':'엑셀 등록','new-quote',c.quote?'edit':'upload','sm',`data-id="${c.id}"`)}${c.quote?btn('가견적 보기','preview','eye','sm soft',`data-id="${c.id}" data-type="가견적"`)+btn('최종견적 보기','preview','eye','sm soft',`data-id="${c.id}" data-type="최종견적"`)+btn('문자·카톡 발송','send-quote','send','sm primary',`data-id="${c.id}"`):''}</div></td></tr>`).join('')}</tbody></table></div></section>`}
 function contractsPage(){
   const cs = visibleCustomers();
@@ -1151,10 +1274,233 @@ function contractsPage(){
     </section>
     <div class="panel-caption">계약·수납 상태값은 [설정 &gt; 계약·수납상태]에서 추가·이름 변경·색상 수정·순서 조정할 수 있습니다.</div>`;
 }
-function productsPage(){return pageHead('상품관리','상품별 랜딩페이지와 전용 상담 링크를 관리하세요.',role==='본사 관리자'?btn('상품페이지 등록','new-product','plus','primary'):'','PRODUCT & LANDING')+`<div class="banner">${icon('link')}<div><b>${role==='본사 관리자'?'상품별 상담 유입을 고객관리로 연결합니다.':'한빛인테리어 전용 링크로 접수된 고객을 확인하세요.'}</b><br>방문·신청 통계 수집에는 랜딩페이지 연동이 필요합니다. 아래 수치는 실시간 연동 및 예시입니다.</div></div><div class="three-col">${db.products.map((p,i)=>{const isLocalLanding=p.url&&(p.url.startsWith('/')||p.url.includes('/landing'));const displayUrl=p.url?(p.url.startsWith('/')?window.location.origin+p.url:p.url.replace('https://','')):'랜딩 URL 등록 대기';return `<article class="product-card"><div class="product-visual" style="background:${p.color}"><span class="visual-label">HOMECC ${['WINDOW','KITCHEN','BATHROOM'][i%3]}</span>${icon(p.icon,'large-icon')}</div><div class="product-info">${badge(p.active?'운영중':'준비중',p.active?'green':'gray')}<h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><div class="product-url"><span>${esc(displayUrl)}</span><button data-action="copy-product" data-id="${i}" aria-label="${esc(p.name)} 링크 복사">${icon('copy')}</button></div><div class="product-stats"><div><small>방문 수</small><b>${num(p.views)}</b></div><div><small>접수 고객</small><b>${visibleCustomers().filter(c=>c.product===p.category).length}</b></div><div><small>계약</small><b>${db.contracts.filter(k=>visibleCustomers().some(c=>c.id===k.cid&&c.product===p.category)).length}</b></div></div><div class="actions">${btn('전용 링크','product-link','link','soft',`data-id="${i}"`)}${isLocalLanding?`<button type="button" class="btn sm soft" data-action="preview-landing" data-id="${i}" title="${esc(p.name)} 미리보기">${icon('eye')}미리보기</button>`:''}${role==='본사 관리자'?btn('수정','edit-product','edit','',`data-id="${i}"`):''}${p.url?`<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(p.name)} 랜딩 새창 열기">${icon('external')} 새창 열기</a>`:''}</div></div></article>`}).join('')}</div>`}
-function partnersPage(){return pageHead('파트너관리','함께 성장하는 영업파트너와 고객 성과를 관리하세요.',btn('파트너 등록','new-partner','plus','primary'),'PARTNER NETWORK')+`<div class="three-col">${db.partners.map(p=>{const cs=db.customers.filter(c=>c.partner===p.name);const pUser=(db.users||[]).map((u,idx)=>normalizeUserRecord(u,idx)).find(u=>u.org===p.name);const pMenuLabels=pUser?getUserAllowedMenuKeys(pUser).map(k=>MENU_META[k]?.label||k).join(' · '):'고객관리 · 계약관리 · 상품관리';return `<section class="panel partner-card"><div class="partner-top"><div class="avatar">${esc(p.name.slice(0,2))}</div><div><h3>${esc(p.name)}</h3><p>${p.id} · ${esc(p.type)}</p></div>${badge(p.active?'정상':'대기',p.active?'green':'orange')}</div><div class="info-grid"><div><label>대표 담당자</label><b>${esc(p.person)}</b></div><div><label>운영 권한</label><b>${esc(pUser?.role_label||'파트너 관리자')}</b></div></div><div class="divider"></div><div class="mini-stat"><span>등록 고객</span><b>${cs.length}건</b></div><div class="mini-stat"><span>계약 현황</span><b>${db.contracts.filter(k=>cs.some(c=>c.id===k.cid)).length}건</b></div><div class="mini-stat"><span>허용 메뉴</span><b>${esc(pMenuLabels)}</b></div><div class="actions" style="margin-top:20px">${btn('파트너 정보','partner-detail','building','sm',`data-id="${p.id}"`)}${pUser?btn('전용 화면 체험','partner-mode','external','sm soft',`data-username="${esc(pUser.username)}" data-org="${esc(p.name)}"`):''}</div></section>`}).join('')}</div><div class="banner" style="margin-top:22px">${icon('shield')}<div><b>소속 파트너의 고객과 계약만 관리합니다.</b><br>파트너 사용자별로 볼 수 있는 메뉴는 <b>[설정 &gt; 사용자관리]</b>에서 자유롭게 선택·변경할 수 있으며, 원가·본사 마진·타 파트너 정보는 비공개로 보호됩니다.</div></div>`}
-function chartSVG(){const values=statsPeriod==='1'?[12,18,15,33,41,35,55,49,64,43,68,76]:statsPeriod==='30'?[35,58,45,77,70,98,63,104,120,95,138,149]:[42,60,49,84,76,104,123];const max=Math.max(...values)*1.2,dx=540/(values.length-1), points=values.map((v,i)=>[45+i*dx,190-v/max*165]);const path=points.map((p,i)=>(i?'L':'M')+p.join(' ')).join(' ');return `<svg class="chart" viewBox="0 0 620 230" role="img" aria-label="기간별 방문 추이 예시"><defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5484ec" stop-opacity=".18"/><stop offset="1" stop-color="#5484ec" stop-opacity="0"/></linearGradient></defs>${[30,70,110,150,190].map((y,i)=>`<line x1="45" x2="585" y1="${y}" y2="${y}" stroke="#edf1f7"/><text x="8" y="${y+4}">${Math.round(max*(4-i)/4)}</text>`).join('')}<path d="${path}L585 190L45 190Z" fill="url(#fade)"/><path d="${path}" fill="none" stroke="#5484ec" stroke-width="2.5" stroke-linejoin="round"/>${points.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="white" stroke="#5484ec" stroke-width="2"/><text x="${p[0]}" y="215" text-anchor="middle">${statsPeriod==='1'?`${i+9}시`:statsPeriod==='30'?`${i*2+1}일`:`11.${i+6}`}</text>`).join('')}</svg>`}
-function statsPage(){return pageHead('통계관리','유입부터 계약까지, 마케팅과 영업의 흐름을 확인하세요.',`<select class="select" id="stats-period" aria-label="통계 기간"><option value="1" ${statsPeriod==='1'?'selected':''}>오늘</option><option value="7" ${statsPeriod==='7'?'selected':''}>최근 7일</option><option value="30" ${statsPeriod==='30'?'selected':''}>이번 달</option></select>`,'ANALYTICS & INSIGHTS')+`<div class="metrics">${metric('랜딩 방문 · 예시',statsPeriod==='1'?'609':statsPeriod==='30'?'8,742':'2,321','회','내부·봇 방문 제외 기준','chart')}${metric('등록 고객',db.customers.length,'건','체험 데이터 전체 누적','users','purple')}${metric('견적 발행 고객',db.customers.filter(c=>c.quote>0).length,'명','최신 견적 보유 고객','file','orange')}${metric('계약 고객',db.contracts.length,'명','체험 데이터 전체 누적','contract','green')}</div><div class="two-col"><section class="panel"><div class="panel-head"><div><h3>랜딩페이지 방문 추이</h3><p>선택 기간의 예시 시계열</p></div><div class="legend"><span><i></i>방문 수</span></div></div><div class="panel-pad">${chartSVG()}</div></section><section class="panel"><div class="panel-head"><h3>유입 채널 구성</h3>${badge('예시','gray')}</div><div class="panel-pad">${[['네이버',54],['인스타그램',21],['파트너 링크',15],['기타·직접',10]].map(([s,n])=>`<div class="bar-row"><span>${s}</span><div class="bar-track"><div class="bar-fill" style="width:${n}%;background:${n===54?'#5e86ea':n===21?'#92acec':n===15?'#b3c5ed':'#d1dcee'}"></div></div><b>${n}%</b></div>`).join('')}<div class="panel-caption">알 수 없는 유입은 직접·확인불가로 분류합니다.</div></div></section></div><section class="panel" style="margin-top:20px"><div class="panel-head"><h3>고객 전환 흐름</h3><span class="pill-note">전체 체험 데이터 · 공사건 기준</span></div><div class="panel-pad"><div class="progress-list">${[['고객 등록',db.customers.length],['견적 발행',db.customers.filter(c=>c.quote>0).length],['견적 열람',db.customers.filter(c=>c.viewed).length],['계약 등록',db.contracts.length],['수납 완료',db.contracts.filter(c=>c.paid>=c.amount).length]].map(([t,n])=>`<div><span>${t}</span><b>${n}건</b><i class="on" style="opacity:${.3+n/15}"></i></div>`).join('')}</div><div class="notice-text">방문 추이는 화면 확인용 예시입니다. 실제 통계는 랜딩 추적과 서버 이벤트 연결 후 수집됩니다. IP는 기본 마스킹하며, 계약·결제 이벤트는 처리 완료를 기준으로 집계합니다.</div></div></section><section class="panel" style="margin-top:20px"><div class="panel-head"><div><h3>상품페이지별 성과</h3><p>페이지·유입채널별 전환 분석 · 예시</p></div></div><div class="table-wrap"><table><thead><tr><th>상품페이지</th><th>방문 수</th><th>상담 신청</th><th>견적 발행</th><th>계약</th><th>상담 전환율</th></tr></thead><tbody>${[['창호',1248,36,21,8],['주방',682,18,10,3],['욕실',391,9,5,2]].map(([n,v,l,q,c])=>`<tr><td><b>KCC 홈씨씨 ${n}</b></td><td>${num(v)}</td><td>${l}건</td><td>${q}건</td><td>${c}건</td><td>${(l/v*100).toFixed(1)}%</td></tr>`).join('')}</tbody></table></div></section><section class="panel" style="margin-top:20px"><div class="panel-head"><div><h3>접속 및 이벤트 기록</h3><p>표시용 예시 로그 · 실제 방문 데이터와 연결되지 않았습니다.</p></div>${badge('IP 마스킹','gray')}</div><div class="table-wrap"><table><thead><tr><th>발생 시각</th><th>상품페이지</th><th>유입 경로</th><th>접속 IP</th><th>기기</th><th>이벤트</th></tr></thead><tbody>${[['11.12 10:42:15','창호','네이버 / 검색광고','192.0.2.***','모바일','상담 신청'],['11.12 10:40:08','주방','파트너 / 한빛인테리어','198.51.100.***','모바일','견적 열람'],['11.12 10:38:52','창호','인스타그램 / 캠페인','203.0.113.***','모바일','페이지 방문'],['11.12 10:31:20','욕실','직접 / 확인불가','192.0.2.***','PC','계약 등록']].map(r=>`<tr>${r.map((t,i)=>`<td>${i===5?badge(t):t}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`}
+function renderLandingLinksRows(links) {
+  if (!links.length) {
+    return `<tr><td colspan="6"><div class="empty" style="padding:36px 16px">${icon('link')}<strong>조건에 맞는 복제 광고링크가 없습니다.</strong>상단 <b>[광고채널 링크 복제·생성]</b> 버튼을 눌러 네이버·당근마켓·인스타 등 광고 매체별 링크를 만들어 보세요.</div></td></tr>`;
+  }
+  return links.map(ll => {
+    const fullUrl = buildTrackingUrl(ll);
+    const shortUrl = fullUrl.replace(/^https?:\/\/[^/]+/, '');
+    return `<tr>
+      <td class="card-primary">
+        <div class="link-channel-cell">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span class="ch-pill ${channelTone(ll.channel)}">${esc(ll.channel)}</span>
+            ${ll.medium ? `<span class="row-code">${esc(ll.medium)}</span>` : ''}
+            ${!ll.isActive ? badge('중지됨', 'gray') : ''}
+          </div>
+          <b class="link-campaign-title">${esc(ll.name)}</b>
+          ${ll.memo ? `<small class="link-memo-text">${esc(ll.memo)}</small>` : ''}
+        </div>
+      </td>
+      <td data-label="원본 상품 · 귀속">
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+          ${badge(ll.productCategory || '창호', ll.productCategory === '주방' ? 'purple' : ll.productCategory === '욕실' ? 'green' : '')}
+          <small style="color:#64748b">${esc(ll.productName)}</small>
+          <small style="color:#475569;font-weight:600">귀속: ${esc(ll.partnerName || '직영')}</small>
+        </div>
+      </td>
+      <td data-label="배포 추적 링크">
+        <div class="cloned-url-cell">
+          <div class="cloned-url-inline" title="${esc(fullUrl)}"><code>${esc(shortUrl)}</code></div>
+          <div class="cloned-url-btns">
+            <button type="button" class="btn sm soft" data-action="copy-cloned-link" data-id="${ll.id}">${icon('copy')}복사</button>
+            <button type="button" class="btn sm" data-action="preview-cloned-link" data-id="${ll.id}">${icon('eye')}미리보기</button>
+            <a class="btn sm" href="${esc(fullUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(ll.name)} 새창 열기">${icon('external')}</a>
+          </div>
+        </div>
+      </td>
+      <td data-label="유입 · 전환 성과">
+        <div class="link-perf-grid">
+          <div><small>방문</small><b>${num(ll.views)}</b></div>
+          <div><small>상담</small><button type="button" class="link-lead-jump" data-action="jump-link-customers" data-id="${ll.id}" title="이 광고링크로 유입된 고객 보기">${num(ll.leads)}건</button></div>
+          <div><small>견적</small><b>${num(ll.quotes)}건</b></div>
+          <div><small>계약</small><b>${num(ll.contracts)}건</b></div>
+        </div>
+      </td>
+      <td data-label="전환율">
+        <span class="badge ${ll.conversionRate > 0 ? 'green' : 'gray'}">${ll.conversionRate}%</span>
+      </td>
+      <td class="card-actions">
+        <div class="actions">
+          ${btn('수정', 'edit-cloned-link', 'edit', 'sm', `data-id="${ll.id}"`)}
+          ${btn('삭제', 'delete-cloned-link', 'trash', 'sm', `data-id="${ll.id}"`)}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function getFilteredLandingLinks() {
+  const all = db.landingLinks || [];
+  const qLow = productLinkQuery.trim().toLowerCase();
+  return all.filter(ll => {
+    if (productLinkCatFilter !== 'all' && ll.productCategory !== productLinkCatFilter) return false;
+    if (!qLow) return true;
+    return [ll.name, ll.channel, ll.medium, ll.code, ll.partnerName, ll.productName, ll.memo]
+      .some(v => String(v || '').toLowerCase().includes(qLow));
+  });
+}
+
+function productsPage(){
+  const links = db.landingLinks || [];
+  const filteredLinks = getFilteredLandingLinks();
+  const totalLinkViews = links.reduce((s, x) => s + (Number(x.views) || 0), 0);
+  const totalLinkLeads = links.reduce((s, x) => s + (Number(x.leads) || 0), 0);
+
+  const headActions = (role === '본사 관리자' ? btn('상품페이지 등록', 'new-product', 'plus', 'secondary') : '') +
+    btn('광고채널 링크 복제·생성', 'open-clone-link', 'link', 'primary');
+
+  return pageHead('상품관리', '기본 랜딩페이지를 복제해 광고채널별 추적 링크를 만들고 유입 성과를 확인하세요.', headActions, 'PRODUCT & LANDING') +
+    `<div class="banner">${icon('link')}<div><b>${role === '본사 관리자' ? '기본 랜딩페이지를 광고 매체별로 복제해 유입 채널을 정확히 구분합니다.' : (esc(getActiveUser().org || '파트너') + ' 전용 광고 링크를 복제·생성해 고객 유입을 추적하세요.')}</b><br>복제된 링크로 고객이 방문·신청하면 <b>고객관리</b>와 <b>통계관리</b>에 네이버 검색광고, 당근마켓, 인스타그램 등 정확한 유입 채널과 캠페인명이 자동 기록됩니다.</div></div>` +
+    `<div class="three-col">${db.products.map((p, i) => {
+      const isLocalLanding = p.url && (p.url.startsWith('/') || p.url.includes('/landing'));
+      const displayUrl = p.url ? (p.url.startsWith('/') ? window.location.origin + p.url : p.url.replace('https://', '')) : '랜딩 URL 등록 대기';
+      const prodLinksCnt = links.filter(ll => Number(ll.productId) === Number(p.id) || ll.productCategory === p.category).length;
+      return `<article class="product-card"><div class="product-visual" style="background:${p.color}"><span class="visual-label">HOMECC ${['WINDOW', 'KITCHEN', 'BATHROOM'][i % 3]}</span>${icon(p.icon, 'large-icon')}</div><div class="product-info"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${badge(p.active ? '운영중' : '준비중', p.active ? 'green' : 'gray')}${badge(`복제 광고링크 ${prodLinksCnt}개`, prodLinksCnt > 0 ? 'purple' : 'gray')}</div><h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><div class="product-url"><span>${esc(displayUrl)}</span><button data-action="copy-product" data-id="${i}" aria-label="${esc(p.name)} 링크 복사">${icon('copy')}</button></div><div class="product-stats"><div><small>방문 수</small><b>${num(p.views)}</b></div><div><small>접수 고객</small><b>${visibleCustomers().filter(c => c.product === p.category).length}</b></div><div><small>계약</small><b>${db.contracts.filter(k => visibleCustomers().some(c => c.id === k.cid && c.product === p.category)).length}</b></div></div><div class="actions">${btn('광고링크 복제', 'open-clone-link', 'copy', 'primary sm', `data-id="${i}"`)}${isLocalLanding ? `<button type="button" class="btn sm soft" data-action="preview-landing" data-id="${i}" title="${esc(p.name)} 미리보기">${icon('eye')}미리보기</button>` : ''}${role === '본사 관리자' ? btn('수정', 'edit-product', 'edit', 'sm', `data-id="${i}"`) : ''}${p.url ? `<a class="btn sm" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(p.name)} 랜딩 새창 열기">${icon('external')}새창</a>` : ''}</div></div></article>`;
+    }).join('')}</div>` +
+    `<section class="panel" style="margin-top:24px">
+      <div class="panel-head" style="flex-wrap:wrap;gap:12px">
+        <div>
+          <h3>광고채널별 복제 랜딩링크 및 유입 성과</h3>
+          <p>기본 랜딩을 복사해 네이버·당근마켓·인스타·카카오 등 광고 위치별로 발급한 전용 추적 링크입니다. (총 <b>${links.length}개</b> 링크 · 방문 <b>${num(totalLinkViews)}</b> · 상담접수 <b>${num(totalLinkLeads)}건</b>)</p>
+        </div>
+        ${btn('새 광고채널 링크 복제', 'open-clone-link', 'plus', 'primary sm')}
+      </div>
+      <div class="filters" style="border-bottom:1px solid var(--line)">
+        <div class="search-field">${icon('search')}<input class="input" id="product-link-search" value="${esc(productLinkQuery)}" placeholder="광고채널, 캠페인명, 링크코드, 파트너 검색" aria-label="광고링크 검색"></div>
+        <div class="cust-picker-chips" style="margin:0">
+          ${[['all', '전체 상품'], ['창호', '창호'], ['주방', '주방'], ['욕실', '욕실']].map(([val, lbl]) =>
+            `<button type="button" class="btn sm ${productLinkCatFilter === val ? 'primary' : ''}" data-action="product-link-cat" data-value="${val}">${lbl}</button>`
+          ).join('')}
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="mobile-card-table landing-links-table">
+          <thead>
+            <tr>
+              <th style="width:24%">광고채널 · 캠페인명</th>
+              <th style="width:14%">원본 상품 · 귀속</th>
+              <th style="width:26%">복제된 광고 배포 링크</th>
+              <th style="width:18%">방문 / 상담 / 견적 / 계약</th>
+              <th style="width:7%">전환율</th>
+              <th style="width:11%">관리</th>
+            </tr>
+          </thead>
+          <tbody id="landing-links-tbody">${renderLandingLinksRows(filteredLinks)}</tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
+function getLiveAnalyticsSnapshot() {
+  if (db.analytics && db.analytics.summary) {
+    return db.analytics;
+  }
+  const cs = visibleCustomers();
+  const visIds = new Set(cs.map(c => c.id));
+  const contracts = db.contracts.filter(k => visIds.has(k.cid));
+  const chMap = new Map();
+  cs.forEach(c => {
+    const ch = getCustomerChannel(c);
+    if (!chMap.has(ch)) chMap.set(ch, { channel: ch, views: 0, leads: 0, quotes: 0, contracts: 0 });
+    const row = chMap.get(ch);
+    row.leads += 1;
+    if (c.quote > 0) row.quotes += 1;
+    if (contracts.some(k => k.cid === c.id)) row.contracts += 1;
+  });
+  const channels = [...chMap.values()].map(ch => ({
+    ...ch,
+    conversionRate: 0,
+    sharePct: cs.length ? Math.round((ch.leads / cs.length) * 100) : 0
+  })).sort((a, b) => b.leads - a.leads);
+  return {
+    period: statsPeriod,
+    summary: {
+      totalViews: (db.landingLinks || []).reduce((s, x) => s + (x.views || 0), 0),
+      totalCustomers: cs.length,
+      quotedCustomers: cs.filter(c => c.quote > 0).length,
+      viewedCustomers: cs.filter(c => c.viewed).length,
+      totalContracts: contracts.length,
+      paidContracts: contracts.filter(k => k.paid >= k.amount && k.amount > 0).length
+    },
+    trend: [],
+    channels,
+    landingLinks: db.landingLinks || [],
+    products: db.products.map(p => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      views: p.views || 0,
+      leads: cs.filter(c => c.product === p.category).length,
+      quotes: cs.filter(c => c.product === p.category && c.quote > 0).length,
+      contracts: contracts.filter(k => cs.some(c => c.id === k.cid && c.product === p.category)).length,
+      conversionRate: p.views > 0 ? Number(((cs.filter(c => c.product === p.category).length / p.views) * 100).toFixed(1)) : 0
+    })),
+    recentEvents: []
+  };
+}
+
+function chartSVG(trend = []) {
+  const rows = Array.isArray(trend) && trend.length
+    ? trend
+    : [{ label: '-', views: 0, leads: 0 }, { label: '-', views: 0, leads: 0 }];
+  const values = rows.map(r => Number(r.views) || 0);
+  const max = Math.max(...values, 4) * 1.2;
+  const dx = rows.length > 1 ? 540 / (rows.length - 1) : 540;
+  const points = rows.map((r, i) => [45 + i * dx, 190 - (Number(r.views) || 0) / max * 165]);
+  const path = points.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const lastX = points[points.length - 1][0].toFixed(1);
+  const labelStep = rows.length > 9 ? 2 : 1;
+  return `<svg class="chart" viewBox="0 0 620 230" role="img" aria-label="기간별 랜딩페이지 방문 추이"><defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5484ec" stop-opacity=".18"/><stop offset="1" stop-color="#5484ec" stop-opacity="0"/></linearGradient></defs>${[30, 70, 110, 150, 190].map((y, i) => `<line x1="45" x2="585" y1="${y}" y2="${y}" stroke="#edf1f7"/><text x="8" y="${y + 4}">${Math.round(max * (4 - i) / 4)}</text>`).join('')}<path d="${path}L${lastX} 190L45 190Z" fill="url(#fade)"/><path d="${path}" fill="none" stroke="#5484ec" stroke-width="2.5" stroke-linejoin="round"/>${points.map((p, i) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="white" stroke="#5484ec" stroke-width="2"><title>${esc(rows[i].label)}: 방문 ${rows[i].views}회 / 접수 ${rows[i].leads}건</title></circle>${i % labelStep === 0 || i === rows.length - 1 ? `<text x="${p[0].toFixed(1)}" y="215" text-anchor="middle">${esc(rows[i].label)}</text>` : ''}`).join('')}</svg>`;
+}
+
+function statsPage(){
+  const an = getLiveAnalyticsSnapshot();
+  const sum = an.summary || {};
+  const channels = an.channels || [];
+  const links = an.landingLinks || [];
+  const prodPerf = an.products || [];
+  const events = an.recentEvents || [];
+  const barColors = ['#4c7ce5', '#ff7a2f', '#7c5ce6', '#f2b705', '#159c72', '#64748b'];
+  const convFlow = [
+    ['고객 등록', sum.totalCustomers || 0],
+    ['견적 발행', sum.quotedCustomers || 0],
+    ['견적 열람', sum.viewedCustomers || 0],
+    ['계약 등록', sum.totalContracts || 0],
+    ['수납 완료', sum.paidContracts || 0]
+  ];
+  const flowBase = Math.max(1, sum.totalCustomers || 1);
+
+  return pageHead('통계관리', '복제 랜딩링크와 광고채널별 유입부터 견적·계약 전환까지 실시간 데이터를 분석하세요.', `<select class="select" id="stats-period" aria-label="통계 기간"><option value="all" ${statsPeriod === 'all' ? 'selected' : ''}>전체 누적</option><option value="30" ${statsPeriod === '30' ? 'selected' : ''}>최근 30일</option><option value="7" ${statsPeriod === '7' ? 'selected' : ''}>최근 7일</option><option value="1" ${statsPeriod === '1' ? 'selected' : ''}>오늘</option></select>`, 'ANALYTICS & INSIGHTS') +
+    `<div class="metrics">${metric('랜딩 방문 수', num(sum.totalViews || 0), '회', '실제 page_view 이벤트 기준', 'chart')}${metric('상담 접수 고객', num(sum.totalCustomers || 0), '건', '선택 기간 신규 유입 기준', 'users', 'purple')}${metric('견적 발행 고객', num(sum.quotedCustomers || 0), '명', '모바일 견적서 발행 기준', 'file', 'orange')}${metric('계약 체결', num(sum.totalContracts || 0), '건', '렌탈·일시불 계약 누적', 'contract', 'green')}</div>` +
+    `<div class="two-col">
+      <section class="panel"><div class="panel-head"><div><h3>랜딩페이지 방문 추이</h3><p>실제 접속 이벤트 기준 일별·시간별 추이</p></div><div class="legend"><span><i></i>방문 수</span></div></div><div class="panel-pad">${chartSVG(an.trend)}</div></section>
+      <section class="panel"><div class="panel-head"><div><h3>광고채널별 고객 유입 비중</h3><p>방문·상담 접수 실시간 집계</p></div>${badge('실시간 집계', 'green')}</div><div class="panel-pad">${channels.length ? channels.map((ch, idx) => `<div class="bar-row"><span title="${esc(ch.channel)}">${esc(ch.channel)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(4, ch.sharePct)}%;background:${barColors[idx % barColors.length]}"></div></div><b>${ch.leads}건 (${ch.sharePct}%)</b></div>`).join('') : '<div class="empty">집계된 유입 채널 데이터가 없습니다.</div>'}<div class="panel-caption">상품관리에서 채널별 복제 링크를 만들어 배포하면 채널이 자동 구분됩니다.</div></div></section>
+    </div>` +
+    `<section class="panel" style="margin-top:20px">
+      <div class="panel-head"><div><h3>복제 광고링크(캠페인)별 전환 성과</h3><p>어디에 넣은 광고 링크가 가장 많은 방문과 상담·계약으로 이어졌는지 비교하세요.</p></div>${btn('링크 관리로 이동', 'go-products-links', 'link', 'sm soft')}</div>
+      <div class="table-wrap">
+        <table class="mobile-card-table">
+          <thead><tr><th>광고채널</th><th>캠페인 / 복제 링크명</th><th>상품 · 귀속</th><th>방문 수</th><th>상담 접수</th><th>견적 발행</th><th>계약 체결</th><th>상담 전환율</th><th>관리</th></tr></thead>
+          <tbody>${links.length ? links.map(ll => `<tr>
+            <td data-label="광고채널"><span class="ch-pill ${channelTone(ll.channel)}">${esc(ll.channel)}</span></td>
+            <td class="card-primary"><b>${esc(ll.name)}</b><small style="color:#64748b">?ch=${esc(ll.code)}</small></td>
+            <td data-label="상품 · 귀속">${esc(ll.productCategory)} · ${esc(ll.partnerName)}</td>
+            <td data-label="방문 수">${num(ll.views)}회</td>
+            <td data-label="상담 접수"><b>${num(ll.leads)}건</b></td>
+            <td data-label="견적 발행">${num(ll.quotes)}건</td>
+            <td data-label="계약 체결">${num(ll.contracts)}건</td>
+            <td data-label="상담 전환율">${badge(ll.conversionRate + '%', ll.conversionRate > 0 ? 'green' : 'gray')}</td>
+            <td class="card-actions"><div class="actions"><button type="button" class="btn sm soft" data-action="jump-link-customers" data-id="${ll.id}">${icon('users')}유입 고객</button></div></td>
+          </tr>`).join('') : '<tr><td colspan="9"><div class="empty">등록된 복제 광고링크가 없습니다. [상품관리]에서 링크를 복제해 주세요.</div></td></tr>'}</tbody>
+        </table>
+      </div>
+    </section>` +
+    `<section class="panel" style="margin-top:20px"><div class="panel-head"><h3>고객 전환 흐름</h3><span class="pill-note">실운영 DB 기준 · 공사건 단위</span></div><div class="panel-pad"><div class="progress-list">${convFlow.map(([t, n]) => `<div><span>${t}</span><b>${n}건</b><i class="on" style="opacity:${Math.min(1, 0.25 + n / flowBase * 0.75).toFixed(2)}"></i></div>`).join('')}</div></div></section>` +
+    `<section class="panel" style="margin-top:20px"><div class="panel-head"><div><h3>상품페이지별 성과</h3><p>상품군별 방문·상담·견적·계약 전환 분석</p></div></div><div class="table-wrap"><table><thead><tr><th>상품페이지</th><th>방문 수</th><th>상담 신청</th><th>견적 발행</th><th>계약</th><th>상담 전환율</th></tr></thead><tbody>${prodPerf.map(p => `<tr><td><b>${esc(p.name)}</b></td><td>${num(p.views)}</td><td>${num(p.leads)}건</td><td>${num(p.quotes)}건</td><td>${num(p.contracts)}건</td><td>${p.conversionRate}%</td></tr>`).join('')}</tbody></table></div></section>` +
+    `<section class="panel" style="margin-top:20px"><div class="panel-head"><div><h3>최근 접속 및 유입 이벤트 기록</h3><p>실제 landing_events 테이블 최근 20건 기준</p></div>${badge('IP 마스킹', 'gray')}</div><div class="table-wrap"><table><thead><tr><th>발생 시각</th><th>상품페이지</th><th>유입 채널 · 캠페인</th><th>접속 IP</th><th>기기</th><th>이벤트</th></tr></thead><tbody>${events.length ? events.map(ev => `<tr><td>${esc(String(ev.createdAt || '').slice(5, 16).replace('T', ' '))}</td><td>${esc(ev.productName)}</td><td><span class="ch-pill ${channelTone(ev.channel)}">${esc(ev.channel)}</span>${ev.campaignName ? ` <small style="color:#64748b">${esc(ev.campaignName)}</small>` : ''}</td><td>${esc(ev.ipMasked)}</td><td>${esc(ev.device)}</td><td>${badge(ev.eventLabel, ev.eventType === 'consultation_request' ? 'green' : 'gray')}</td></tr>`).join('') : '<tr><td colspan="6"><div class="empty">아직 수집된 이벤트 로그가 없습니다.</div></td></tr>'}</tbody></table></div></section>`;
+}
 function renderUsersSettingsPanel() {
   const activeU = getActiveUser();
   const rowsHtml = (db.users || []).map((rawU, idx) => {
@@ -2904,11 +3250,13 @@ if (existingDetail && detailId === c.id) {
 const quoteShortcutBtn = canManageQuotes()
   ? btn('견적등록', 'new-quote', 'plus', 'soft sm', `data-id="${id}"`)
   : btn('본사 견적 요청', 'request-quote', 'plus', 'soft sm', `data-id="${id}"`);
-const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${canManageQuotes()?`<button type="button" class="link-chip" style="background:#eef4ff;color:#2753a8;border-color:#c6d8f8" data-action="new-quote" data-id="${id}">+ 견적등록</button>`:''}<button type="button" class="link-chip" style="background:#17243c;color:#fff;border-color:#17243c" data-action="new-contract" data-id="${id}" data-from="customer-modal">+ 계약등록</button><button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',stages,c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 상담사','detail-owner',['미배정','오영진','김정연','마지희'],c.owner)}${field('유입채널','detail-source',c.source)}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${canManageQuotes()?btn('견적등록 바로가기','new-quote','plus','primary sm block',`data-id="${id}"`):btn('본사 견적 요청','request-quote','plus','primary sm block',`data-id="${id}"`)}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,Boolean(c.quote))}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,Boolean(c.quote))}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${btn('계약 등록','new-contract','contract','soft block',`data-id="${id}" data-from="customer-modal"`)}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history"><h4>${icon('history')}변경 히스토리</h4>${[...(db.history[id]||[]),{date:c.date.slice(5)+' 09:30',text:'고객 접수 · '+c.source,by:'시스템'},{date:c.date.slice(5)+' 09:30',text:'담당자 '+c.owner,by:'운영관리자'}].map(h=>`<div class="history-item"><time>${esc(h.date)}</time><p>${esc(h.text)}</p><small>${esc(h.by)}</small></div>`).join('')}</aside></div>`;
+const displayCustCh = getCustomerChannel(c);
+const chDatalist = `<datalist id="ad-channel-presets">${AD_CHANNEL_PRESETS.map(p => `<option value="${esc(p)}"></option>`).join('')}<option value="직접등록"></option></datalist>`;
+const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${canManageQuotes()?`<button type="button" class="link-chip" style="background:#eef4ff;color:#2753a8;border-color:#c6d8f8" data-action="new-quote" data-id="${id}">+ 견적등록</button>`:''}<button type="button" class="link-chip" style="background:#17243c;color:#fff;border-color:#17243c" data-action="new-contract" data-id="${id}" data-from="customer-modal">+ 계약등록</button><button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',stages,c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 상담사','detail-owner',['미배정','오영진','김정연','마지희'],c.owner)}<div class="field"><label for="detail-source">유입채널</label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${canManageQuotes()?btn('견적등록 바로가기','new-quote','plus','primary sm block',`data-id="${id}"`):btn('본사 견적 요청','request-quote','plus','primary sm block',`data-id="${id}"`)}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,Boolean(c.quote))}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,Boolean(c.quote))}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${btn('계약 등록','new-contract','contract','soft block',`data-id="${id}" data-from="customer-modal"`)}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history"><h4>${icon('history')}변경 히스토리</h4>${[...(db.history[id]||[]),{date:c.date.slice(5)+' 09:30',text:'고객 접수 · '+displayCustCh+(c.adCampaign?(' ('+c.adCampaign+')'):''),by:'시스템'},{date:c.date.slice(5)+' 09:30',text:'담당자 '+c.owner,by:'운영관리자'}].map(h=>`<div class="history-item"><time>${esc(h.date)}</time><p>${esc(h.text)}</p><small>${esc(h.by)}</small></div>`).join('')}</aside></div>`;
 const detailFooter = `<small>고객 상태: ${badge(c.status)}${custContracts.length ? ` · 계약 <b>${custContracts.length}건</b>` : ''} · ${esc(c.product)} · ${esc(c.partner)}</small>${custContracts.length ? btn('계약관리 이동', 'go-customer-contracts', 'external', 'sm soft', `data-id="${id}"`) : ''}${quoteShortcutBtn}${c.quote ? btn('모바일 견적 미리보기', 'preview', 'eye', 'sm soft', `data-id="${id}"`) : ''}${btn('계약 등록', 'new-contract', 'contract', 'sm primary', `data-id="${id}" data-from="customer-modal"`)}${btn('닫기', 'close', '', 'sm')}`;
 openDialog(`${esc(c.name)} <span style="font-size:11px;font-weight:400;color:#91a6c9;margin-left:8px">No. ${c.id}</span>`,body,detailFooter,'wide',`${esc(c.phone)}　｜　${esc(c.address)}`,true);detailId=c.id;detailTab=tab;
 }
-function openNewCustomer(){const activeU=getActiveUser();const isP=isPartnerUser(activeU);formDialog('새 고객 등록',`<div class="notice-text" style="margin-bottom:20px">체험용 고객을 등록합니다. 실제 개인정보 대신 예시 정보를 입력해 주세요.</div><div class="field-grid">${field('고객명','name','','text',true)}${field('연락처','phone','010-0000-','tel',true)}${selectField('상품군','product',['창호','주방','욕실'],'창호')}${selectField('담당 상담사','owner',['미배정','오영진','김정연','마지희'],'미배정')}${selectField('소속 파트너','partner',!isP?['직영',...db.partners.map(p=>p.name)]:[activeU.org],!isP?'직영':activeU.org)}${field('유입채널','source','직접등록')}</div>${field('공사 주소','address','','text',true)}<div class="field"><label>공사 희망사항</label><textarea name="note" placeholder="공사 범위와 희망 일정을 입력하세요."></textarea></div>`,'customer','고객과 공사건이 함께 생성됩니다.')}
+function openNewCustomer(){const activeU=getActiveUser();const isP=isPartnerUser(activeU);formDialog('새 고객 등록',`<div class="notice-text" style="margin-bottom:20px">새 고객 및 공사건을 등록합니다. 광고채널이 있다면 함께 지정해 주세요.</div><div class="field-grid">${field('고객명','name','','text',true)}${field('연락처','phone','010-0000-','tel',true)}${selectField('상품군','product',['창호','주방','욕실'],'창호')}${selectField('담당 상담사','owner',['미배정','오영진','김정연','마지희'],'미배정')}${selectField('소속 파트너','partner',!isP?['직영',...db.partners.map(p=>p.name)]:[activeU.org],!isP?'직영':activeU.org)}<div class="field"><label for="source">유입채널</label><input class="input" id="source" name="source" list="new-cust-ch-list" value="직접등록"><datalist id="new-cust-ch-list">${AD_CHANNEL_PRESETS.map(p=>`<option value="${esc(p)}"></option>`).join('')}<option value="직접등록"></option></datalist></div></div>${field('광고 캠페인 / 상세경로 (선택)','adCampaign','')}${field('공사 주소','address','','text',true)}<div class="field"><label>공사 희망사항</label><textarea name="note" placeholder="공사 범위와 희망 일정을 입력하세요."></textarea></div>`,'customer','고객과 공사건이 함께 생성됩니다.')}
 
 let custPickerQuery = '';
 let custPickerFilter = 'all';
@@ -3884,7 +4232,132 @@ function showSchedule(id){const c=accessibleC(id)||visibleCustomers()[0];formDia
 function download(name,content,mime='text/csv;charset=utf-8'){const blob=new Blob(['\ufeff',content],{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function csvCell(v){let s=String(v??'');if(/^[=+@-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('링크를 복사했습니다.')}catch{openDialog('링크 복사',`<div class="dialog-body"><input class="input" value="${esc(text)}" readonly style="width:100%"><p class="field-hint">링크를 선택해 복사해 주세요.</p></div>`)}}
-function productURL(i){const p=db.products[i];if(!p.url)return '';try{const uObj=getActiveUser();const isP=isPartnerUser(uObj);const u=new URL(p.url,window.location.origin);u.searchParams.set('partner',!isP?'lifeandjoy':(uObj.username||'partner'));u.searchParams.set('utm_source',!isP?'crm':'partner');u.searchParams.set('utm_medium','referral');return u.href}catch{return p.url}}
+function productURL(i){const p=db.products[i];if(!p?.url)return '';try{const uObj=getActiveUser();const isP=isPartnerUser(uObj);const u=new URL(p.url,window.location.origin);if(isP)u.searchParams.set('partner',uObj.org||uObj.username||'partner');return u.href}catch{return p.url}}
+function syncCloneLinkUrlPreview() {
+  const form = $('#clone-link-form');
+  const box = $('#clone-url-preview');
+  if (!form || !box) return;
+  const prodSel = $('#clone-link-product', form);
+  const selOpt = prodSel?.options[prodSel.selectedIndex];
+  const baseUrl = selOpt?.dataset?.url || '/landing/';
+  const codeRaw = ($('#clone-link-code', form)?.value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  const code = codeRaw || '자동생성코드';
+  const chVal = ($('#clone-link-channel', form)?.value || '').trim();
+  const medVal = ($('#clone-link-medium', form)?.value || '').trim();
+  const nameVal = ($('#clone-link-name', form)?.value || '').trim();
+  const partnerVal = ($('#clone-link-partner', form)?.value || '직영').trim();
+  const includeUtm = Boolean($('#clone-link-utm', form)?.checked);
+  const full = buildTrackingUrl({
+    targetUrl: baseUrl,
+    code,
+    channel: chVal,
+    medium: medVal,
+    name: nameVal,
+    partnerName: partnerVal,
+    includeUtm
+  });
+  box.textContent = full;
+}
+function openCloneLinkDialog(linkId = null, defaultProdIdx = null) {
+  const existing = linkId ? (db.landingLinks || []).find(x => Number(x.id) === Number(linkId)) : null;
+  const isEdit = Boolean(existing);
+  const products = db.products || [];
+  let defaultProd = products[0] || { id: 1, name: 'KCC 홈씨씨 창호', category: '창호', url: '/landing/' };
+  if (isEdit && existing.productId) {
+    defaultProd = products.find(p => Number(p.id) === Number(existing.productId)) || defaultProd;
+  } else if (defaultProdIdx !== null && defaultProdIdx !== undefined && products[Number(defaultProdIdx)]) {
+    defaultProd = products[Number(defaultProdIdx)];
+  } else {
+    defaultProd = products.find(p => p.url && p.url.startsWith('/')) || defaultProd;
+  }
+
+  const activeU = getActiveUser();
+  const isP = isPartnerUser(activeU);
+  const partnerChoices = isP ? [activeU.org] : ['직영', ...(db.partners || []).map(p => p.name)];
+  const initChannel = existing?.channel || (isP ? '파트너 전용링크' : '네이버 검색광고');
+  const initMedium = existing?.medium || (isP ? '파트너추천' : '검색광고');
+  const initPartner = existing?.partnerName || (isP ? activeU.org : '직영');
+
+  const prodOptionsHtml = products.map((p, idx) => {
+    const tUrl = p.url || '/landing/';
+    const isSel = Number(p.id || idx) === Number(defaultProd.id || 0);
+    return `<option value="${p.id || ''}" data-url="${esc(tUrl)}" ${isSel ? 'selected' : ''}>${esc(p.name)} (${esc(p.category)} · ${esc(tUrl)})</option>`;
+  }).join('');
+
+  const chipsHtml = AD_CHANNEL_PRESETS.map(ch =>
+    `<button type="button" class="ad-ch-chip ${initChannel === ch ? 'active' : ''}" data-action="pick-ad-channel" data-value="${esc(ch)}">${esc(ch)}</button>`
+  ).join('');
+
+  const body = `<form id="clone-link-form" data-submit="clone-link" ${isEdit ? `data-id="${existing.id}"` : ''}>
+    <div class="dialog-body">
+      <div class="notice-text" style="margin-bottom:16px">
+        선택한 <b>기본 랜딩페이지</b>는 그대로 유지되면서, <b>어디에 광고를 넣을지(채널·캠페인 정보)</b>가 자동 기록되는 전용 복제 URL을 발급합니다.
+      </div>
+      <div class="field">
+        <label for="clone-link-product">1. 복사할 원본 기본 랜딩페이지 <span>*</span></label>
+        <select class="input" id="clone-link-product" name="productId">${prodOptionsHtml}</select>
+      </div>
+      <div class="field">
+        <label for="clone-link-channel">2. 어디에 광고를 넣으시나요? (광고채널 선택 또는 직접입력) <span>*</span></label>
+        <div class="ad-ch-chips">${chipsHtml}</div>
+        <input class="input" id="clone-link-channel" name="channel" value="${esc(initChannel)}" placeholder="예: 네이버 검색광고, 당근마켓, 인스타그램, 강남 맘카페 등" required>
+      </div>
+      <div class="field">
+        <label for="clone-link-name">3. 광고 캠페인 / 링크 구분명 <span>*</span></label>
+        <input class="input" id="clone-link-name" name="name" value="${esc(existing?.name || '')}" placeholder="예: 파워링크_30평대_특가, 당근_하남미사_단열광고" required>
+        <p class="field-hint">고객관리 목록에서 채널 배지 바로 옆에 함께 표시되어 어떤 광고 소재인지 즉시 구분할 수 있습니다.</p>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="clone-link-medium">광고 유형 / 지면</label>
+          <select class="input" id="clone-link-medium" name="medium">${options(AD_MEDIUM_OPTIONS, initMedium, '선택(선택사항)')}</select>
+        </div>
+        <div class="field">
+          <label for="clone-link-partner">귀속 파트너</label>
+          <select class="input" id="clone-link-partner" name="partnerName">${options(partnerChoices, initPartner)}</select>
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="clone-link-code">추적 식별 코드 (선택)</label>
+          <input class="input" id="clone-link-code" name="code" value="${esc(existing?.code || '')}" placeholder="비워두면 자동 생성 (예: daangn_a1b2)">
+        </div>
+        <div class="field">
+          <label>추가 설정</label>
+          <label class="checkline" style="margin-top:8px">
+            <input type="checkbox" id="clone-link-utm" name="includeUtm" ${existing?.includeUtm ? 'checked' : ''}>
+            <span>URL에 UTM 파라미터도 함께 붙이기</span>
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label>생성될 광고 배포 링크 미리보기</label>
+        <div class="clone-url-preview-box">
+          <code id="clone-url-preview"></code>
+          <button type="button" class="btn sm soft" data-action="copy-clone-preview">${icon('copy')}복사</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="clone-link-memo">운영 메모 (선택)</label>
+        <input class="input" id="clone-link-memo" name="memo" value="${esc(existing?.memo || '')}" placeholder="집행 예산, 타겟 지역, 광고 계정 메모 등">
+      </div>
+      ${isEdit ? `<label class="checkline"><input type="checkbox" name="isActive" ${existing.isActive !== false ? 'checked' : ''}> <b>링크 활성화 (운영중)</b></label>` : ''}
+    </div>
+    <div class="dialog-footer">
+      ${btn('취소', 'close')}
+      <button type="submit" class="btn primary">${icon('link')}${isEdit ? '복제 링크 수정 저장' : '광고링크 복제·생성 및 복사'}</button>
+    </div>
+  </form>`;
+
+  openDialog(
+    isEdit ? '복제 광고링크 수정' : '기본 랜딩페이지 복제 · 광고채널 링크 생성',
+    body,
+    '',
+    '',
+    '생성된 링크를 광고 매체에 등록하면 유입 채널과 성과가 자동 분석됩니다.'
+  );
+  syncCloneLinkUrlPreview();
+}
 function normalizeURL(url){const s=String(url??'').trim();if(!s)return '';if(s.startsWith('/'))return s;return /^https?:\/\//i.test(s)?s:'https://'+s}
 function validateURL(url){if(!url)return true;const s=String(url).trim();if(s.startsWith('/'))return true;try{const u=new URL(s,window.location.origin);return ['https:','http:'].includes(u.protocol)&&Boolean(u.hostname)}catch{return false}}
 document.addEventListener('click',async e=>{
@@ -3894,7 +4367,22 @@ document.addEventListener('click',async e=>{
   const el=e.target.closest('[data-action]');
   if(!el)return;
   const a=el.dataset.action,id=el.dataset.id,v=el.dataset.value;
-switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':setMobileNav(false);break;case'nav':setMobileNav(false);page=el.dataset.page;selected.clear();render();window.scrollTo(0,0);break;case'close':closeDialog();break;case'customer':openCustomer(id);break;case'new-customer':openNewCustomer();break;case'customer-tab':customerTab=v;render();break;case'filter-all':stageFilter='';customerTab='all';render();break;case'filter-stage':stageFilter=v;customerTab='all';render();break;case'reset-filters':query='';stageFilter='';productFilter='';partnerFilter='';periodFilter='all';customerTab='all';render();break;case'detail-tab':openCustomer(id,v);break;case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();break;case'new-quote':openEditor(id, el.dataset.type || '');break;
+switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':setMobileNav(false);break;case'nav':setMobileNav(false);page=el.dataset.page;selected.clear();render();window.scrollTo(0,0);if(page==='stats')refreshAnalytics();break;case'close':closeDialog();break;case'customer':openCustomer(id);break;case'new-customer':openNewCustomer();break;case'customer-tab':customerTab=v;render();break;case'filter-all':stageFilter='';customerTab='all';render();break;case'filter-stage':stageFilter=v;customerTab='all';render();break;case'reset-filters':query='';stageFilter='';productFilter='';partnerFilter='';sourceFilter='';linkFilter='';periodFilter='all';customerTab='all';render();break;case'clear-link-filter':linkFilter='';render();break;case'go-products-links':page='products';render();window.scrollTo(0,0);break;case'product-link-cat':productLinkCatFilter=v||'all';render();break;case'jump-link-customers':{
+  const targetLink = (db.landingLinks || []).find(ll => Number(ll.id) === Number(id));
+  linkFilter = String(id || '');
+  sourceFilter = targetLink?.channel || '';
+  query = '';
+  stageFilter = '';
+  productFilter = '';
+  partnerFilter = '';
+  periodFilter = 'all';
+  customerTab = 'all';
+  page = 'customers';
+  render();
+  window.scrollTo(0, 0);
+  if (targetLink) toast(`[${targetLink.channel} · ${targetLink.name}] 유입 고객만 필터링하여 표시합니다.`);
+  break;
+}case'detail-tab':openCustomer(id,v);break;case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();break;case'new-quote':openEditor(id, el.dataset.type || '');break;
   case'preview':openPreview(id, null, 'quote', el.dataset.type || '', el.dataset.quoteId || null);break;
   case'editor-preview':openPreview(editor.cid, { ...editor, ...editorTotal() }, 'quote', el.dataset.type || editor.type || '가견적');break;
   case'send-quote':openSendQuote(id, el.dataset.type || '');break;
@@ -4182,14 +4670,15 @@ case'save-customer':{
     const c=accessibleC(id);
     if(!c)break;
     const changes=[];
-    for(const [key,sel,label] of [['status','detail-status','진행구분'],['label','detail-label','라벨'],['owner','detail-owner','담당자'],['source','detail-source','유입채널'],['measure','detail-measure','실측일'],['build','detail-build','시공일']]){
-      const val=$('#'+sel).value;
-      if(c[key]!==val){changes.push(label+': '+(c[key]||'미정')+' → '+(val||'미정'));c[key]=val}
+    for(const [key,sel,label] of [['status','detail-status','진행구분'],['label','detail-label','라벨'],['owner','detail-owner','담당자'],['source','detail-source','유입채널'],['adCampaign','detail-ad-campaign','광고캠페인'],['measure','detail-measure','실측일'],['build','detail-build','시공일']]){
+      const val=$('#'+sel)?.value ?? '';
+      if((c[key]||'')!==val){changes.push(label+': '+(c[key]||'미정')+' → '+(val||'미정'));c[key]=val}
     }
+    c.adChannel = c.source;
     try {
       const res = await apiFetch('/api/customers/' + id, {
         method: 'PATCH',
-        body: { status: c.status, label: c.label, owner: c.owner, measure: c.measure, build: c.build }
+        body: { status: c.status, label: c.label, owner: c.owner, source: c.source, adCampaign: c.adCampaign, measure: c.measure, build: c.build }
       });
       if (res.ok) await syncFromServer();
     } catch (err) {}
@@ -4265,7 +4754,7 @@ case'publish-quote':{
     break;
   }
 case'sample-csv':download('homecc-estimate-sample.csv','품목,규격,수량,원가단가\n거실 발코니 이중창,맞춤규격,1,3200000\n안방 침실 창호,맞춤규격,2,1800000\n철거 및 설치,기본시공,1,1200000');break;
-case'export':{const cs=filteredCustomers();download('homecc-customers.csv',[['고객번호','고객명','연락처','공사주소','상품군','진행구분','담당자','파트너'],...cs.map(c=>[c.id,c.name,c.phone,c.address,c.product,c.status,c.owner,c.partner])].map(r=>r.map(csvCell).join(',')).join('\r\n'));toast('현재 검색 결과를 CSV로 내려받았습니다.');break}
+case'export':{const cs=filteredCustomers();download('homecc-customers.csv',[['고객번호','고객명','연락처','공사주소','상품군','진행구분','유입채널','광고캠페인','담당자','파트너'],...cs.map(c=>[c.id,c.name,c.phone,c.address,c.product,c.status,getCustomerChannel(c),c.adCampaign||'',c.owner,c.partner])].map(r=>r.map(csvCell).join(',')).join('\r\n'));toast('현재 검색 결과를 CSV로 내려받았습니다.');break}
 case'calendar':{const cs=visibleCustomers().filter(c=>c.measure||c.build);openDialog('실측·시공 일정',`<div class="dialog-body">${cs.map(c=>`<div class="notification" data-action="customer" data-id="${c.id}">${icon('calendar')}<div><b>${esc(c.name)} · ${c.product}</b><small>실측 ${c.measure||'미정'}　/　시공 ${c.build||'미정'}</small></div></div>`).join('')||'<div class="empty">등록된 일정이 없습니다.</div>'}</div>`,btn('일정 등록','schedule','plus','primary'),'','공사건별 예정 일정');break}case'schedule':showSchedule(id);break;
 case'notifications':{const cs=visibleCustomers().filter(c=>c.owner==='미배정'||c.status==='가견적요청'||c.status==='실측예정');openDialog('오늘 확인할 업무',`<div class="dialog-body">${cs.map(c=>`<div class="notification" data-action="customer" data-id="${c.id}">${icon(c.status==='실측예정'?'calendar':'clock')}<div><b>${esc(c.name)} · ${c.status}</b><small>${esc(c.owner==='미배정'?'담당 상담사를 배정해 주세요.':c.note)}</small></div>${icon('chevron')}</div>`).join('')||'<div class="empty">현재 대기 업무가 없습니다.</div>'}</div>`,'','','고객별 다음 업무를 바로 확인하세요.');break}
 case'assign':if(!selected.size){toast('고객을 먼저 선택하세요.');break}formDialog('담당자 일괄 배정',selectField('담당 상담사','owner',['오영진','김정연','마지희','미배정'],'오영진'),'assign',`${selected.size}명의 선택 고객에 적용`);break;
@@ -4445,9 +4934,59 @@ case'partner-mode':{
   }
 case'partner-detail':{const p=db.partners.find(x=>x.id===id);formDialog('파트너 정보',`${field('파트너명','name',p.name,'text',true)}${field('담당자','person',p.person,'text',true)}${field('이메일','email',p.email,'email',true)}${selectField('업종','type',['인테리어','영업대행','기타'],p.type)}<div class="notice-text">소속 파트너 사용자의 표시 메뉴는 [설정 &gt; 사용자관리]에서 사용자별로 선택할 수 있습니다. 원가와 본사 마진은 비공개입니다.</div>`,'partner','',`data-id="${id}"`);break}
 case'new-partner':formDialog('영업파트너 등록',`${field('파트너명','name','','text',true)}${field('대표 담당자','person','','text',true)}${field('이메일','email','','email',true)}${selectField('업종','type',['인테리어','영업대행','기타'],'인테리어')}<div class="notice-text">체험용 파트너 등록입니다. 실제 계정 발급이나 초대 메일은 발송하지 않습니다.</div>`,'partner');break;
+case'open-clone-link':openCloneLinkDialog(null, id !== undefined && id !== '' ? Number(id) : null);break;
+case'edit-cloned-link':openCloneLinkDialog(Number(id));break;
+case'copy-cloned-link':{
+  const ll = (db.landingLinks || []).find(x => Number(x.id) === Number(id));
+  if (ll) copy(buildTrackingUrl(ll));
+  break;
+}
+case'copy-clone-preview':{
+  const txt = ($('#clone-url-preview')?.textContent || '').trim();
+  if (txt) copy(txt);
+  break;
+}
+case'pick-ad-channel':{
+  const inp = $('#clone-link-channel');
+  if (inp && v) {
+    inp.value = v;
+    $$('.ad-ch-chip').forEach(b => b.classList.toggle('active', b.dataset.value === v));
+    syncCloneLinkUrlPreview();
+  }
+  break;
+}
+case'preview-cloned-link':{
+  const ll = (db.landingLinks || []).find(x => Number(x.id) === Number(id));
+  if (!ll) break;
+  const fullUrl = buildTrackingUrl(ll);
+  const sep = fullUrl.includes('?') ? '&' : '?';
+  const prevSrc = fullUrl + sep + 'preview=1';
+  openDialog(`${esc(ll.channel)} · ${esc(ll.name)} 미리보기`, `<div class="dialog-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;height:78vh"><div style="padding:10px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="ch-pill ${channelTone(ll.channel)}">${esc(ll.channel)}</span><span style="color:#475569;font-family:monospace;font-size:12px">${esc(fullUrl)}</span></div><div style="display:flex;gap:6px"><button type="button" class="btn sm" onclick="const f=document.getElementById('landing-preview-frame');if(f){f.style.maxWidth='390px';f.style.margin='0 auto';}">${icon('phone')}모바일 390px</button><button type="button" class="btn sm" onclick="const f=document.getElementById('landing-preview-frame');if(f){f.style.maxWidth='100%';f.style.margin='0';}">${icon('window')}PC 너비</button><a class="btn sm primary" href="${esc(fullUrl)}" target="_blank" rel="noopener noreferrer">${icon('external')} 새 탭에서 열기</a></div></div><div style="flex:1;background:#52525b;display:flex;justify-content:center;overflow:hidden;padding:12px"><iframe id="landing-preview-frame" src="${esc(prevSrc)}" style="width:100%;height:100%;border:none;border-radius:12px;background:#fff;box-shadow:0 10px 25px -5px rgba(0,0,0,0.3);transition:all 0.25s ease" title="복제 광고랜딩 미리보기"></iframe></div></div>`, btn('링크 복사', 'copy-cloned-link', 'copy', 'soft', `data-id="${ll.id}"`) + btn('닫기', 'close'));
+  break;
+}
+case'delete-cloned-link':{
+  const ll = (db.landingLinks || []).find(x => Number(x.id) === Number(id));
+  if (!ll) break;
+  if (!confirm(`[${ll.channel} · ${ll.name}] 복제 광고링크를 삭제하시겠습니까?\n(기존 유입 고객의 채널 기록은 유지됩니다.)`)) break;
+  try {
+    const res = await apiFetch('/api/products/links/' + ll.id, { method: 'DELETE' });
+    const resData = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast(resData.error || '삭제에 실패했습니다.');
+      break;
+    }
+    if (Array.isArray(resData.landingLinks)) db.landingLinks = resData.landingLinks;
+    save();
+    await syncFromServer();
+    toast('복제 광고링크를 삭제했습니다.');
+  } catch (err) {
+    toast('삭제 오류: ' + err.message);
+  }
+  break;
+}
 case'copy-product':{const u=productURL(id);if(u)copy(u);else toast('랜딩 URL을 먼저 등록해 주세요.');break}
-case'product-link':{const p=db.products[id],u=productURL(id),activeU=getActiveUser();openDialog('상품 전용 상담 링크',`<div class="dialog-body"><div class="info-grid"><div><label>상품</label><b>${esc(p.name)}</b></div><div><label>소속</label><b>${esc(activeU.org||'라이프앤조이')}</b></div></div><div class="divider"></div><div class="field"><label>파트너·유입경로가 포함된 링크</label><textarea readonly>${esc(u||'랜딩 URL 등록 대기')}</textarea></div><div class="notice-text">이 링크에는 파트너 식별값이 포함됩니다. 실제 고객 귀속과 유입 집계에는 랜딩페이지 연동이 필요합니다.</div></div>`,u?btn('링크 복사','copy-product','copy','primary',`data-id="${id}"`):btn('닫기','close'));break}
-case'preview-landing':{const p=db.products[id];const u=productURL(id)||p?.url||'/landing/';openDialog('KCC 홈씨씨 창호 랜딩페이지 미리보기',`<div class="dialog-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;height:78vh"><div style="padding:10px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px"><div style="display:flex;align-items:center;gap:8px"><span class="badge green">실시간 연동</span><span style="color:#64748b;font-family:monospace;font-size:12px">${esc(u)}</span></div><div style="display:flex;gap:6px"><button type="button" class="btn sm" onclick="const f=document.getElementById('landing-preview-frame');if(f){f.style.maxWidth='390px';f.style.margin='0 auto';}">${icon('phone')}모바일 390px</button><button type="button" class="btn sm" onclick="const f=document.getElementById('landing-preview-frame');if(f){f.style.maxWidth='100%';f.style.margin='0';}">${icon('window')}PC 너비</button><a class="btn sm primary" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${icon('external')} 새 탭에서 열기</a></div></div><div style="flex:1;background:#52525b;display:flex;justify-content:center;overflow:hidden;padding:12px"><iframe id="landing-preview-frame" src="${esc(u)}" style="width:100%;height:100%;border:none;border-radius:12px;background:#fff;box-shadow:0 10px 25px -5px rgba(0,0,0,0.3);transition:all 0.25s ease" title="창호 랜딩페이지 미리보기"></iframe></div></div>`,btn('닫기','close'));break}
+case'product-link':{openCloneLinkDialog(null, id !== undefined && id !== '' ? Number(id) : null);break}
+case'preview-landing':{const p=db.products[id];const u=productURL(id)||p?.url||'/landing/';const prevU=u+(u.includes('?')?'&':'?')+'preview=1';openDialog(`${esc(p?.name||'KCC 홈씨씨 창호')} 랜딩페이지 미리보기`,`<div class="dialog-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;height:78vh"><div style="padding:10px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px"><div style="display:flex;align-items:center;gap:8px"><span class="badge green">실시간 연동</span><span style="color:#64748b;font-family:monospace;font-size:12px">${esc(u)}</span></div><div style="display:flex;gap:6px"><button type="button" class="btn sm" onclick="const f=document.getElementById('landing-preview-frame');if(f){f.style.maxWidth='390px';f.style.margin='0 auto';}">${icon('phone')}모바일 390px</button><button type="button" class="btn sm" onclick="const f=document.getElementById('landing-preview-frame');if(f){f.style.maxWidth='100%';f.style.margin='0';}">${icon('window')}PC 너비</button><a class="btn sm primary" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${icon('external')} 새 탭에서 열기</a></div></div><div style="flex:1;background:#52525b;display:flex;justify-content:center;overflow:hidden;padding:12px"><iframe id="landing-preview-frame" src="${esc(prevU)}" style="width:100%;height:100%;border:none;border-radius:12px;background:#fff;box-shadow:0 10px 25px -5px rgba(0,0,0,0.3);transition:all 0.25s ease" title="창호 랜딩페이지 미리보기"></iframe></div></div>`,btn('닫기','close'));break}
 case'new-product':case'edit-product':{const p=a==='edit-product'?db.products[id]:null;formDialog('상품페이지 '+(p?'수정':'등록'),`${field('상품명','name',p?.name||'','text',true)}${selectField('상품군','category',['창호','주방','욕실'],p?.category||'창호')}${field('랜딩페이지 URL','url',p?.url||'','url')}${field('간단 소개','desc',p?.desc||'')}`,'product','상품 판매 페이지의 링크를 관리합니다.',p?`data-id="${id}"`:'');break}
 case'new-label':formDialog('진행라벨 추가',field('라벨명','name','','text',true)+field('색상','color','#7396dd','color'),'label');break;
 case'new-user':openUserDialog(null);break;
@@ -4575,6 +5114,18 @@ case'request-quote':{const c=accessibleC(id);c.status='가견적요청';audit(id
 document.addEventListener('input',e=>{
   if(e.target.dataset.money)formatMoneyInput(e.target);
   if(e.target.id==='customer-search'){query=e.target.value;$('#customer-rows').innerHTML=customerRows();$('#list-count').innerHTML=`검색 결과 <strong>${filteredCustomers().length}</strong>건`}
+  if(e.target.id==='product-link-search'){
+    productLinkQuery = e.target.value;
+    const tb = $('#landing-links-tbody');
+    if (tb) tb.innerHTML = renderLandingLinksRows(getFilteredLandingLinks());
+  }
+  if(e.target.closest('#clone-link-form')){
+    if(e.target.id==='clone-link-channel'){
+      const vNow = e.target.value.trim();
+      $$('.ad-ch-chip').forEach(b => b.classList.toggle('active', b.dataset.value === vNow));
+    }
+    syncCloneLinkUrlPreview();
+  }
   if(e.target.id==='quote-cust-picker-search'){
     custPickerQuery = e.target.value;
     const listEl = $('#quote-cust-picker-list');
@@ -4651,7 +5202,7 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('focusout',e=>{if(e.target.dataset?.money&&!e.target.value.trim())e.target.value='0'});
 function parseCSV(text){const rows=[];let row=[],cell='',inside=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(inside&&text[i+1]==='"'){cell+='"';i++}else inside=!inside}else if(c===','&&!inside){row.push(cell);cell=''}else if((c==='\n'||c==='\r')&&!inside){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(v=>v.trim()))rows.push(row);row=[];cell=''}else cell+=c}row.push(cell);if(row.some(v=>v.trim()))rows.push(row);return rows}
-document.addEventListener('change',async e=>{const el=e.target,id=el.id;if(el.name==='color'&&el.closest('#contract-status-color-picker')){$$('#contract-status-color-picker .badge-color-opt').forEach(lbl=>{lbl.classList.toggle('is-selected',Boolean($('input[name="color"]',lbl)?.checked))});return}if(id==='contract-form-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const amtEl=$('#amount');if(selC&&amtEl){const nextAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;amtEl.value=num(nextAmt);}return}if(id==='contract-form-type'){const stSel=$('#contract-form-status');if(stSel){const names=getContractStatusNames();if(el.value==='렌탈'&&names.includes('약정대기'))stSel.value='약정대기';else if(el.value!=='렌탈'&&names.includes('계약체결'))stSel.value='계약체결';}return}if(el.name==='allowed_menu'){syncDialogMenuCards();return}if(id==='user-role-select'){const form=el.closest('#user-perm-form');if(form&&form.dataset.mode==='create'){const def=getDefaultMenusByRole(el.value);$$('input[name="allowed_menu"][type="checkbox"]',form).forEach(inp=>{inp.checked=inp.dataset.locked==='1'?true:def.includes(inp.value)});syncDialogMenuCards()}return}if(el.dataset.select){const n=Number(el.dataset.select);el.checked?selected.add(n):selected.delete(n);const keepY=window.scrollY;render();window.scrollTo(0,keepY);return}if(el.dataset.item!==undefined&&el.dataset.key==='category'&&editor){const idx=Number(el.dataset.item);if(editor.items[idx]){editor.items[idx].category=el.value==='extra'?'extra':'window';const tr=el.closest('tr');if(tr)tr.classList.toggle('is-extra',el.value==='extra');const subBar=$('#editor-subtotals-bar');if(subBar)subBar.innerHTML=editorSubtotalsBarHtml();const sumBox=$('#quote-summary');if(sumBox)sumBox.innerHTML=editorSummary();syncEditorLivePreview();}return}if(id==='role-switch'){const targetUser=el.value;query='';stageFilter='';partnerFilter='';selected.clear();customerTab='all';(async()=>{await apiSwitchRole(targetUser);await syncFromServer();render();const u=getActiveUser();toast(`${u.name} (${u.role_label}) 화면으로 전환되었습니다. 허용 메뉴 ${getUserAllowedMenuKeys(u).length}개가 적용됩니다.`);})();}if(id==='filter-product'){productFilter=el.value;render()}if(id==='filter-stage'){stageFilter=el.value;render()}if(id==='filter-partner'){partnerFilter=el.value;render()}if(id==='filter-period'){periodFilter=el.value;render()}if(id==='sort-order'){sortOrder=el.value;render()}if(id==='stats-period'){statsPeriod=el.value;render()}if(id==='quote-customer'){editor.cid=Number(el.value);renderEditor()}if(id==='quote-type'&&editor){editor.type=el.value;syncEditorLivePreview()}if(id==='quote-file'){const file=el.files[0];if(!file)return;editor.source=file.name;{
+document.addEventListener('change',async e=>{const el=e.target,id=el.id;if(el.name==='color'&&el.closest('#contract-status-color-picker')){$$('#contract-status-color-picker .badge-color-opt').forEach(lbl=>{lbl.classList.toggle('is-selected',Boolean($('input[name="color"]',lbl)?.checked))});return}if(id==='contract-form-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const amtEl=$('#amount');if(selC&&amtEl){const nextAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;amtEl.value=num(nextAmt);}return}if(id==='contract-form-type'){const stSel=$('#contract-form-status');if(stSel){const names=getContractStatusNames();if(el.value==='렌탈'&&names.includes('약정대기'))stSel.value='약정대기';else if(el.value!=='렌탈'&&names.includes('계약체결'))stSel.value='계약체결';}return}if(el.name==='allowed_menu'){syncDialogMenuCards();return}if(id==='user-role-select'){const form=el.closest('#user-perm-form');if(form&&form.dataset.mode==='create'){const def=getDefaultMenusByRole(el.value);$$('input[name="allowed_menu"][type="checkbox"]',form).forEach(inp=>{inp.checked=inp.dataset.locked==='1'?true:def.includes(inp.value)});syncDialogMenuCards()}return}if(el.dataset.select){const n=Number(el.dataset.select);el.checked?selected.add(n):selected.delete(n);const keepY=window.scrollY;render();window.scrollTo(0,keepY);return}if(el.dataset.item!==undefined&&el.dataset.key==='category'&&editor){const idx=Number(el.dataset.item);if(editor.items[idx]){editor.items[idx].category=el.value==='extra'?'extra':'window';const tr=el.closest('tr');if(tr)tr.classList.toggle('is-extra',el.value==='extra');const subBar=$('#editor-subtotals-bar');if(subBar)subBar.innerHTML=editorSubtotalsBarHtml();const sumBox=$('#quote-summary');if(sumBox)sumBox.innerHTML=editorSummary();syncEditorLivePreview();}return}if(id==='role-switch'){const targetUser=el.value;query='';stageFilter='';partnerFilter='';sourceFilter='';linkFilter='';selected.clear();customerTab='all';(async()=>{await apiSwitchRole(targetUser);await syncFromServer();render();const u=getActiveUser();toast(`${u.name} (${u.role_label}) 화면으로 전환되었습니다. 허용 메뉴 ${getUserAllowedMenuKeys(u).length}개가 적용됩니다.`);})();}if(id==='filter-product'){productFilter=el.value;render()}if(id==='filter-stage'){stageFilter=el.value;render()}if(id==='filter-partner'){partnerFilter=el.value;render()}if(id==='filter-source'){sourceFilter=el.value;linkFilter='';render()}if(id==='filter-period'){periodFilter=el.value;render()}if(id==='sort-order'){sortOrder=el.value;render()}if(id==='stats-period'){statsPeriod=el.value;render();refreshAnalytics(statsPeriod);}if(el.closest('#clone-link-form')){syncCloneLinkUrlPreview();}if(id==='quote-customer'){editor.cid=Number(el.value);renderEditor()}if(id==='quote-type'&&editor){editor.type=el.value;syncEditorLivePreview()}if(id==='quote-file'){const file=el.files[0];if(!file)return;editor.source=file.name;{
     const upNameEl = $('#upload-name');
     if (upNameEl) upNameEl.textContent = file.name;
     const formData = new FormData();
@@ -4703,6 +5254,7 @@ document.addEventListener('submit',async e=>{const f=e.target;if(!f.dataset.subm
           partner: d.partner,
           owner: d.owner,
           source: d.source || '직접등록',
+          adCampaign: d.adCampaign || '',
           note: d.note || ''
         }
       });
@@ -4710,15 +5262,15 @@ document.addEventListener('submit',async e=>{const f=e.target;if(!f.dataset.subm
       if (res.ok) {
         await syncFromServer();
         closeDialog();
-        query='';customerTab='all';stageFilter='';productFilter='';partnerFilter='';periodFilter='all';
+        query='';customerTab='all';stageFilter='';productFilter='';partnerFilter='';sourceFilter='';linkFilter='';periodFilter='all';
         render();
         toast('새 고객과 공사건이 서버 DB에 등록되었습니다. (No. ' + cData.id + ')');
         break;
       }
     } catch (err) {}
     const cid=Math.max(...db.customers.map(c=>c.id),3100)+1;
-    db.customers.unshift({id:cid,name:d.name.trim(),phone:d.phone,address:d.address,product:d.product,status:'신규접수',label:'일반',source:d.source||'직접등록',partner:d.partner,owner:d.owner,date:'2026-11-12',note:d.note||'신규 고객이 등록되었습니다.',feedback:'등록된 피드백이 없습니다.',measure:'',build:'',quote:0,viewed:false});
-    audit(cid,'관리자 직접 등록');closeDialog();query='';customerTab='all';stageFilter='';productFilter='';partnerFilter='';periodFilter='all';render();toast('새 고객과 공사건을 등록했습니다.');break;
+    db.customers.unshift({id:cid,name:d.name.trim(),phone:d.phone,address:d.address,product:d.product,status:'신규접수',label:'일반',source:d.source||'직접등록',adChannel:d.source||'직접등록',adCampaign:d.adCampaign||'',partner:d.partner,owner:d.owner,date:'2026-11-12',note:d.note||'신규 고객이 등록되었습니다.',feedback:'등록된 피드백이 없습니다.',measure:'',build:'',quote:0,viewed:false});
+    audit(cid,'관리자 직접 등록');closeDialog();query='';customerTab='all';stageFilter='';productFilter='';partnerFilter='';sourceFilter='';linkFilter='';periodFilter='all';render();toast('새 고객과 공사건을 등록했습니다.');break;
   }
 case'note':{
     const c=accessibleC(id);
@@ -4920,7 +5472,76 @@ case'application':{
   }
 case'rental':{const step=Number(f.dataset.step);if(step===1){rentalDraft={...rentalDraft,name:d['r-name'],phone:d['r-phone'],address:d['r-address'],plan:d['r-plan']};rentalStep(2)}else if(step===2)rentalStep(3);else{if(d.signature.trim()!==rentalDraft.name.trim()){toast('신청자 이름과 동일하게 입력해 주세요.');return}const c=accessibleC(rentalDraft.cid);if(db.applications.some(a=>a.cid===c.id&&!['반려'].includes(a.status))){toast('해당 고객의 진행 중인 렌탈 신청이 이미 있습니다.');return}db.applications.unshift({id:'R-'+Date.now().toString().slice(-8),cid:c.id,customerName:c.name,product:c.product,plan:rentalDraft.plan,monthly:Math.round(c.quote*1.2/parseInt(rentalDraft.plan)/1000)*1000,status:'서류검토',date:new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'}),createdAt:new Date().toISOString(),createdAtText:now(),consent:true});c.status='계약진행';audit(c.id,'체험 렌탈 신청 접수');save();closeDialog();page='contracts';contractTab='rental';render();toast('체험 신청이 렌탈 신청 목록에 등록되었습니다.');}break}
 case'partner':{if(db.partners.some(p=>p.name===d.name&&p.id!==id)){toast('같은 이름의 파트너가 있습니다.');return}if(id){const p=db.partners.find(x=>x.id===id),prev=p.name;Object.assign(p,d);db.customers.forEach(c=>{if(c.partner===prev)c.partner=p.name})}else db.partners.push({...d,id:'P'+String(db.partners.length+1).padStart(3,'0'),active:true});save();closeDialog();render();toast('파트너 정보를 저장했습니다.');break}
-case'product':{if(!validateURL(d.url)){toast('올바른 URL을 입력해 주세요.');return}if(id!==undefined)Object.assign(db.products[Number(id)],d);else db.products.push({...d,icon:d.category==='창호'?'window':d.category==='주방'?'kitchen':'bath',color:'#edf3f9',views:0,active:!!d.url});save();closeDialog();render();toast('상품페이지를 저장했습니다.');break}
+case'product':{
+    if(!validateURL(d.url)){toast('올바른 URL을 입력해 주세요.');return}
+    const prodObj = id!==undefined ? db.products[Number(id)] : null;
+    try {
+      const apiUrl = prodObj?.id ? ('/api/products/' + prodObj.id) : '/api/products';
+      const method = prodObj?.id ? 'PATCH' : 'POST';
+      const res = await apiFetch(apiUrl, { method, body: { name: d.name, category: d.category, desc: d.desc, url: d.url } });
+      if (res.ok) {
+        await syncFromServer();
+        closeDialog();
+        render();
+        toast('상품페이지를 서버에 저장했습니다.');
+        break;
+      }
+    } catch {}
+    if(id!==undefined)Object.assign(db.products[Number(id)],d);else db.products.push({...d,icon:d.category==='창호'?'window':d.category==='주방'?'kitchen':'bath',color:'#edf3f9',views:0,active:!!d.url});
+    save();closeDialog();render();toast('상품페이지를 저장했습니다.');break;
+  }
+case'clone-link':{
+    const channelVal = (d.channel || '').trim();
+    const nameVal = (d.name || '').trim();
+    if (!channelVal) { toast('어디에 광고할지 광고채널을 입력해 주세요.'); return; }
+    if (!nameVal) { toast('광고 캠페인 또는 링크 구분명을 입력해 주세요.'); return; }
+    const prodId = d.productId ? Number(d.productId) : null;
+    const prodObj = (db.products || []).find(p => Number(p.id) === prodId) || db.products[0];
+    const targetUrl = prodObj?.url || '/landing/';
+    const isEdit = Boolean(id);
+    const payload = {
+      productId: prodId,
+      channel: channelVal,
+      name: nameVal,
+      medium: (d.medium || '').trim(),
+      partnerName: (d.partnerName || '직영').trim(),
+      code: (d.code || '').trim(),
+      targetUrl,
+      includeUtm: Boolean(d.includeUtm),
+      memo: (d.memo || '').trim(),
+      isActive: isEdit ? Boolean(d.isActive) : true
+    };
+    try {
+      const res = await apiFetch(isEdit ? ('/api/products/links/' + id) : '/api/products/links', {
+        method: isEdit ? 'PATCH' : 'POST',
+        body: payload
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(resData.error || '복제 광고링크 저장에 실패했습니다.');
+        return;
+      }
+      if (Array.isArray(resData.landingLinks)) db.landingLinks = resData.landingLinks;
+      save();
+      await syncFromServer();
+      closeDialog();
+      render();
+      if (!isEdit && resData.link) {
+        const fullUrl = buildTrackingUrl(resData.link);
+        try {
+          await navigator.clipboard.writeText(fullUrl);
+          toast(`[${channelVal} · ${nameVal}] 복제 링크를 생성하고 클립보드에 복사했습니다!`);
+        } catch {
+          toast(`[${channelVal} · ${nameVal}] 복제 광고링크가 생성되었습니다.`);
+        }
+      } else {
+        toast('복제 광고링크 정보를 저장했습니다.');
+      }
+    } catch (err) {
+      toast('복제 링크 저장 오류: ' + err.message);
+    }
+    break;
+  }
 case'label':if(db.labels.some(l=>l.name===d.name.trim())){toast('이미 등록된 라벨입니다.');return}db.labels.push({name:d.name.trim(),color:d.color});save();closeDialog();render();toast('라벨을 추가했습니다.');break;
 case'contract-status':{
     const stName = (d.name || '').trim();

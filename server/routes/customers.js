@@ -11,10 +11,12 @@ router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
 
   let sql = `
     SELECT
-      p.id, p.title, p.product, p.status, p.label, p.source, p.partner_name,
-      p.owner_name, p.measure_date, p.build_date, p.rough_quote_url, p.final_quote_url, p.drawing_url, p.note,
+      p.id, p.title, p.product, p.status, p.label, p.source,
+      p.landing_link_id, p.ad_channel, p.ad_campaign,
+      p.partner_name, p.owner_name, p.measure_date, p.build_date, p.rough_quote_url, p.final_quote_url, p.drawing_url, p.note,
       p.created_at, p.updated_at,
       c.id as customer_id, c.name, c.phone, c.address, c.marketing_agreed,
+      ll.code as ll_code, ll.name as ll_name, ll.channel as ll_channel,
       (SELECT total_price FROM quotes WHERE project_id = p.id AND status = 'published' ORDER BY version DESC, id DESC LIMIT 1) as quote_amount,
       (SELECT access_token FROM quotes WHERE project_id = p.id AND status = 'published' ORDER BY version DESC, id DESC LIMIT 1) as quote_token,
       (SELECT quote_type FROM quotes WHERE project_id = p.id AND status = 'published' ORDER BY version DESC, id DESC LIMIT 1) as quote_type,
@@ -22,6 +24,7 @@ router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
       (SELECT COUNT(*) FROM quote_dispatches qd WHERE qd.project_id = p.id AND qd.status = 'sent') as dispatch_count
     FROM projects p
     JOIN customers c ON p.customer_id = c.id
+    LEFT JOIN landing_links ll ON ll.id = p.landing_link_id
     WHERE 1=1
   `;
   const params = [];
@@ -110,6 +113,7 @@ router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
     const pQuotes = quotesByProj.get(r.id) || [];
     const roughQ = pQuotes.find(q => q.quoteType === '가견적') || null;
     const finalQ = pQuotes.find(q => q.quoteType === '최종견적') || null;
+    const resolvedChannel = r.ad_channel || r.ll_channel || (r.source === '랜딩페이지' ? '기본 랜딩(미분류)' : r.source);
     return {
       id: r.id,
       customerId: r.customer_id,
@@ -120,6 +124,10 @@ router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
       status: r.status,
       label: r.label,
       source: r.source,
+      adChannel: resolvedChannel,
+      adCampaign: r.ad_campaign || r.ll_name || '',
+      landingLinkId: r.landing_link_id || null,
+      landingLinkCode: r.ll_code || '',
       partner: r.partner_name,
       owner: r.owner_name,
       date: r.created_at.slice(0, 10),
@@ -149,10 +157,12 @@ router.get('/:id', requireAuth, checkPartnerAccess, (req, res) => {
 
   const project = db.prepare(`
     SELECT p.*, c.name, c.phone, c.email, c.address, c.marketing_agreed,
-           o.name as org_name
+           o.name as org_name,
+           ll.code as ll_code, ll.name as ll_name, ll.channel as ll_channel
     FROM projects p
     JOIN customers c ON p.customer_id = c.id
     JOIN organizations o ON p.org_id = o.id
+    LEFT JOIN landing_links ll ON ll.id = p.landing_link_id
     WHERE p.id = ?
   `).get(projectId);
 
@@ -232,6 +242,10 @@ router.get('/:id', requireAuth, checkPartnerAccess, (req, res) => {
       status: project.status,
       label: project.label,
       source: project.source,
+      adChannel: project.ad_channel || project.ll_channel || (project.source === '랜딩페이지' ? '기본 랜딩(미분류)' : project.source),
+      adCampaign: project.ad_campaign || project.ll_name || '',
+      landingLinkId: project.landing_link_id || null,
+      landingLinkCode: project.ll_code || '',
       partner: project.partner_name,
       owner: project.owner_name,
       date: project.created_at.slice(0, 10),
@@ -259,7 +273,7 @@ router.get('/:id', requireAuth, checkPartnerAccess, (req, res) => {
 
 // 3. Create Customer & First Project
 router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
-  const { name, phone, address, product, owner, partner, source, note } = req.body;
+  const { name, phone, address, product, owner, partner, source, adCampaign, landingLinkId, note } = req.body;
 
   if (!name || !phone || !address) {
     return res.status(400).json({ error: '고객명, 연락처, 공사 주소는 필수입니다.' });
@@ -294,14 +308,18 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
   const maxProject = db.prepare('SELECT MAX(id) as max_id FROM projects').get();
   const nextProjectId = Math.max(3101, (maxProject?.max_id || 3100) + 1);
 
+  const resolvedSource = String(source || '직접등록').trim() || '직접등록';
   db.prepare(`
     INSERT INTO projects (
       id, customer_id, org_id, title, product, status, label, source,
+      landing_link_id, ad_channel, ad_campaign,
       partner_name, owner_name, note
-    ) VALUES (?, ?, ?, ?, ?, '신규접수', '일반', ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, '신규접수', '일반', ?, ?, ?, ?, ?, ?, ?)
   `).run(
     nextProjectId, customer.id, targetOrgId, `${name} 고객 ${product || '창호'} 공사`,
-    product || '창호', source || '직접등록', partnerName, owner || '미배정', note || ''
+    product || '창호', resolvedSource,
+    landingLinkId ? Number(landingLinkId) : null, resolvedSource, String(adCampaign || '').trim() || null,
+    partnerName, owner || '미배정', note || ''
   );
 
   if (note) {
@@ -333,7 +351,7 @@ router.patch('/:id', requireAuth, checkPartnerAccess, (req, res) => {
     return res.status(403).json({ error: '해당 고객 정보에 접근 권한이 없습니다.' });
   }
 
-  const { status, label, owner, measure, build, roughQuoteUrl, finalQuoteUrl, drawing, description } = req.body;
+  const { status, label, owner, source, adCampaign, measure, build, roughQuoteUrl, finalQuoteUrl, drawing, description } = req.body;
   const updates = [];
   const params = [];
   const logDetails = [];
@@ -352,6 +370,24 @@ router.patch('/:id', requireAuth, checkPartnerAccess, (req, res) => {
     updates.push('owner_name = ?');
     params.push(owner);
     logDetails.push(`담당자 변경: ${project.owner_name} → ${owner}`);
+  }
+  if (source !== undefined) {
+    const nextSource = String(source || '').trim() || project.source;
+    if (nextSource !== project.source || nextSource !== project.ad_channel) {
+      updates.push('source = ?');
+      params.push(nextSource);
+      updates.push('ad_channel = ?');
+      params.push(nextSource);
+      logDetails.push(`유입채널 변경: ${project.ad_channel || project.source || '미정'} → ${nextSource}`);
+    }
+  }
+  if (adCampaign !== undefined) {
+    const nextCamp = String(adCampaign || '').trim();
+    if (nextCamp !== (project.ad_campaign || '')) {
+      updates.push('ad_campaign = ?');
+      params.push(nextCamp || null);
+      logDetails.push(`광고캠페인 변경: ${project.ad_campaign || '없음'} → ${nextCamp || '없음'}`);
+    }
   }
   if (measure !== undefined) {
     updates.push('measure_date = ?');

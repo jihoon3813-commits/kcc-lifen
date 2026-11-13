@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { db, initDatabase, ensureApprovedRentalTerms, ensureDefaultContractStatuses, hydrateLegacyRentalApplication } from './index.js';
+import { db, initDatabase, ensureApprovedRentalTerms, ensureDefaultContractStatuses, ensureDefaultLandingLinks, hydrateLegacyRentalApplication } from './index.js';
 import { getDefaultMenusForRole } from '../utils/menuPermissions.js';
 
 export function seedDatabase() {
@@ -308,6 +308,7 @@ export function seedDatabase() {
     insertEvent.run('inquiry', 'KCC 홈씨씨 창호', '직영', '네이버 검색광고', 'naver', '121.134.12.3', dateStr);
   }
 
+  ensureDefaultLandingLinks();
   console.log('Database seeded successfully!');
 }
 

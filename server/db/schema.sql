@@ -53,6 +53,9 @@ CREATE TABLE IF NOT EXISTS projects (
   label TEXT NOT NULL DEFAULT '일반',
   source TEXT NOT NULL DEFAULT '직접등록',
   partner_name TEXT NOT NULL DEFAULT '직영',
+  landing_link_id INTEGER,
+  ad_channel TEXT,
+  ad_campaign TEXT,
   owner_id INTEGER REFERENCES users(id),
   owner_name TEXT NOT NULL DEFAULT '미배정',
   measure_date TEXT,
@@ -356,6 +359,26 @@ CREATE TABLE IF NOT EXISTS products (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 15b. Landing Links (기본 랜딩페이지 복제 및 광고채널 추적 링크)
+CREATE TABLE IF NOT EXISTS landing_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,
+  product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+  product_name TEXT NOT NULL DEFAULT 'KCC 홈씨씨 창호',
+  product_category TEXT NOT NULL DEFAULT '창호',
+  name TEXT NOT NULL,
+  channel TEXT NOT NULL,
+  medium TEXT DEFAULT '',
+  campaign TEXT DEFAULT '',
+  partner_name TEXT NOT NULL DEFAULT '직영',
+  target_url TEXT NOT NULL DEFAULT '/landing/',
+  include_utm INTEGER NOT NULL DEFAULT 0,
+  memo TEXT DEFAULT '',
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_by TEXT DEFAULT '',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 16. Landing Events & Analytics (유입 및 전환 이벤트 로그)
 CREATE TABLE IF NOT EXISTS landing_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -363,6 +386,8 @@ CREATE TABLE IF NOT EXISTS landing_events (
   product_name TEXT,
   partner_name TEXT DEFAULT '직영',
   channel TEXT DEFAULT '직접',
+  landing_link_id INTEGER,
+  campaign_name TEXT,
   utm_source TEXT,
   utm_medium TEXT,
   utm_campaign TEXT,
@@ -473,6 +498,8 @@ CREATE INDEX IF NOT EXISTS idx_quotes_project ON quotes(project_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_token ON quotes(access_token);
 CREATE INDEX IF NOT EXISTS idx_contracts_project ON contracts(project_id);
 CREATE INDEX IF NOT EXISTS idx_landing_events_date ON landing_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_landing_links_code ON landing_links(code);
+CREATE INDEX IF NOT EXISTS idx_landing_links_product ON landing_links(product_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_project ON audit_logs(project_id);
 CREATE INDEX IF NOT EXISTS idx_quote_dispatches_project ON quote_dispatches(project_id);
 CREATE INDEX IF NOT EXISTS idx_consult_requests_project ON customer_consult_requests(project_id);
