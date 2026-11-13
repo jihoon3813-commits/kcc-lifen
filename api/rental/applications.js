@@ -200,6 +200,14 @@ export default async function handler(req, res) {
       contractDate: now.toISOString().slice(0, 10),
     });
 
+    if (!["계약진행", "계약완료", "시공완료"].includes(project.status || "")) {
+      await convexClient.mutation(api.crm.updateProject, {
+        projectId: project.projectId,
+        status: "계약진행",
+        userName: `${project.customerName || "고객"}(렌탈접수)`,
+      });
+    }
+
     await notifyNewContract({
       category: "신규 렌탈 신청 접수",
       contractNo: appNo,

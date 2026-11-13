@@ -604,6 +604,34 @@ function applyCustomersFromServer(list) {
   });
 }
 
+const PRE_CONTRACT_STAGES = new Set(['신규접수', '상담중', '가견적요청', '견적안내', '실측예정', '최종견적']);
+const _autoPromotedContractCustomerIds = new Set();
+
+function syncContractLinkedCustomerStatuses() {
+  if (!Array.isArray(db.customers) || !db.customers.length) return;
+  const activeContractCids = new Set();
+  for (const k of db.contracts || []) {
+    const cid = Number(k?.cid || k?.project_id);
+    if (cid) activeContractCids.add(cid);
+  }
+  for (const a of db.applications || []) {
+    const st = String(a?.statusCode || a?.status || '').toLowerCase();
+    if (['반려', '부결', 'cancelled', 'rejected'].includes(st)) continue;
+    const cid = Number(a?.cid || a?.project_id);
+    if (cid) activeContractCids.add(cid);
+  }
+  for (const c of db.customers) {
+    const cid = Number(c?.id);
+    if (!cid || !activeContractCids.has(cid)) continue;
+    if (!PRE_CONTRACT_STAGES.has(c.status)) continue;
+    c.status = '계약진행';
+    if (authToken && !_autoPromotedContractCustomerIds.has(cid)) {
+      _autoPromotedContractCustomerIds.add(cid);
+      apiFetch('/api/customers/' + cid, { method: 'PATCH', body: { status: '계약진행' } }).catch(() => {});
+    }
+  }
+}
+
 async function syncFromServer() {
   try {
     if (!authToken) {
@@ -644,6 +672,7 @@ async function syncFromServer() {
       const data = await aRes.json();
       db.applications = data.applications;
     }
+    syncContractLinkedCustomerStatuses();
     if (prRes.ok) {
       const data = await prRes.json();
       db.products = data.products;

@@ -653,6 +653,12 @@ customerRentalRouter.post('/applications', async (req, res) => {
         maskedIpAddr
       );
 
+      db.prepare(`
+        UPDATE projects
+        SET status = '계약진행', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND status NOT IN ('계약진행', '계약완료', '시공완료')
+      `).run(dbQuote.project_id);
+
       const responsePayload = {
         receiptId,
         status: 'received',

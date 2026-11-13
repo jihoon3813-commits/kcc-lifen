@@ -559,12 +559,33 @@ export const upsertContract = mutation({
       .withIndex("by_contractNo", (q) => q.eq("contractNo", args.contractNo))
       .first();
 
+    let result;
     if (existing) {
       await ctx.db.patch(existing._id, { ...args, updatedAt: now });
-      return { contractNo: existing.contractNo };
+      result = { contractNo: existing.contractNo };
+    } else {
+      await ctx.db.insert("contracts", { ...args, createdAt: now, updatedAt: now });
+      result = { contractNo: args.contractNo };
     }
-    await ctx.db.insert("contracts", { ...args, createdAt: now, updatedAt: now });
-    return { contractNo: args.contractNo };
+
+    // 계약관리에 계약/렌탈 건이 등록되면 고객 진행구분(status)을 자동으로 '계약진행'으로 전환
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .first();
+    if (project && !["계약진행", "계약완료", "시공완료"].includes(project.status)) {
+      const prevStatus = project.status;
+      await ctx.db.patch(project._id, { status: "계약진행", updatedAt: now });
+      await ctx.db.insert("auditLogs", {
+        projectId: args.projectId,
+        userName: "시스템",
+        action: "계약 자동 연동",
+        detail: `계약(${args.contractNo}) 등록 · 진행구분 변경: ${prevStatus} → 계약진행`,
+        createdAt: now,
+      });
+    }
+
+    return result;
   },
 });
 
