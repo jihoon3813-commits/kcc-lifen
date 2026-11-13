@@ -123,7 +123,7 @@ export function extractSlug(req, basePath) {
   const pathname = rawUrl.split("?")[0];
   const prefix = basePath.endsWith("/") ? basePath : `${basePath}/`;
   if (pathname.startsWith(prefix)) {
-    return pathname
+    const segs = pathname
       .slice(prefix.length)
       .split("/")
       .map((s) => {
@@ -134,6 +134,25 @@ export function extractSlug(req, basePath) {
         }
       })
       .filter(Boolean);
+    if (segs.length > 0) return segs;
+  }
+
+  const fallbackPairs = [
+    [req.query?.id, req.query?.action],
+    [req.query?.section, req.query?.sub],
+  ];
+  for (const [first, second] of fallbackPairs) {
+    if (first !== undefined && first !== null && String(first).trim() !== "") {
+      return [first, second]
+        .filter((v) => v !== undefined && v !== null && String(v).trim() !== "")
+        .map((s) => {
+          try {
+            return decodeURIComponent(String(s)).trim();
+          } catch {
+            return String(s).trim();
+          }
+        });
+    }
   }
   return [];
 }

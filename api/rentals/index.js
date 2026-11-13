@@ -83,6 +83,7 @@ export default async function handler(req, res) {
           date,
           createdAt,
           createdAtText,
+          updatedAt: a.updatedAt || "",
         };
       })
       .filter(Boolean);

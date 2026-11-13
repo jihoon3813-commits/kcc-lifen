@@ -7,6 +7,7 @@ import { db, ensureApprovedRentalTerms } from '../db/index.js';
 import { config } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { maskPhone, buildRentalPlans } from '../utils/mobileQuoteFormatter.js';
+import { notifyNewContract } from '../../api/_lib/discordHelper.js';
 import {
   encryptText,
   saveEncryptedObject,
@@ -668,6 +669,20 @@ customerRentalRouter.post('/applications', async (req, res) => {
     });
 
     const responsePayload = commitApplication();
+    notifyNewContract({
+      category: '신규 렌탈 신청 접수',
+      contractNo: responsePayload.receiptId,
+      customerName: dbQuote.customer_name,
+      phone: dbQuote.customer_phone,
+      contractType: '렌탈',
+      status: '렌탈접수',
+      totalAmount: chosenPlan.upfront + chosenPlan.mainAmount * chosenPlan.months,
+      depositAmount: chosenPlan.upfront,
+      balanceAmount: chosenPlan.mainAmount * chosenPlan.months,
+      product: `${dbQuote.product || '창호'} (${chosenPlan.name})`,
+      address: dbQuote.customer_address || '',
+      summary: `초기 ${chosenPlan.upfront.toLocaleString()}원 / 월 ${chosenPlan.mainAmount.toLocaleString()}원 × ${chosenPlan.months}개월`,
+    }).catch(() => {});
     return res.status(201).json(responsePayload);
   } catch (err) {
     // Cleanup orphan encrypted vault objects if DB commit did not complete!

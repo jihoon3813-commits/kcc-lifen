@@ -6,6 +6,7 @@ import {
   authenticateRequest,
 } from "../_lib/authHelper.js";
 import { getRentalStatusLabel } from "../_lib/crmHelper.js";
+import { notifyNewContract } from "../_lib/discordHelper.js";
 
 function mapContract(c, projectMap, rentalByAppNo, rentalByProject) {
   const p = projectMap.get(Number(c.projectId));
@@ -164,17 +165,38 @@ export default async function handler(req, res) {
         body.balanceAmount ?? body.balance_amount ?? Math.max(0, totalAmount - depositAmount)
       );
 
+      const customerName = String(body.customerName || body.customer_name || proj?.customerName || "");
+      const customerPhone = String(body.customerPhone || body.customer_phone || proj?.customerPhone || "");
+      const contractStatus = String(body.status || "계약진행");
+      const contractDate = String(body.contractDate || body.contract_date || new Date().toISOString().slice(0, 10));
+
       await convexClient.mutation(api.crm.upsertContract, {
         contractNo,
         projectId,
-        customerName: String(body.customerName || body.customer_name || proj?.customerName || ""),
-        customerPhone: String(body.customerPhone || body.customer_phone || proj?.customerPhone || ""),
-        status: String(body.status || "계약진행"),
+        customerName,
+        customerPhone,
+        status: contractStatus,
         totalAmount,
         depositAmount,
         balanceAmount,
-        contractDate: String(body.contractDate || body.contract_date || new Date().toISOString().slice(0, 10)),
+        contractDate,
         signedAt: body.signedAt ? String(body.signedAt) : undefined,
+      });
+
+      await notifyNewContract({
+        category: "신규 계약 등록",
+        contractNo,
+        customerName,
+        phone: customerPhone,
+        contractType: body.type || (String(contractNo).startsWith("R-") ? "렌탈" : "일시불"),
+        status: contractStatus,
+        totalAmount,
+        depositAmount,
+        balanceAmount,
+        product: proj?.product || "창호",
+        partnerName: proj?.partnerName || "직영",
+        contractDate,
+        address: proj?.customerAddress || "",
       });
 
       return res.status(201).json({

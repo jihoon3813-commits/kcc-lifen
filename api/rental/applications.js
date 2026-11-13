@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api.js";
 import { convexClient, setCors } from "../_lib/authHelper.js";
 import { deriveCsrfToken, resolveCustomerViewer } from "../_lib/publicQuoteHelper.js";
 import { uploadBufferToConvexStorage } from "../_lib/storageHelper.js";
+import { notifyNewContract } from "../_lib/discordHelper.js";
 import { buildRentalPlans } from "../../server/utils/mobileQuoteFormatter.js";
 import { toPlanResponse } from "./context.js";
 
@@ -197,6 +198,26 @@ export default async function handler(req, res) {
         Number(selectedPlan.total || quote.totalPrice || 0) - Number(selectedPlan.upfront || 0)
       ),
       contractDate: now.toISOString().slice(0, 10),
+    });
+
+    await notifyNewContract({
+      category: "신규 렌탈 신청 접수",
+      contractNo: appNo,
+      customerName: project.customerName,
+      phone: project.customerPhone,
+      contractType: "렌탈",
+      status: "렌탈접수",
+      totalAmount: Number(selectedPlan.total || quote.totalPrice || 0),
+      depositAmount: Number(selectedPlan.upfront || 0),
+      balanceAmount: Math.max(
+        0,
+        Number(selectedPlan.total || quote.totalPrice || 0) - Number(selectedPlan.upfront || 0)
+      ),
+      product: `KCC 홈씨씨 ${project.product || "창호"} (${selectedPlan.title})`,
+      partnerName: project.partnerName || "직영",
+      contractDate: now.toISOString().slice(0, 10),
+      address: project.customerAddress || "",
+      summary: `월 ${Number(selectedPlan.monthly || 0).toLocaleString("ko-KR")}원 × ${Number(selectedPlan.months || 60)}개월 (신분증·전자서명 첨부 완료)`,
     });
 
     return res.status(201).json({

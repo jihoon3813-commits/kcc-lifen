@@ -2,6 +2,7 @@ import express from 'express';
 import { convexClient, api } from '../convex.js';
 import { requireAuth, checkPartnerAccess } from '../middleware/auth.js';
 import { parseQuoteInquiry, resolveProjectAttribution } from '../../api/_lib/crmHelper.js';
+import { notifyNewCustomer } from '../../api/_lib/discordHelper.js';
 
 const router = express.Router();
 
@@ -319,6 +320,19 @@ router.post('/', requireAuth, checkPartnerAccess, async (req, res) => {
       landingLinkId: landingLinkId ? Number(landingLinkId) : undefined,
       note: note || '',
       authorName: req.user?.name || '관리자',
+    });
+
+    await notifyNewCustomer({
+      category: '신규 고객 직접 등록',
+      receiptId: result?.projectId,
+      customerName: name,
+      phone,
+      address,
+      product: product || '창호',
+      channel: source || '직접등록',
+      partner: partnerName,
+      owner: owner || '미배정',
+      note: note || '',
     });
 
     res.status(201).json({ id: result.projectId, message: '고객이 Convex 운영 서버에 등록되었습니다.' });

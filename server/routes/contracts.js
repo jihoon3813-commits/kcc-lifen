@@ -3,6 +3,7 @@ import { db, hydrateLegacyRentalApplication } from '../db/index.js';
 import { requireAuth, checkPartnerAccess } from '../middleware/auth.js';
 import { recordAuditLog } from '../middleware/audit.js';
 import { maskPhone } from '../utils/mobileQuoteFormatter.js';
+import { notifyNewContract } from '../../api/_lib/discordHelper.js';
 
 const router = express.Router();
 
@@ -254,6 +255,21 @@ router.post('/', requireAuth, checkPartnerAccess, (req, res) => {
     detail: `계약 번호 ${contractId} 등록 (${type}, 상태: ${initialStatus}, 금액 ${contractAmount.toLocaleString()}원${quote ? `, 견적 v${quote.version} 바인딩` : ''}) · 고객 상태 [계약진행] 자동 변경`,
     req
   });
+
+  notifyNewContract({
+    category: '신규 계약 등록',
+    contractNo: contractId,
+    customerName: project.customer_name,
+    phone: project.customer_phone,
+    contractType: type,
+    status: initialStatus,
+    totalAmount: contractAmount,
+    depositAmount: deposit,
+    balanceAmount: balance,
+    product: project.product || '창호',
+    contractDate: nowKst.slice(0, 10),
+    summary: note || '',
+  }).catch(() => {});
 
   res.status(201).json({
     id: contractId,

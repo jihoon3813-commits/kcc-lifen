@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { calculateQuote } from './quoteCalc.js';
 import { formatCustomerSafeQuote } from './mobileQuoteFormatter.js';
+import { notifyNewQuote } from '../../api/_lib/discordHelper.js';
 
 export function checkConvexPartnerAccess(partnerOrgId, user, project, organizations = []) {
   if (!partnerOrgId) return true;
@@ -110,6 +111,23 @@ export async function createQuoteInConvex(convexClient, api, { body, user, partn
   if (!result?.found) {
     return { status: 404, data: { error: '공사건을 찾을 수 없습니다.' } };
   }
+
+  try {
+    const detail = await convexClient.query(api.crm.getCustomerDetail, { projectId: pId }).catch(() => null);
+    const proj = detail?.project || null;
+    await notifyNewQuote({
+      projectId: pId,
+      customerName: proj?.customerName,
+      phone: proj?.customerPhone,
+      version: result.version,
+      title: result.title || title || `${safeType} v${result.version}`,
+      quoteType: result.quoteType || safeType,
+      status,
+      totalPrice: calculated.total_price,
+      partnerName: result.partnerName || proj?.partnerName || '직영',
+      userName: user?.name || '관리자',
+    });
+  } catch {}
 
   return {
     status: 201,

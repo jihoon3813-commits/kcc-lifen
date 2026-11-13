@@ -291,6 +291,8 @@ export const addConsultationNote = mutation({
       createdAt: now,
     });
 
+    await ctx.db.patch(project._id, { updatedAt: now });
+
     await ctx.db.insert("auditLogs", {
       projectId: args.projectId,
       userName: args.authorName,

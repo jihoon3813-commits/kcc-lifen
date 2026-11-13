@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import { api } from "../../../convex/_generated/api.js";
 import { convexClient, JWT_SECRET, parseBody, setCors } from "../../_lib/authHelper.js";
 import { resolveCustomerViewer } from "../../_lib/publicQuoteHelper.js";
+import { notifyNewQuoteInquiry } from "../../_lib/discordHelper.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -73,6 +74,17 @@ export default async function handler(req, res) {
       planSummary: safePlan,
       topics: safeTopics,
       preferredTime: safeTime,
+      memo: safeMemo,
+    });
+
+    await notifyNewQuoteInquiry({
+      projectId: bundle.project.projectId,
+      customerName: bundle.project.customerName,
+      phone: bundle.project.customerPhone,
+      product: bundle.project.product || "창호",
+      topics: safeTopics,
+      preferredTime: safeTime,
+      planSummary: safePlan,
       memo: safeMemo,
     });
 

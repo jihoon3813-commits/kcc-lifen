@@ -1,5 +1,6 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../convex/_generated/api.js";
+import { notifyNewCustomer } from "../_lib/discordHelper.js";
 
 const CONVEX_URL = process.env.CONVEX_URL || "https://savory-hedgehog-927.convex.cloud";
 const client = new ConvexHttpClient(CONVEX_URL);
@@ -63,6 +64,22 @@ export default async function handler(req, res) {
       utm_medium: utm_medium ? String(utm_medium) : undefined,
       utm_campaign: utm_campaign ? String(utm_campaign) : undefined,
     });
+
+    if (!result?.alreadySubmitted) {
+      const addrParts = [cleanRegion, district, apartment, size ? `${size}평` : ""]
+        .map((s) => String(s || "").trim())
+        .filter(Boolean);
+      await notifyNewCustomer({
+        category: purpose === "measure" ? "무료 방문실측 예약" : "월 납입금 견적상담",
+        receiptId: result?.receiptId,
+        customerName: result?.customerName || cleanName,
+        phone: String(phone || ""),
+        address: addrParts.join(" "),
+        product: scope ? String(scope).trim() : "창호",
+        channel: result?.channel || ch || utm_source || "기본 랜딩(직접유입)",
+        partner: result?.partnerName || partner || "직영",
+      });
+    }
 
     return res.status(201).json(result);
   } catch (err) {

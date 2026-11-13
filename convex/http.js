@@ -86,6 +86,42 @@ http.route({
         utm_campaign: utm_campaign ? String(utm_campaign) : undefined,
       });
 
+      if (!result?.alreadySubmitted) {
+        const webhookUrl =
+          "https://discordapp.com/api/webhooks/1570707391845240925/iOsaiN4YEZLrVRIlNNN1k1fZvIKTmm3j9IGdQnKGSXVTnRV4K999UeSKbWXYYK0YEV6R";
+        const addr = [region, district, apartment, size ? `${size}평` : ""]
+          .map((s) => String(s || "").trim())
+          .filter(Boolean)
+          .join(" ");
+        try {
+          await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              embeds: [
+                {
+                  title: `👤 [고객관리] ${purpose === "measure" ? "무료 방문실측 예약" : "월 납입금 견적상담"}`,
+                  color: 0x2563eb,
+                  fields: [
+                    { name: "고객명", value: String(result?.customerName || name), inline: true },
+                    { name: "연락처", value: String(phone), inline: true },
+                    { name: "접수번호", value: result?.receiptId ? `#${result.receiptId}` : "-", inline: true },
+                    { name: "관심 상품", value: scope ? String(scope) : "창호", inline: true },
+                    { name: "유입 경로(채널)", value: String(result?.channel || ch || utm_source || "기본 랜딩(직접유입)"), inline: true },
+                    { name: "소속 / 파트너", value: String(result?.partnerName || partner || "직영"), inline: true },
+                    { name: "설치 지역 / 주소", value: addr || "-", inline: false },
+                  ],
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            }),
+            signal: AbortSignal.timeout(2500),
+          });
+        } catch (hookErr) {
+          console.warn("Convex HTTP Discord webhook error:", hookErr);
+        }
+      }
+
       return new Response(JSON.stringify(result), {
         status: 201,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
