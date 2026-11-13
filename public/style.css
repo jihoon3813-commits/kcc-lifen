@@ -3882,3 +3882,135 @@
 .btn.danger.fill:hover {
   background: #b91c1c;
 }
+
+/* === Admin Login Screen === */
+body.login-view {
+  background: #0f1b2e;
+}
+.crm-login-wrap {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(circle at 20% 20%, rgba(49, 101, 237, 0.22), transparent 45%),
+              radial-gradient(circle at 82% 78%, rgba(56, 189, 248, 0.14), transparent 45%),
+              linear-gradient(155deg, #0f1b2e 0%, #17243c 55%, #1d2f4f 100%);
+}
+.crm-login-card {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 36px 32px 28px;
+  box-shadow: 0 24px 64px rgba(8, 15, 30, 0.42);
+  position: relative;
+  z-index: 1;
+}
+.crm-login-head {
+  text-align: center;
+  margin-bottom: 26px;
+}
+.crm-login-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 14px;
+}
+.crm-login-logo img {
+  height: 30px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+.crm-login-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: #3165ed;
+  background: #edf3ff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+.crm-login-head h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #17243c;
+  letter-spacing: -0.6px;
+}
+.crm-login-head p {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+.crm-login-form .field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+.crm-login-form .input {
+  height: 42px;
+  font-size: 13px;
+  padding: 0 12px;
+  border-radius: 8px;
+}
+.crm-login-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+.crm-login-submit {
+  height: 44px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 9px;
+  margin-top: 4px;
+}
+.crm-login-foot {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #eef2f6;
+  text-align: center;
+}
+.crm-login-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.crm-login-notice .icon {
+  color: #3165ed;
+  flex-shrink: 0;
+}
+.crm-login-foot small {
+  display: block;
+  font-size: 10px;
+  color: #94a3b8;
+  letter-spacing: 0.4px;
+}
+@media (max-width: 480px) {
+  .crm-login-card {
+    padding: 28px 20px 22px;
+  }
+}

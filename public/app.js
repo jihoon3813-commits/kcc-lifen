@@ -450,6 +450,24 @@ function setMobileNav(open) {
   }
 }
 
+const ADMIN_LOGO_URL = 'https://res.cloudinary.com/lyjyvy54/image/upload/v1794544823/01_full_color_homecc_BI2_1_mmapgw.png';
+
+function logoutSession(silent = false) {
+  authToken = '';
+  try {
+    sessionStorage.removeItem('kcc_auth_token');
+    sessionStorage.removeItem('kcc_active_username');
+    sessionStorage.removeItem('kcc_isolated');
+    if (!isSessionIsolated) {
+      localStorage.removeItem('kcc_auth_token');
+      localStorage.removeItem('kcc_active_username');
+    }
+  } catch {}
+  if (typeof closeDialog === 'function') closeDialog();
+  if (typeof render === 'function') render();
+  if (!silent) toast('로그아웃되었습니다.');
+}
+
 async function apiFetch(url, options = {}) {
   const { _retried, ...fetchOpts } = options;
   const headers = { ...fetchOpts.headers };
@@ -461,8 +479,12 @@ async function apiFetch(url, options = {}) {
   }
   const res = await fetch(url, { ...fetchOpts, headers, body });
   if (res.status === 401 && !_retried) {
-    await apiSwitchRole(activeUsername || (typeof role !== 'undefined' ? role : '본사 관리자'));
-    return apiFetch(url, { ...options, _retried: true });
+    if (isSessionIsolated && switchUserParam) {
+      await apiSwitchRole(switchUserParam, { isolated: true });
+      return apiFetch(url, { ...options, _retried: true });
+    }
+    logoutSession(true);
+    toast('로그인이 필요하거나 세션이 만료되었습니다.');
   }
   return res;
 }
@@ -529,7 +551,11 @@ async function apiSwitchRole(target, options = {}) {
 async function syncFromServer() {
   try {
     if (!authToken) {
-      await apiSwitchRole(activeUsername || role);
+      if (isSessionIsolated && switchUserParam) {
+        await apiSwitchRole(switchUserParam, { isolated: true });
+      } else {
+        return;
+      }
     }
     const [cRes, pRes, kRes, aRes, prRes, lRes, csRes, uRes, rRes, fRes, anRes] = await Promise.all([
       apiFetch('/api/customers'),
@@ -1168,7 +1194,109 @@ function options(arr,value,placeholder=''){return (placeholder?`<option value=""
 function field(label,name,value='',type='text',required=false){const isMoney=type==='money';return `<div class="field"><label for="${name}">${label}${required?' <span>*</span>':''}</label><input class="input${isMoney?' money':''}" id="${name}" name="${name}" type="${isMoney?'text':type}" ${isMoney?'inputmode="numeric" data-money="1"':''} value="${esc(isMoney?num(value):value)}" ${required?'required':''}></div>`}
 function selectField(label,name,arr,value=''){return `<div class="field"><label for="${name}">${label}</label><select class="input" id="${name}" name="${name}">${options(arr,value)}</select></div>`}
 const symbol=()=>'<span class="brand-symbol"><i></i><i></i><i></i><i></i></span>';
+function renderLoginScreen(){
+    document.body.classList.add('login-view');
+    $('#app').innerHTML=`<div class="crm-login-wrap">
+      <div class="crm-login-bg" aria-hidden="true"></div>
+      <section class="crm-login-card" aria-label="관리자 로그인">
+        <div class="crm-login-head">
+          <div class="crm-login-logo">
+            <img src="${ADMIN_LOGO_URL}" alt="KCC 홈씨씨">
+          </div>
+          <span class="crm-login-badge">CRM WORKSPACE 3.0</span>
+          <h1>어드민 접속 로그인</h1>
+          <p>본사 관리자, 등록 사용자 및 파트너 계정으로 로그인하세요.</p>
+        </div>
+        <form id="crm-login-form" class="crm-login-form" autocomplete="on">
+          <div class="field">
+            <label for="login-username">아이디 <span>*</span></label>
+            <input class="input" id="login-username" name="username" type="text" placeholder="아이디를 입력하세요" autocomplete="username" required autofocus>
+          </div>
+          <div class="field">
+            <label for="login-password">비밀번호 <span>*</span></label>
+            <input class="input" id="login-password" name="password" type="password" placeholder="비밀번호를 입력하세요" autocomplete="current-password" required>
+          </div>
+          <div id="crm-login-error" class="crm-login-error" role="alert" hidden></div>
+          <button type="submit" class="btn primary block crm-login-submit" id="crm-login-submit">로그인</button>
+        </form>
+        <div class="crm-login-foot">
+          <div class="crm-login-notice">
+            ${icon('shield','sm')}
+            <span>등록된 <strong>본사 사용자</strong> 또는 <strong>파트너 계정</strong>만 접속할 수 있습니다.</span>
+          </div>
+          <small>© LIFE &amp; JOY · KCC HOMECC CRM 3.0</small>
+        </div>
+      </section>
+    </div>`;
+    const form=$('#crm-login-form');
+    if(form){
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const usernameEl = $('#login-username');
+        const passwordEl = $('#login-password');
+        const errEl = $('#crm-login-error');
+        const btnEl = $('#crm-login-submit');
+        const username = (usernameEl?.value || '').trim();
+        const password = (passwordEl?.value || '').trim();
+        if (!username || !password) {
+          if (errEl) { errEl.textContent = '아이디와 비밀번호를 모두 입력해 주세요.'; errEl.hidden = false; }
+          return;
+        }
+        if (errEl) errEl.hidden = true;
+        if (btnEl) { btnEl.disabled = true; btnEl.textContent = '로그인 중...'; }
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.token) {
+            if (errEl) {
+              errEl.textContent = data.error || '아이디 또는 비밀번호가 일치하지 않습니다.';
+              errEl.hidden = false;
+            }
+            if (btnEl) { btnEl.disabled = false; btnEl.textContent = '로그인'; }
+            return;
+          }
+          authToken = data.token;
+          try { sessionStorage.setItem('kcc_auth_token', authToken); } catch {}
+          if (!isSessionIsolated) {
+            try { localStorage.setItem('kcc_auth_token', authToken); } catch {}
+          }
+          if (data.user) {
+            const norm = normalizeUserRecord(data.user);
+            activeUsername = norm.username;
+            try { sessionStorage.setItem('kcc_active_username', activeUsername); } catch {}
+            if (!isSessionIsolated) {
+              try { localStorage.setItem('kcc_active_username', activeUsername); } catch {}
+            }
+            const rIdx = userRoster.findIndex(x => x.username === norm.username || Number(x.id) === Number(norm.id));
+            if (rIdx !== -1) userRoster[rIdx] = norm;
+            else userRoster.push(norm);
+            role = isPartnerUser(norm) ? '파트너 관리자' : '본사 관리자';
+          }
+          await syncFromServer();
+          document.body.classList.remove('login-view');
+          render();
+          const activeU = getActiveUser();
+          toast(`${activeU.name} (${activeU.org})님으로 로그인되었습니다.`);
+        } catch (err) {
+          if (errEl) {
+            errEl.textContent = '서버 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+            errEl.hidden = false;
+          }
+          if (btnEl) { btnEl.disabled = false; btnEl.textContent = '로그인'; }
+        }
+      });
+    }
+}
 function render(){
+    if(!authToken && !(isSessionIsolated && switchUserParam)){
+      renderLoginScreen();
+      return;
+    }
+    document.body.classList.remove('login-view');
     const activeU=getActiveUser();
     role=isPartnerUser(activeU)?'파트너 관리자':'본사 관리자';
     const allowedKeys=getUserAllowedMenuKeys(activeU);
@@ -1180,7 +1308,7 @@ function render(){
     const newSummary=getNewContractSummary();
     const isHqAdmin=activeU.role==='hq_admin';
     const rosterList=userRoster.length?userRoster:(db.users||[]).map((u,i)=>normalizeUserRecord(u,i));
-    $('#app').innerHTML=`<div class="app"><div class="sidebar-backdrop ${mobileNavOpen?'open':''}" data-action="close-nav" aria-hidden="true"></div><aside class="sidebar ${mobileNavOpen?'open':''}" id="app-sidebar" aria-label="전체 좌측 메뉴"><div class="brand"><div class="brand-top"><div class="brand-logo-card" style="background:#ffffff;padding:5px 9px;border-radius:6px;display:inline-flex;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,0.18)"><img src="assets/logo.png?v=20261113b" alt="KCC 홈씨씨" style="height:22px;width:auto;display:block"></div><button type="button" class="sidebar-close-btn" data-action="close-nav" aria-label="메뉴 닫기">${icon('close')}</button></div><small style="margin-left:0;margin-top:7px;display:block">CRM WORKSPACE</small></div><div class="workspace"><span>운영 파트너</span><strong>${esc(activeU.org==='라이프앤조이'?'(주)라이프앤조이':activeU.org)}</strong></div><div class="nav-label">WORKSPACE</div><nav>${allowedMenus.map(m=>`<button class="nav-btn ${page===m[0]?'active':''}" data-action="nav" data-page="${m[0]}" title="${m[1]}" aria-label="${m[1]}" ${page===m[0]?'aria-current="page"':''}>${icon(m[2])}<span>${m[1]}</span>${m[0]==='customers'?`<em>${visibleCustomers().length}</em>`:''}${m[0]==='contracts'&&newSummary.totalNew>0?`<em class="nav-red-count" title="24시간 이내 일시불·렌탈 신규신청 ${newSummary.totalNew}건">${newSummary.totalNew}</em>`:''}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-mobile-user" data-action="my-profile" style="cursor:pointer" title="내 정보 / 비밀번호 수정"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)} · ${esc(activeU.org)}</small></div></div><div class="sidebar-note"><b><span class="dot"></span>운영 시스템</b>실시간 DB 및 권한 연동 중</div><div class="version"><span>KCC HOMECC</span><span>Ver. 3.0</span></div></div></aside><div class="shell"><header class="topbar"><div class="topbar-left"><button type="button" class="mobile-more-btn ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}" aria-label="좌측 메뉴 더보기">${icon('menu')}<span>더보기</span></button><div class="breadcrumb"><span>${esc(activeU.org)}</span>${icon('chevron')}<b>${current[1]}</b></div></div><div class="top-actions">${isHqAdmin?`<select class="role-select" id="role-switch" aria-label="사용자 화면 전환">${rosterList.map(u=>`<option value="${esc(u.username)}" ${u.username===activeU.username?'selected':''}>${esc(u.name)} (${esc(u.role_label)})</option>`).join('')}</select>`:`<div class="header-partner-pill" title="현재 소속 파트너 계정">${icon('building','sm')}<strong>${esc(activeU.org)}</strong><small>(${esc(activeU.role_label)})</small></div>`}<button class="bell" data-action="notifications" aria-label="업무 알림">${icon('bell')}</button><button type="button" class="btn sm soft" data-action="my-profile" title="내 정보 / 비밀번호 수정" style="padding:6px 10px;font-size:12px;gap:4px">${icon('edit','sm')}<span>내 정보</span></button><div class="user" data-action="my-profile" style="cursor:pointer" title="클릭하여 내 정보/비밀번호 수정"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)}</small></div></div></div></header><main id="main">${({customers:customersPage,quotes:quotesPage,contracts:contractsPage,products:productsPage,partners:partnersPage,stats:statsPage,settings:settingsPage}[page])()}<div class="page-footer"><span>© LIFE & JOY · KCC HOMECC CRM 3.0</span><span>실운영 데이터 연동 시스템</span></div></main><nav class="mobile-bottom-nav" aria-label="모바일 빠른 메뉴" style="grid-template-columns:repeat(${quickTabs.length+1},1fr)">${quickTabs.map(t=>`<button type="button" class="m-tab ${!mobileNavOpen&&page===t[0]?'active':''}" data-action="nav" data-page="${t[0]}" ${page===t[0]?'aria-current="page"':''}>${icon(t[2])}<span>${t[1]}</span>${t[0]==='contracts'&&newSummary.totalNew>0?`<span class="m-red-count">${newSummary.totalNew}</span>`:''}</button>`).join('')}<button type="button" class="m-tab more-trigger ${mobileNavOpen||isSecondaryPage?'active':''} ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}">${icon('grid')}<span>더보기</span></button></nav></div></div>`}
+    $('#app').innerHTML=`<div class="app"><div class="sidebar-backdrop ${mobileNavOpen?'open':''}" data-action="close-nav" aria-hidden="true"></div><aside class="sidebar ${mobileNavOpen?'open':''}" id="app-sidebar" aria-label="전체 좌측 메뉴"><div class="brand"><div class="brand-top"><div class="brand-logo-card" style="background:#ffffff;padding:5px 9px;border-radius:6px;display:inline-flex;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,0.18)"><img src="${ADMIN_LOGO_URL}" alt="KCC 홈씨씨" style="height:22px;width:auto;display:block;object-fit:contain"></div><button type="button" class="sidebar-close-btn" data-action="close-nav" aria-label="메뉴 닫기">${icon('close')}</button></div><small style="margin-left:0;margin-top:7px;display:block">CRM WORKSPACE</small></div><div class="workspace"><span>운영 파트너</span><strong>${esc(activeU.org==='라이프앤조이'?'(주)라이프앤조이':activeU.org)}</strong></div><div class="nav-label">WORKSPACE</div><nav>${allowedMenus.map(m=>`<button class="nav-btn ${page===m[0]?'active':''}" data-action="nav" data-page="${m[0]}" title="${m[1]}" aria-label="${m[1]}" ${page===m[0]?'aria-current="page"':''}>${icon(m[2])}<span>${m[1]}</span>${m[0]==='customers'?`<em>${visibleCustomers().length}</em>`:''}${m[0]==='contracts'&&newSummary.totalNew>0?`<em class="nav-red-count" title="24시간 이내 일시불·렌탈 신규신청 ${newSummary.totalNew}건">${newSummary.totalNew}</em>`:''}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-mobile-user" data-action="my-profile" style="cursor:pointer" title="내 정보 / 비밀번호 수정"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)} · ${esc(activeU.org)}</small></div></div><div class="sidebar-note"><b><span class="dot"></span>운영 시스템</b>실시간 DB 및 권한 연동 중</div><div class="version"><span>KCC HOMECC</span><span>Ver. 3.0</span></div></div></aside><div class="shell"><header class="topbar"><div class="topbar-left"><button type="button" class="mobile-more-btn ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}" aria-label="좌측 메뉴 더보기">${icon('menu')}<span>더보기</span></button><div class="breadcrumb"><span>${esc(activeU.org)}</span>${icon('chevron')}<b>${current[1]}</b></div></div><div class="top-actions">${isHqAdmin?`<select class="role-select" id="role-switch" aria-label="사용자 화면 전환">${rosterList.map(u=>`<option value="${esc(u.username)}" ${u.username===activeU.username?'selected':''}>${esc(u.name)} (${esc(u.role_label)})</option>`).join('')}</select>`:`<div class="header-partner-pill" title="현재 소속 파트너 계정">${icon('building','sm')}<strong>${esc(activeU.org)}</strong><small>(${esc(activeU.role_label)})</small></div>`}<button class="bell" data-action="notifications" aria-label="업무 알림">${icon('bell')}</button><button type="button" class="btn sm soft" data-action="my-profile" title="내 정보 / 비밀번호 수정" style="padding:6px 10px;font-size:12px;gap:4px">${icon('edit','sm')}<span>내 정보</span></button><div class="user" data-action="my-profile" style="cursor:pointer" title="클릭하여 내 정보/비밀번호 수정"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)}</small></div></div><button type="button" class="btn sm" data-action="logout" title="로그아웃" style="padding:6px 10px;font-size:12px">로그아웃</button></div></header><main id="main">${({customers:customersPage,quotes:quotesPage,contracts:contractsPage,products:productsPage,partners:partnersPage,stats:statsPage,settings:settingsPage}[page])()}<div class="page-footer"><span>© LIFE & JOY · KCC HOMECC CRM 3.0</span><span>실운영 데이터 연동 시스템</span></div></main><nav class="mobile-bottom-nav" aria-label="모바일 빠른 메뉴" style="grid-template-columns:repeat(${quickTabs.length+1},1fr)">${quickTabs.map(t=>`<button type="button" class="m-tab ${!mobileNavOpen&&page===t[0]?'active':''}" data-action="nav" data-page="${t[0]}" ${page===t[0]?'aria-current="page"':''}>${icon(t[2])}<span>${t[1]}</span>${t[0]==='contracts'&&newSummary.totalNew>0?`<span class="m-red-count">${newSummary.totalNew}</span>`:''}</button>`).join('')}<button type="button" class="m-tab more-trigger ${mobileNavOpen||isSecondaryPage?'active':''} ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}">${icon('grid')}<span>더보기</span></button></nav></div></div>`}
 function pageHead(title,sub,actions='',eyebrow='WORKSPACE'){const todayLabel=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',weekday:'long',timeZone:'Asia/Seoul'});return `<div class="page-head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${sub}</p></div><div class="head-actions"><span class="date-label">${todayLabel}</span>${actions}</div></div>`}
 function metric(label,value,unit,foot,ic,color='',action='',data=''){return `<${action?'button':'div'} class="metric ${color}" ${action?`data-action="${action}" ${data}`:''}><span class="metric-label">${label}</span><span class="metric-icon">${icon(ic)}</span><strong>${value}<small>${unit}</small></strong><span class="metric-foot">${foot}</span></${action?'button':'div'}>`}
 function getChannelFilterOptions() {
@@ -2265,7 +2393,7 @@ function openUserDialog(userId = null) {
           </select>
         </div>
       </div>
-      ${!isEdit ? field('초기 비밀번호 (미입력 시 1234)', 'password', '', 'password') : ''}
+      ${isEdit ? field('새 비밀번호 (변경 시에만 4자리 이상 입력)', 'password', '', 'password') : field('초기 비밀번호 (미입력 시 user123!)', 'password', '', 'password')}
       <div class="divider"></div>
       <div class="field" style="margin-bottom:0">
         <div class="menu-select-head">
@@ -3642,7 +3770,7 @@ function settingsPage(){
     ['stages','진행구분','filter'],
     ['contract-statuses','계약·수납상태','contract'],
     ['forms','양식관리','file'],
-    ['users','사용자관리','users'],
+    ['users','계정·사용자관리','users'],
     ['integrations','외부 연동','link'],
     ['reset','초기화 설정','refresh']
   ];
@@ -4280,7 +4408,7 @@ function renderEditor() {
     `${esc(c.name)} (No.${c.id}) · ${esc(c.address)}`
   );
 }
-function quoteMarkup(c,q=null){const total=q?.total||c.quote,items=q?.items||[{name:c.product+' 맞춤 시공',qty:1},{name:'철거 · 설치 및 마감',qty:1}];return `<div class="phone-preview"><div class="phone-top"><div class="phone-brand" style="display:flex;align-items:center;gap:6px"><img src="assets/logo.png?v=20261113b" alt="KCC 홈씨씨" style="height:18px;width:auto;vertical-align:middle;display:inline-block"><span>· 나의 공사 견적</span></div><h2>${esc(c.name)}님을 위한<br>더 편안한 우리 집.</h2><p>${esc(c.address)}<br>${esc(q?.title||c.product+' 교체 견적')} · ${q?.type||'가견적'}</p></div><div class="phone-body"><div class="phone-price">고객 견적금액<strong>${won(total)}</strong><small>부가세 포함 · 현장 실측 및 공사 조건에 따라 변경 가능</small></div><section class="phone-block"><h4>공사 내용</h4>${items.map(i=>`<div class="summary-line"><span>${esc(i.name)}</span><b>${i.qty}식</b></div>`).join('')}</section><section class="phone-block"><h4>원하시는 방법으로 진행하세요.</h4><div class="phone-actions">${btn('상담 요청','mobile-consult','phone','',`data-id="${c.id}"`)}${btn('실측 신청','schedule','calendar','soft',`data-id="${c.id}"`)}</div><div class="divider" style="margin:15px 0"></div><div class="summary-line"><span>렌탈 신청</span><b>조건 확인 후 상담</b></div><p class="field-hint">월 납부금과 기간은 렌탈사 최종 조건에 따라 확정됩니다.</p>${btn('렌탈 신청 체험','rental-start','arrow','primary block',`data-id="${c.id}"`)}</section><p style="text-align:center;font-size:9px;color:#a8b3c3">(주)라이프앤조이 · KCC홈씨씨 파트너<br>고객 화면 미리보기 · 실제 신청 및 결제 미연결</p></div></div>`}
+function quoteMarkup(c,q=null){const total=q?.total||c.quote,items=q?.items||[{name:c.product+' 맞춤 시공',qty:1},{name:'철거 · 설치 및 마감',qty:1}];return `<div class="phone-preview"><div class="phone-top"><div class="phone-brand" style="display:flex;align-items:center;gap:6px"><img src="${ADMIN_LOGO_URL}" alt="KCC 홈씨씨" style="height:18px;width:auto;vertical-align:middle;display:inline-block;object-fit:contain"><span>· 나의 공사 견적</span></div><h2>${esc(c.name)}님을 위한<br>더 편안한 우리 집.</h2><p>${esc(c.address)}<br>${esc(q?.title||c.product+' 교체 견적')} · ${q?.type||'가견적'}</p></div><div class="phone-body"><div class="phone-price">고객 견적금액<strong>${won(total)}</strong><small>부가세 포함 · 현장 실측 및 공사 조건에 따라 변경 가능</small></div><section class="phone-block"><h4>공사 내용</h4>${items.map(i=>`<div class="summary-line"><span>${esc(i.name)}</span><b>${i.qty}식</b></div>`).join('')}</section><section class="phone-block"><h4>원하시는 방법으로 진행하세요.</h4><div class="phone-actions">${btn('상담 요청','mobile-consult','phone','',`data-id="${c.id}"`)}${btn('실측 신청','schedule','calendar','soft',`data-id="${c.id}"`)}</div><div class="divider" style="margin:15px 0"></div><div class="summary-line"><span>렌탈 신청</span><b>조건 확인 후 상담</b></div><p class="field-hint">월 납부금과 기간은 렌탈사 최종 조건에 따라 확정됩니다.</p>${btn('렌탈 신청 체험','rental-start','arrow','primary block',`data-id="${c.id}"`)}</section><p style="text-align:center;font-size:9px;color:#a8b3c3">(주)라이프앤조이 · KCC홈씨씨 파트너<br>고객 화면 미리보기 · 실제 신청 및 결제 미연결</p></div></div>`}
 function openPreview(id, q = null, viewMode = 'quote', preferredType = '', quoteId = null) {
   const c = accessibleC(id);
   if (!c) return;
@@ -5812,6 +5940,7 @@ case'new-product':case'edit-product':{const p=a==='edit-product'?db.products[id]
 case'new-label':formDialog('진행라벨 추가',field('라벨명','name','','text',true)+field('색상','color','#7396dd','color'),'label');break;
 case'new-user':openUserDialog(null);break;
 case'edit-user':openUserDialog(id);break;
+case'logout':logoutSession(false);break;
 case'toggle-user-menu':{
     const idx = db.users.findIndex(x => Number(x.id) === Number(id));
     if (idx === -1) break;
@@ -6666,7 +6795,14 @@ case'edit-user':{
       role: d.role || 'consultant',
       allowed_menus: orderedMenus
     };
-    if (!isEdit && d.password) payload.password = d.password;
+    if (d.password && String(d.password).trim()) {
+      const cleanPw = String(d.password).trim();
+      if (cleanPw.length < 4) {
+        toast('비밀번호는 4자리 이상 입력해 주세요.');
+        return;
+      }
+      payload.password = cleanPw;
+    }
 
     try {
       const url = isEdit ? ('/api/auth/users/' + id) : '/api/auth/users';
@@ -6822,7 +6958,30 @@ const params=new URLSearchParams(location.search);if(params.has('demo_quote')){c
       toast(`[${u.org}] 파트너 어드민 새 창으로 접속했습니다.`);
     })();
   } else {
-    render();
-    syncFromServer();
+    if (!authToken) {
+      render();
+    } else {
+      (async () => {
+        try {
+          const meRes = await fetch('/api/auth/me', {
+            headers: { 'Authorization': 'Bearer ' + authToken }
+          });
+          if (!meRes.ok) {
+            logoutSession(true);
+            return;
+          }
+          const meData = await meRes.json().catch(() => ({}));
+          if (meData.user) {
+            const norm = normalizeUserRecord(meData.user);
+            activeUsername = norm.username;
+            role = isPartnerUser(norm) ? '파트너 관리자' : '본사 관리자';
+          }
+          await syncFromServer();
+          render();
+        } catch {
+          render();
+        }
+      })();
+    }
   }
 }

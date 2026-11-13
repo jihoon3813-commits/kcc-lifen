@@ -56,7 +56,7 @@
   modal.id = 'rental-dialog';
   modal.setAttribute('aria-labelledby', 'r-title');
   modal.innerHTML = `<div class="r-shell">
-    <header class="r-head"><div class="r-topline"><div class="r-brand"><img src="assets/logo.png" alt="KCC 홈씨씨"><span id="r-brand-label">렌탈 신청</span></div><button class="r-close" type="button" aria-label="렌탈 신청 닫기">×</button></div>
+    <header class="r-head"><div class="r-topline"><div class="r-brand"><img src="https://res.cloudinary.com/lyjyvy54/image/upload/v1794544823/01_full_color_homecc_BI2_1_mmapgw.png" alt="KCC 홈씨씨" style="object-fit:contain"><span id="r-brand-label">렌탈 신청</span></div><button class="r-close" type="button" aria-label="렌탈 신청 닫기">×</button></div>
     <div class="r-eyebrow" id="r-head-eyebrow">MY HOME · RENTAL APPLICATION</div><h2 id="r-title" tabindex="-1">내 집을 위한 새로운 시작.</h2><p id="r-subtitle">견적에서 바로, 간편하게 신청하세요.</p>
     <ol class="r-progress" aria-label="신청 진행 단계"><li><i>1</i>정보 확인</li><li><i>2</i>신분증 등록</li><li><i>3</i>동의·서명</li></ol></header>
     <div class="r-body">

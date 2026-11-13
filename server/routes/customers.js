@@ -2,11 +2,13 @@ import express from 'express';
 import { db } from '../db/index.js';
 import { requireAuth, checkPartnerAccess } from '../middleware/auth.js';
 import { recordAuditLog } from '../middleware/audit.js';
+import { syncProjectsFromConvex } from '../utils/convexSync.js';
 
 const router = express.Router();
 
 // 1. Get Customers / Projects List
-router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
+router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
+  await syncProjectsFromConvex();
   const { q, stage, product, partner, period, sort } = req.query;
 
   let sql = `

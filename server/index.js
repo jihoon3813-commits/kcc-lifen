@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { initDatabase } from './db/index.js';
 import { seedDatabase } from './db/seed.js';
 import { authenticate } from './middleware/auth.js';
+import { syncProjectsFromConvex } from './utils/convexSync.js';
 
 import authRoutes from './routes/auth.js';
 import customerRoutes from './routes/customers.js';
@@ -134,6 +135,7 @@ const server = app.listen(config.port, config.host, () => {
   console.log(` Operator: (주)라이프앤조이`);
   console.log(` Database: ${config.dbPath}`);
   console.log(`======================================================`);
+  syncProjectsFromConvex({ force: true }).catch(() => {});
 });
 
 server.on('error', err => {

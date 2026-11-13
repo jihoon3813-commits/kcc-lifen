@@ -29,7 +29,7 @@ export function seedDatabase() {
   `);
 
   const saltRounds = 10;
-  const adminHash = bcrypt.hashSync('admin123!', saltRounds);
+  const adminHash = bcrypt.hashSync('admin1234', saltRounds);
   const userHash = bcrypt.hashSync('user123!', saltRounds);
   const partnerHash = bcrypt.hashSync('partner123!', saltRounds);
 
