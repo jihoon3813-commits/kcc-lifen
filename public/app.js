@@ -2215,9 +2215,9 @@ function openCashCheckDialog(contractId, scheduleId = '') {
         </div>
         ${badge(sch.paid ? '입금완료' : '미입금', sch.paid ? 'green' : 'orange')}
       </div>
-      <label class="checkline" style="padding:12px 14px;border:1px solid #cbd5e1;border-radius:10px;background:#f0fdf4;margin-bottom:14px;cursor:pointer">
-        <input type="checkbox" name="paid" id="cash-check-paid" ${sch.paid ? 'checked' : 'checked'}>
-        <b style="color:#065f46;font-size:14px">${esc(sch.label)} 현금 입금완료 확인</b>
+      <label class="checkline" style="padding:12px 14px;border:1px solid #cbd5e1;border-radius:10px;background:${sch.paid ? '#f0fdf4' : '#f8fafc'};margin-bottom:14px;cursor:pointer">
+        <input type="checkbox" name="paid" id="cash-check-paid" ${sch.paid ? 'checked' : ''}>
+        <b style="color:${sch.paid ? '#065f46' : '#334155'};font-size:14px">${esc(sch.label)} 현금 입금완료 확인</b>
       </label>
       <div class="field-grid">
         <div class="field">

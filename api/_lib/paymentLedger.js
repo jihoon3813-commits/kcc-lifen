@@ -469,6 +469,7 @@ export async function syncContractTotalsToConvex(contractNo, meta, fallbackOrder
 
       if (meta.payCategory === "rental") {
         if (allSchedulesPaid) nextStatus = "초기납입완료";
+        else if (nextStatus === "초기납입완료") nextStatus = "약정대기";
         else nextStatus = existing?.status || "약정대기";
       } else {
         if (allSchedulesPaid && totalAmount > 0) nextStatus = "수납완료";
