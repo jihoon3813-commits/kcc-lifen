@@ -40,11 +40,30 @@ router.get('/overview', requireAuth, checkPartnerAccess, (req, res) => {
   const rawPeriod = String(req.query.period || '30');
   const period = ['all', '1', '7', '30'].includes(rawPeriod) ? rawPeriod : '30';
 
-  const partnerOrg = req.partnerOrgId ? db.prepare('SELECT name FROM organizations WHERE id = ?').get(req.partnerOrgId)?.name : null;
-  const projPartnerFilter = req.partnerOrgId ? ' AND p.org_id = ?' : '';
-  const projPartnerParams = req.partnerOrgId ? [req.partnerOrgId] : [];
-  const evPartnerFilter = partnerOrg ? ' AND le.partner_name = ?' : '';
-  const evPartnerParams = partnerOrg ? [partnerOrg] : [];
+  let allowedOrgIds = [];
+  let allowedOrgNames = [];
+  if (req.partnerOrgId) {
+    const mainOrg = db.prepare('SELECT id, name FROM organizations WHERE id = ?').get(req.partnerOrgId);
+    if (mainOrg) {
+      allowedOrgIds.push(mainOrg.id);
+      allowedOrgNames.push(mainOrg.name);
+    }
+    const children = db.prepare('SELECT id, name FROM organizations WHERE parent_id = ?').all(req.partnerOrgId);
+    for (const c of children) {
+      allowedOrgIds.push(c.id);
+      allowedOrgNames.push(c.name);
+    }
+  }
+
+  const projPartnerFilter = allowedOrgIds.length
+    ? ` AND (p.org_id IN (${allowedOrgIds.map(() => '?').join(',')}) OR p.partner_name IN (${allowedOrgNames.map(() => '?').join(',')}))`
+    : '';
+  const projPartnerParams = allowedOrgIds.length ? [...allowedOrgIds, ...allowedOrgNames] : [];
+
+  const evPartnerFilter = allowedOrgNames.length
+    ? ` AND le.partner_name IN (${allowedOrgNames.map(() => '?').join(',')})`
+    : '';
+  const evPartnerParams = allowedOrgNames.length ? [...allowedOrgNames] : [];
 
   const projDateSql = buildDateFilter('p.created_at', period);
   const evDateSql = buildDateFilter('le.created_at', period);
@@ -209,10 +228,10 @@ router.get('/overview', requireAuth, checkPartnerAccess, (req, res) => {
     .sort((a, b) => b.leads - a.leads || b.views - a.views);
 
   // 4. Cloned landing links performance
-  const linksSql = partnerOrg
-    ? 'SELECT * FROM landing_links WHERE partner_name = ? ORDER BY is_active DESC, id DESC'
+  const linksSql = allowedOrgNames.length
+    ? `SELECT * FROM landing_links WHERE partner_name IN (${allowedOrgNames.map(() => '?').join(',')}) ORDER BY is_active DESC, id DESC`
     : 'SELECT * FROM landing_links ORDER BY is_active DESC, id DESC';
-  const rawLinks = partnerOrg ? db.prepare(linksSql).all(partnerOrg) : db.prepare(linksSql).all();
+  const rawLinks = allowedOrgNames.length ? db.prepare(linksSql).all(...allowedOrgNames) : db.prepare(linksSql).all();
 
   const landingLinks = rawLinks.map(ll => {
     const views = db.prepare(`

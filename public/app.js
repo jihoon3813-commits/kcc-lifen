@@ -61,7 +61,7 @@ function getDefaultMenusByRole(roleInput) {
   const r = normalizeRoleCodeClient(roleInput);
   if (r === 'hq_admin') return [...ALL_MENU_KEYS];
   if (r === 'accountant') return ['customers', 'contracts', 'stats'];
-  if (r === 'partner') return ['customers', 'contracts', 'products'];
+  if (r === 'partner') return ['customers', 'products', 'stats'];
   return ['customers', 'quotes', 'contracts', 'products'];
 }
 
@@ -74,8 +74,28 @@ function normalizeUserRecord(raw, idx = 0) {
   if (typeof menusArr === 'string') {
     try { menusArr = JSON.parse(menusArr); } catch { menusArr = menusArr.split(',').map(s => s.trim()); }
   }
-  const validMenus = Array.isArray(menusArr) ? menusArr.filter(k => ALL_MENU_KEYS.includes(k)) : [];
-  const finalMenus = validMenus.length ? ALL_MENU_KEYS.filter(k => validMenus.includes(k) || (username === 'admin' && k === 'settings')) : getDefaultMenusByRole(roleCode);
+  let validMenus = Array.isArray(menusArr) ? menusArr.filter(k => ALL_MENU_KEYS.includes(k)) : [];
+  if (!validMenus.length) {
+    validMenus = getDefaultMenusByRole(roleCode);
+  }
+
+  const orgId = raw.org_id || raw.orgId;
+  const hasSubPartners = Boolean(
+    raw.has_sub_partners ||
+    Number(raw.sub_partner_count || 0) > 0 ||
+    (Array.isArray(window?.db?.partners) && window.db.partners.some(p => (p.parentId === orgId || p.parent_id === orgId) && p.orgId !== orgId))
+  );
+
+  // If role is partner: show partners menu only if they have sub-partners
+  if (roleCode === 'partner') {
+    if (hasSubPartners) {
+      if (!validMenus.includes('partners')) validMenus.push('partners');
+    } else {
+      validMenus = validMenus.filter(k => k !== 'partners');
+    }
+  }
+
+  const finalMenus = ALL_MENU_KEYS.filter(k => validMenus.includes(k) || (username === 'admin' && k === 'settings'));
   return {
     id: raw.id ?? (idx + 1),
     username,
@@ -83,7 +103,12 @@ function normalizeUserRecord(raw, idx = 0) {
     phone: raw.phone || '',
     email: raw.email || '',
     org: raw.org || raw.org_name || '라이프앤조이',
+    org_id: orgId || 1,
     org_type: raw.org_type || (roleCode === 'partner' ? 'partner' : 'hq'),
+    parent_id: raw.parent_id || null,
+    level: raw.level || 1,
+    sub_partner_count: raw.sub_partner_count || 0,
+    has_sub_partners: hasSubPartners,
     role: roleCode,
     role_label: raw.role_label || ROLE_CODE_LABELS[roleCode] || '상담사',
     allowed_menus: finalMenus,
@@ -95,6 +120,30 @@ function getUserAllowedMenuKeys(u) {
   if (!u) return [...ALL_MENU_KEYS];
   const norm = normalizeUserRecord(u);
   return norm.allowed_menus;
+}
+
+// 전화번호 자동 하이픈 포맷팅 함수 (파트너 등록 및 전체 입력 폼 공용)
+function formatPhoneNumber(val) {
+  if (!val) return '';
+  const num = String(val).replace(/\D/g, '');
+  if (!num) return '';
+  // 서울(02) 지역번호
+  if (num.startsWith('02')) {
+    if (num.length <= 2) return num;
+    if (num.length <= 5) return `${num.slice(0, 2)}-${num.slice(2)}`;
+    if (num.length <= 9) return `${num.slice(0, 2)}-${num.slice(2, 5)}-${num.slice(5)}`;
+    return `${num.slice(0, 2)}-${num.slice(2, 6)}-${num.slice(6, 10)}`;
+  }
+  // 전국 대표번호 (1588, 1544, 1688 등 8자리)
+  if (num.startsWith('15') || num.startsWith('16') || num.startsWith('18')) {
+    if (num.length <= 4) return num;
+    return `${num.slice(0, 4)}-${num.slice(4, 8)}`;
+  }
+  // 휴대폰(010, 011...) 및 일반 지역번호(031, 051...)
+  if (num.length <= 3) return num;
+  if (num.length <= 6) return `${num.slice(0, 3)}-${num.slice(3)}`;
+  if (num.length <= 10) return `${num.slice(0, 3)}-${num.slice(3, 6)}-${num.slice(6)}`;
+  return `${num.slice(0, 3)}-${num.slice(3, 7)}-${num.slice(7, 11)}`;
 }
 
 const STANDARD_FIELD_LABELS = {
@@ -300,16 +349,42 @@ function buildTrackingUrl(link, origin = window.location.origin) {
   }
 }
 
-let authToken = localStorage.getItem('kcc_auth_token') || '';
-let activeUsername = localStorage.getItem('kcc_active_username') || 'admin';
+const urlParams = new URLSearchParams(window.location.search);
+const switchUserParam = urlParams.get('switch_user') || urlParams.get('as_user');
+if (switchUserParam) {
+  try {
+    sessionStorage.setItem('kcc_isolated', '1');
+    sessionStorage.setItem('kcc_active_username', switchUserParam);
+    sessionStorage.removeItem('kcc_auth_token');
+  } catch {}
+}
+
+const isSessionIsolated = (function() {
+  try { return sessionStorage.getItem('kcc_isolated') === '1'; } catch { return false; }
+})();
+
+let authToken = (function() {
+  try {
+    return sessionStorage.getItem('kcc_auth_token') || (!isSessionIsolated ? localStorage.getItem('kcc_auth_token') : '') || '';
+  } catch { return ''; }
+})();
+
+let activeUsername = (function() {
+  try {
+    return sessionStorage.getItem('kcc_active_username') || (!isSessionIsolated ? localStorage.getItem('kcc_active_username') : '') || 'admin';
+  } catch { return 'admin'; }
+})();
+
 let userRoster = (db.users || []).map((u, i) => normalizeUserRecord(u, i));
 if (!userRoster.some(u => u.username === activeUsername && u.active !== false)) {
-  activeUsername = userRoster[0]?.username || 'admin';
-  authToken = '';
-  try {
-    localStorage.setItem('kcc_active_username', activeUsername);
-    localStorage.removeItem('kcc_auth_token');
-  } catch {}
+  if (!isSessionIsolated) {
+    activeUsername = userRoster[0]?.username || 'admin';
+    authToken = '';
+    try {
+      localStorage.setItem('kcc_active_username', activeUsername);
+      localStorage.removeItem('kcc_auth_token');
+    } catch {}
+  }
 }
 let previewViewMode = 'quote';
 let previewDeviceWidth = 'mobile';
@@ -392,14 +467,20 @@ async function apiFetch(url, options = {}) {
   return res;
 }
 
-async function apiSwitchRole(target) {
+async function apiSwitchRole(target, options = {}) {
+  const isIsolated = options.isolated || (function() {
+    try { return sessionStorage.getItem('kcc_isolated') === '1'; } catch { return false; }
+  })();
   const applyLocalSwitch = () => {
     const val = String(target || '').trim();
     const roster = getRosterUsers();
     const found = roster.find(u => u.username === val || u.role_label === val || u.name === val) || roster[0];
     if (found) {
       activeUsername = found.username;
-      try { localStorage.setItem('kcc_active_username', activeUsername); } catch {}
+      try { sessionStorage.setItem('kcc_active_username', activeUsername); } catch {}
+      if (!isIsolated) {
+        try { localStorage.setItem('kcc_active_username', activeUsername); } catch {}
+      }
       if (typeof role !== 'undefined') {
         role = isPartnerUser(found) ? '파트너 관리자' : '본사 관리자';
       }
@@ -418,11 +499,17 @@ async function apiSwitchRole(target) {
     if (res.ok) {
       const data = await res.json();
       authToken = data.token;
-      localStorage.setItem('kcc_auth_token', authToken);
+      try { sessionStorage.setItem('kcc_auth_token', authToken); } catch {}
+      if (!isIsolated) {
+        try { localStorage.setItem('kcc_auth_token', authToken); } catch {}
+      }
       if (data.user) {
         const norm = normalizeUserRecord(data.user);
         activeUsername = norm.username;
-        localStorage.setItem('kcc_active_username', activeUsername);
+        try { sessionStorage.setItem('kcc_active_username', activeUsername); } catch {}
+        if (!isIsolated) {
+          try { localStorage.setItem('kcc_active_username', activeUsername); } catch {}
+        }
         const rIdx = userRoster.findIndex(x => x.username === norm.username || Number(x.id) === Number(norm.id));
         if (rIdx !== -1) userRoster[rIdx] = norm;
         else userRoster.push(norm);
@@ -1091,8 +1178,9 @@ function render(){
     const quickTabs=allowedMenus.slice(0,3);
     const isSecondaryPage=!quickTabs.some(t=>t[0]===page);
     const newSummary=getNewContractSummary();
+    const isHqAdmin=activeU.role==='hq_admin';
     const rosterList=userRoster.length?userRoster:(db.users||[]).map((u,i)=>normalizeUserRecord(u,i));
-    $('#app').innerHTML=`<div class="app"><div class="sidebar-backdrop ${mobileNavOpen?'open':''}" data-action="close-nav" aria-hidden="true"></div><aside class="sidebar ${mobileNavOpen?'open':''}" id="app-sidebar" aria-label="전체 좌측 메뉴"><div class="brand"><div class="brand-top">${symbol()}<strong>KCC 홈씨씨</strong><button type="button" class="sidebar-close-btn" data-action="close-nav" aria-label="메뉴 닫기">${icon('close')}</button></div><small>CRM WORKSPACE</small></div><div class="workspace"><span>운영 파트너</span><strong>${esc(activeU.org==='라이프앤조이'?'(주)라이프앤조이':activeU.org)}</strong></div><div class="nav-label">WORKSPACE</div><nav>${allowedMenus.map(m=>`<button class="nav-btn ${page===m[0]?'active':''}" data-action="nav" data-page="${m[0]}" title="${m[1]}" aria-label="${m[1]}" ${page===m[0]?'aria-current="page"':''}>${icon(m[2])}<span>${m[1]}</span>${m[0]==='customers'?`<em>${visibleCustomers().length}</em>`:''}${m[0]==='contracts'&&newSummary.totalNew>0?`<em class="nav-red-count" title="24시간 이내 일시불·렌탈 신규신청 ${newSummary.totalNew}건">${newSummary.totalNew}</em>`:''}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-mobile-user"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)} · ${esc(activeU.org)}</small></div></div><div class="sidebar-note"><b><span class="dot"></span>운영 시스템</b>실시간 DB 및 권한 연동 중</div><div class="version"><span>KCC HOMECC</span><span>Ver. 3.0</span></div></div></aside><div class="shell"><header class="topbar"><div class="topbar-left"><button type="button" class="mobile-more-btn ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}" aria-label="좌측 메뉴 더보기">${icon('menu')}<span>더보기</span></button><div class="breadcrumb"><span>${esc(activeU.org)}</span>${icon('chevron')}<b>${current[1]}</b></div></div><div class="top-actions"><select class="role-select" id="role-switch" aria-label="사용자 화면 전환">${rosterList.map(u=>`<option value="${esc(u.username)}" ${u.username===activeU.username?'selected':''}>${esc(u.name)} (${esc(u.role_label)})</option>`).join('')}</select><button class="bell" data-action="notifications" aria-label="업무 알림">${icon('bell')}</button><div class="user"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)}</small></div></div></div></header><main id="main">${({customers:customersPage,quotes:quotesPage,contracts:contractsPage,products:productsPage,partners:partnersPage,stats:statsPage,settings:settingsPage}[page])()}<div class="page-footer"><span>© LIFE & JOY · KCC HOMECC CRM 3.0</span><span>실운영 데이터 연동 시스템</span></div></main><nav class="mobile-bottom-nav" aria-label="모바일 빠른 메뉴" style="grid-template-columns:repeat(${quickTabs.length+1},1fr)">${quickTabs.map(t=>`<button type="button" class="m-tab ${!mobileNavOpen&&page===t[0]?'active':''}" data-action="nav" data-page="${t[0]}" ${page===t[0]?'aria-current="page"':''}>${icon(t[2])}<span>${t[1]}</span>${t[0]==='contracts'&&newSummary.totalNew>0?`<span class="m-red-count">${newSummary.totalNew}</span>`:''}</button>`).join('')}<button type="button" class="m-tab more-trigger ${mobileNavOpen||isSecondaryPage?'active':''} ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}">${icon('grid')}<span>더보기</span></button></nav></div></div>`}
+    $('#app').innerHTML=`<div class="app"><div class="sidebar-backdrop ${mobileNavOpen?'open':''}" data-action="close-nav" aria-hidden="true"></div><aside class="sidebar ${mobileNavOpen?'open':''}" id="app-sidebar" aria-label="전체 좌측 메뉴"><div class="brand"><div class="brand-top">${symbol()}<strong>KCC 홈씨씨</strong><button type="button" class="sidebar-close-btn" data-action="close-nav" aria-label="메뉴 닫기">${icon('close')}</button></div><small>CRM WORKSPACE</small></div><div class="workspace"><span>운영 파트너</span><strong>${esc(activeU.org==='라이프앤조이'?'(주)라이프앤조이':activeU.org)}</strong></div><div class="nav-label">WORKSPACE</div><nav>${allowedMenus.map(m=>`<button class="nav-btn ${page===m[0]?'active':''}" data-action="nav" data-page="${m[0]}" title="${m[1]}" aria-label="${m[1]}" ${page===m[0]?'aria-current="page"':''}>${icon(m[2])}<span>${m[1]}</span>${m[0]==='customers'?`<em>${visibleCustomers().length}</em>`:''}${m[0]==='contracts'&&newSummary.totalNew>0?`<em class="nav-red-count" title="24시간 이내 일시불·렌탈 신규신청 ${newSummary.totalNew}건">${newSummary.totalNew}</em>`:''}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-mobile-user" data-action="my-profile" style="cursor:pointer" title="내 정보 / 비밀번호 수정"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)} · ${esc(activeU.org)}</small></div></div><div class="sidebar-note"><b><span class="dot"></span>운영 시스템</b>실시간 DB 및 권한 연동 중</div><div class="version"><span>KCC HOMECC</span><span>Ver. 3.0</span></div></div></aside><div class="shell"><header class="topbar"><div class="topbar-left"><button type="button" class="mobile-more-btn ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}" aria-label="좌측 메뉴 더보기">${icon('menu')}<span>더보기</span></button><div class="breadcrumb"><span>${esc(activeU.org)}</span>${icon('chevron')}<b>${current[1]}</b></div></div><div class="top-actions">${isHqAdmin?`<select class="role-select" id="role-switch" aria-label="사용자 화면 전환">${rosterList.map(u=>`<option value="${esc(u.username)}" ${u.username===activeU.username?'selected':''}>${esc(u.name)} (${esc(u.role_label)})</option>`).join('')}</select>`:`<div class="header-partner-pill" title="현재 소속 파트너 계정">${icon('building','sm')}<strong>${esc(activeU.org)}</strong><small>(${esc(activeU.role_label)})</small></div>`}<button class="bell" data-action="notifications" aria-label="업무 알림">${icon('bell')}</button><button type="button" class="btn sm soft" data-action="my-profile" title="내 정보 / 비밀번호 수정" style="padding:6px 10px;font-size:12px;gap:4px">${icon('edit','sm')}<span>내 정보</span></button><div class="user" data-action="my-profile" style="cursor:pointer" title="클릭하여 내 정보/비밀번호 수정"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)}</small></div></div></div></header><main id="main">${({customers:customersPage,quotes:quotesPage,contracts:contractsPage,products:productsPage,partners:partnersPage,stats:statsPage,settings:settingsPage}[page])()}<div class="page-footer"><span>© LIFE & JOY · KCC HOMECC CRM 3.0</span><span>실운영 데이터 연동 시스템</span></div></main><nav class="mobile-bottom-nav" aria-label="모바일 빠른 메뉴" style="grid-template-columns:repeat(${quickTabs.length+1},1fr)">${quickTabs.map(t=>`<button type="button" class="m-tab ${!mobileNavOpen&&page===t[0]?'active':''}" data-action="nav" data-page="${t[0]}" ${page===t[0]?'aria-current="page"':''}>${icon(t[2])}<span>${t[1]}</span>${t[0]==='contracts'&&newSummary.totalNew>0?`<span class="m-red-count">${newSummary.totalNew}</span>`:''}</button>`).join('')}<button type="button" class="m-tab more-trigger ${mobileNavOpen||isSecondaryPage?'active':''} ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}">${icon('grid')}<span>더보기</span></button></nav></div></div>`}
 function pageHead(title,sub,actions='',eyebrow='WORKSPACE'){const todayLabel=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',weekday:'long',timeZone:'Asia/Seoul'});return `<div class="page-head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${sub}</p></div><div class="head-actions"><span class="date-label">${todayLabel}</span>${actions}</div></div>`}
 function metric(label,value,unit,foot,ic,color='',action='',data=''){return `<${action?'button':'div'} class="metric ${color}" ${action?`data-action="${action}" ${data}`:''}><span class="metric-label">${label}</span><span class="metric-icon">${icon(ic)}</span><strong>${value}<small>${unit}</small></strong><span class="metric-foot">${foot}</span></${action?'button':'div'}>`}
 function getChannelFilterOptions() {
@@ -1384,6 +1472,8 @@ function getFilteredLandingLinks() {
 }
 
 function productsPage(){
+  const activeU = getActiveUser();
+  const isPartner = activeU.role === 'partner';
   const links = db.landingLinks || [];
   const filteredLinks = getFilteredLandingLinks();
   const totalLinkViews = links.reduce((s, x) => s + (Number(x.views) || 0), 0);
@@ -1392,19 +1482,96 @@ function productsPage(){
   const headActions = (role === '본사 관리자' ? btn('상품페이지 등록', 'new-product', 'plus', 'secondary') : '') +
     btn('광고채널 링크 복제·생성', 'open-clone-link', 'link', 'primary');
 
-  return pageHead('상품관리', '기본 랜딩페이지를 복제해 광고채널별 추적 링크를 만들고 유입 성과를 확인하세요.', headActions, 'PRODUCT & LANDING') +
-    `<div class="banner">${icon('link')}<div><b>${role === '본사 관리자' ? '기본 랜딩페이지를 광고 매체별로 복제해 유입 채널을 정확히 구분합니다.' : (esc(getActiveUser().org || '파트너') + ' 전용 광고 링크를 복제·생성해 고객 유입을 추적하세요.')}</b><br>복제된 링크로 고객이 방문·신청하면 <b>고객관리</b>와 <b>통계관리</b>에 네이버 검색광고, 당근마켓, 인스타그램 등 정확한 유입 채널과 캠페인명이 자동 기록됩니다.</div></div>` +
+  // 파트너 전용 서브도메인 및 고유 링크 패널
+  const partnerUsername = activeU.username || 'partner';
+  const localPort = window.location.port ? `:${window.location.port}` : '';
+  const subdomainHost = `${partnerUsername}.localhost${localPort}`;
+  const prodSubdomain = `https://${partnerUsername}.kcchomecc.com`;
+  const partnerSubdomainUrl = `http://${subdomainHost}/landing/`;
+  const partnerQueryUrl = `${window.location.origin}/landing/?partner=${encodeURIComponent(partnerUsername)}`;
+
+  const partnerLinkBanner = isPartner ? `
+    <div class="panel partner-exclusive-panel" style="margin-bottom:24px;border:1px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff 0%,#f8faff 100%);border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(30,58,138,0.06)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span class="badge blue" style="font-weight:700">🌐 파트너 전용 서브도메인 랜딩</span>
+            <span class="badge green">실시간 고객 100% 자동 귀속</span>
+          </div>
+          <h3 style="margin:4px 0 6px;font-size:18px;color:#1e3a8a;font-weight:700">${esc(activeU.org)} 전용 서브도메인: <code style="background:#dbeafe;padding:2px 8px;border-radius:6px;font-size:16px;color:#1d4ed8">${esc(partnerUsername)}.kcchomecc.com</code></h3>
+          <p style="margin:0;color:#475569;font-size:13px;line-height:1.5">
+            파트너 아이디(<b>${esc(partnerUsername)}</b>)가 적용된 독립 서브도메인 주소입니다. 고객이 해당 주소로 접속해 접수하면 <b>[${esc(activeU.org)}]</b>의 고객으로 즉시 연동됩니다.
+          </p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button type="button" class="btn primary sm" data-action="copy-text" data-text="${esc(partnerSubdomainUrl)}" title="서브도메인 주소 복사">
+            ${icon('copy')}서브도메인 복사
+          </button>
+          <a href="${esc(partnerSubdomainUrl)}" target="_blank" rel="noopener noreferrer" class="btn sm soft">
+            ${icon('external')}랜딩 바로가기
+          </a>
+        </div>
+      </div>
+
+      <!-- 메인 서브도메인 대표 주소 박스 -->
+      <div style="background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px;margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;font-family:monospace;font-size:13px;color:#1e293b">
+          <span style="font-weight:700;color:#2563eb">대표 서브도메인:</span>
+          <span style="word-break:break-all">${esc(partnerSubdomainUrl)}</span>
+          <small style="color:#64748b;font-family:sans-serif">(운영 시: ${esc(prodSubdomain)})</small>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn sm" data-action="copy-text" data-text="${esc(partnerQueryUrl)}" title="파라미터형 공유링크 복사" style="font-size:11px;padding:3px 8px">
+            ${icon('link')}일반 공유링크 복사
+          </button>
+        </div>
+      </div>
+
+      <!-- 상품별 서브도메인 링크 그리드 -->
+      <div class="partner-links-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px;margin-top:14px">
+        ${db.products.map(p => {
+          const pSubUrl = `http://${subdomainHost}/landing/?prod=${encodeURIComponent(p.category)}`;
+          return `
+            <div class="partner-link-card" style="background:#ffffff;border:1px solid #cbd5e1;border-radius:10px;padding:14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <strong style="color:#0f172a;font-size:14px">${icon(p.category === '창호' ? 'window' : (p.category === '주방' ? 'kitchen' : 'bath'), 'sm')} ${esc(p.name)}</strong>
+                <span class="badge ${p.category === '창호' ? 'blue' : (p.category === '주방' ? 'orange' : 'green')}">${esc(p.category)} 전용</span>
+              </div>
+              <div class="product-url" style="background:#f8fafc;border:1px solid #e2e8f0;padding:6px 10px;border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <span style="font-size:12px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace">${esc(pSubUrl)}</span>
+                <button type="button" class="btn sm primary" data-action="copy-text" data-text="${esc(pSubUrl)}" title="상품별 서브도메인 링크 복사" style="padding:4px 8px;font-size:11px;white-space:nowrap">
+                  ${icon('copy')}링크 복사
+                </button>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+                <small style="color:#64748b;font-size:11px">신청 즉시 고객관리 자동 귀속</small>
+                <a href="${esc(pSubUrl)}" target="_blank" rel="noopener noreferrer" class="btn sm soft" style="font-size:11px;padding:3px 8px">
+                  ${icon('external')}미리보기
+                </a>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  return pageHead('상품관리', isPartner ? `${esc(activeU.org)} 전용 상품 링크를 확인하고 고객 유치에 활용하세요.` : '기본 랜딩페이지를 복제해 광고채널별 추적 링크를 만들고 유입 성과를 확인하세요.', headActions, 'PRODUCT & LANDING') +
+    partnerLinkBanner +
+    `<div class="banner">${icon('link')}<div><b>${role === '본사 관리자' ? '기본 랜딩페이지를 광고 매체별로 복제해 유입 채널을 정확히 구분합니다.' : (esc(activeU.org || '파트너') + ' 전용 광고 링크를 복제·생성해 고객 유입을 추적하세요.')}</b><br>복제된 링크로 고객이 방문·신청하면 <b>고객관리</b>와 <b>통계관리</b>에 네이버 검색광고, 당근마켓, 인스타그램 등 정확한 유입 채널과 캠페인명이 자동 기록됩니다.</div></div>` +
     `<div class="three-col">${db.products.map((p, i) => {
       const isLocalLanding = p.url && (p.url.startsWith('/') || p.url.includes('/landing'));
-      const displayUrl = p.url ? (p.url.startsWith('/') ? window.location.origin + p.url : p.url.replace('https://', '')) : '랜딩 URL 등록 대기';
+      const baseLanding = p.url ? (p.url.startsWith('/') ? window.location.origin + p.url : p.url) : (window.location.origin + '/landing/');
+      const dedicatedPartnerUrl = isPartner ? (baseLanding + (baseLanding.includes('?') ? '&' : '?') + 'partner=' + encodeURIComponent(activeU.org) + '&prod=' + encodeURIComponent(p.category)) : '';
+      const displayUrl = isPartner ? dedicatedPartnerUrl : (p.url ? (p.url.startsWith('/') ? window.location.origin + p.url : p.url.replace('https://', '')) : '랜딩 URL 등록 대기');
       const prodLinksCnt = links.filter(ll => Number(ll.productId) === Number(p.id) || ll.productCategory === p.category).length;
-      return `<article class="product-card"><div class="product-visual" style="background:${p.color}"><span class="visual-label">HOMECC ${['WINDOW', 'KITCHEN', 'BATHROOM'][i % 3]}</span>${icon(p.icon, 'large-icon')}</div><div class="product-info"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${badge(p.active ? '운영중' : '준비중', p.active ? 'green' : 'gray')}${badge(`복제 광고링크 ${prodLinksCnt}개`, prodLinksCnt > 0 ? 'purple' : 'gray')}</div><h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><div class="product-url"><span>${esc(displayUrl)}</span><button data-action="copy-product" data-id="${i}" aria-label="${esc(p.name)} 링크 복사">${icon('copy')}</button></div><div class="product-stats"><div><small>방문 수</small><b>${num(p.views)}</b></div><div><small>접수 고객</small><b>${visibleCustomers().filter(c => c.product === p.category).length}</b></div><div><small>계약</small><b>${db.contracts.filter(k => visibleCustomers().some(c => c.id === k.cid && c.product === p.category)).length}</b></div></div><div class="actions">${btn('광고링크 복제', 'open-clone-link', 'copy', 'primary sm', `data-id="${i}"`)}${isLocalLanding ? `<button type="button" class="btn sm soft" data-action="preview-landing" data-id="${i}" title="${esc(p.name)} 미리보기">${icon('eye')}미리보기</button>` : ''}${role === '본사 관리자' ? btn('수정', 'edit-product', 'edit', 'sm', `data-id="${i}"`) : ''}${p.url ? `<a class="btn sm" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(p.name)} 랜딩 새창 열기">${icon('external')}새창</a>` : ''}</div></div></article>`;
+      return `<article class="product-card"><div class="product-visual" style="background:${p.color}"><span class="visual-label">HOMECC ${['WINDOW', 'KITCHEN', 'BATHROOM'][i % 3]}</span>${icon(p.icon, 'large-icon')}</div><div class="product-info"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${badge(p.active ? '운영중' : '준비중', p.active ? 'green' : 'gray')}${badge(isPartner ? '전용 링크 활성' : `복제 광고링크 ${prodLinksCnt}개`, isPartner ? 'blue' : (prodLinksCnt > 0 ? 'purple' : 'gray'))}</div><h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><div class="product-url"><span>${esc(displayUrl)}</span><button data-action="${isPartner ? 'copy-text' : 'copy-product'}" data-text="${esc(dedicatedPartnerUrl)}" data-id="${i}" aria-label="${esc(p.name)} 링크 복사" title="링크 복사">${icon('copy')}</button></div><div class="product-stats"><div><small>방문 수</small><b>${num(p.views)}</b></div><div><small>접수 고객</small><b>${visibleCustomers().filter(c => c.product === p.category).length}</b></div><div><small>계약</small><b>${db.contracts.filter(k => visibleCustomers().some(c => c.id === k.cid && c.product === p.category)).length}</b></div></div><div class="actions">${btn('광고링크 복제', 'open-clone-link', 'copy', 'primary sm', `data-id="${i}"`)}${isLocalLanding ? `<button type="button" class="btn sm soft" data-action="preview-landing" data-id="${i}" title="${esc(p.name)} 미리보기">${icon('eye')}미리보기</button>` : ''}${role === '본사 관리자' ? btn('수정', 'edit-product', 'edit', 'sm', `data-id="${i}"`) : ''}${p.url ? `<a class="btn sm" href="${esc(isPartner ? dedicatedPartnerUrl : p.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(p.name)} 랜딩 새창 열기">${icon('external')}새창</a>` : ''}</div></div></article>`;
     }).join('')}</div>` +
     `<section class="panel" style="margin-top:24px">
       <div class="panel-head" style="flex-wrap:wrap;gap:12px">
         <div>
-          <h3>광고채널별 복제 랜딩링크 및 유입 성과</h3>
-          <p>기본 랜딩을 복사해 네이버·당근마켓·인스타·카카오 등 광고 위치별로 발급한 전용 추적 링크입니다. (총 <b>${links.length}개</b> 링크 · 방문 <b>${num(totalLinkViews)}</b> · 상담접수 <b>${num(totalLinkLeads)}건</b>)</p>
+          <h3>${isPartner ? `${esc(activeU.org)} 귀속 광고채널 링크 성과` : '광고채널별 복제 랜딩링크 및 유입 성과'}</h3>
+          <p>${isPartner ? `${esc(activeU.org)} 전용으로 발급된 채널별 추적 링크 현황입니다.` : '기본 랜딩을 복사해 네이버·당근마켓·인스타·카카오 등 광고 위치별로 발급한 전용 추적 링크입니다.'} (총 <b>${links.length}개</b> 링크 · 방문 <b>${num(totalLinkViews)}</b> · 상담접수 <b>${num(totalLinkLeads)}건</b>)</p>
         </div>
         ${btn('새 광고채널 링크 복제', 'open-clone-link', 'plus', 'primary sm')}
       </div>
@@ -1434,7 +1601,360 @@ function productsPage(){
     </section>`;
 }
 
-function partnersPage(){const partnerCards=db.partners.length?`<div class="three-col">${db.partners.map(p=>{const cs=db.customers.filter(c=>c.partner===p.name);const pUser=(db.users||[]).map((u,idx)=>normalizeUserRecord(u,idx)).find(u=>u.org===p.name);const pMenuLabels=pUser?getUserAllowedMenuKeys(pUser).map(k=>MENU_META[k]?.label||k).join(' · '):'고객관리 · 계약관리 · 상품관리';return `<section class="panel partner-card"><div class="partner-top"><div class="avatar">${esc(p.name.slice(0,2))}</div><div><h3>${esc(p.name)}</h3><p>${p.id} · ${esc(p.type)}</p></div>${badge(p.active?'정상':'대기',p.active?'green':'orange')}</div><div class="info-grid"><div><label>대표 담당자</label><b>${esc(p.person)}</b></div><div><label>운영 권한</label><b>${esc(pUser?.role_label||'파트너 관리자')}</b></div></div><div class="divider"></div><div class="mini-stat"><span>등록 고객</span><b>${cs.length}건</b></div><div class="mini-stat"><span>계약 현황</span><b>${db.contracts.filter(k=>cs.some(c=>c.id===k.cid)).length}건</b></div><div class="mini-stat"><span>허용 메뉴</span><b>${esc(pMenuLabels)}</b></div><div class="actions" style="margin-top:20px">${btn('파트너 정보','partner-detail','building','sm',`data-id="${p.id}"`)}${pUser?btn('전용 화면 체험','partner-mode','external','sm soft',`data-username="${esc(pUser.username)}" data-org="${esc(p.name)}"`):''}</div></section>`}).join('')}</div>`:`<section class="panel"><div class="empty">${icon('building')}<strong>등록된 영업파트너가 없습니다.</strong>우측 상단 <b>[파트너 등록]</b> 버튼으로 파트너 조직을 추가하세요.</div></section>`;return pageHead('파트너관리','함께 성장하는 영업파트너와 고객 성과를 관리하세요.',btn('파트너 등록','new-partner','plus','primary'),'PARTNER NETWORK')+partnerCards+`<div class="banner" style="margin-top:22px">${icon('shield')}<div><b>소속 파트너의 고객과 계약만 관리합니다.</b><br>파트너 사용자별로 볼 수 있는 메뉴는 <b>[설정 &gt; 사용자관리]</b>에서 자유롭게 선택·변경할 수 있으며, 원가·본사 마진·타 파트너 정보는 비공개로 보호됩니다.</div></div>`}
+function partnersPage(){
+  const activeU = getActiveUser();
+  const isPartner = activeU.role === 'partner';
+  const isHq = !isPartner && (activeU.role === 'hq_admin' || role === '본사 관리자');
+  const myOrgId = activeU.org_id;
+
+  // 전체 파트너 리스트 정규화
+  const allPartners = (db.partners || []).map(p => ({
+    ...p,
+    level: Number(p.level || (p.parentId ? 2 : 1)),
+    orgId: p.orgId || p.id
+  }));
+
+  // 파트너인 경우 자신의 직속 하위 파트너들만 필터링
+  const displayPartners = isPartner
+    ? allPartners.filter(p => (p.parentId === myOrgId || p.parent_id === myOrgId) && p.orgId !== myOrgId)
+    : allPartners;
+
+  // 네트워크 계층 통계 집계
+  const topPartners = allPartners.filter(p => p.level === 1 || !p.parentId);
+  const subPartners = allPartners.filter(p => p.level > 1 && p.parentId);
+  const totalPartnerCustomers = allPartners.reduce((acc, p) => acc + db.customers.filter(c => c.partner === p.name).length, 0);
+  const totalPartnerContracts = allPartners.reduce((acc, p) => {
+    const cs = db.customers.filter(c => c.partner === p.name);
+    return acc + db.contracts.filter(k => cs.some(c => c.id === k.cid)).length;
+  }, 0);
+
+  const pageTitle = isPartner ? '하위 파트너 관리' : '파트너관리';
+  const pageSub = isPartner
+    ? `${esc(activeU.org)} 산하 직속 영업파트너 조직과 고객 성과를 체계적으로 관리하세요.`
+    : '함께 성장하는 영업파트너와 상위·하위 계통 네트워크를 한눈에 체계적으로 관리하세요.';
+  const pageEyebrow = isPartner ? 'SUB-PARTNER NETWORK' : 'PARTNER NETWORK';
+  const regBtnText = isPartner ? '하위 파트너 등록' : '파트너 등록';
+
+  // 상단 파트너 네트워크 요약 대시보드
+  const summaryDashboardHtml = !isPartner ? `
+    <div class="partner-summary-grid">
+      <div class="partner-summary-item">
+        <div class="partner-summary-icon blue">${icon('building')}</div>
+        <div class="partner-summary-text">
+          <span>1차 본사 직속 파트너</span>
+          <strong>${topPartners.length}<small>개사</small></strong>
+        </div>
+      </div>
+      <div class="partner-summary-item">
+        <div class="partner-summary-icon purple">${icon('users')}</div>
+        <div class="partner-summary-text">
+          <span>2차 직속 산하 파트너</span>
+          <strong>${subPartners.length}<small>개사</small></strong>
+        </div>
+      </div>
+      <div class="partner-summary-item">
+        <div class="partner-summary-icon green">${icon('user')}</div>
+        <div class="partner-summary-text">
+          <span>파트너 총 관리 고객</span>
+          <strong>${totalPartnerCustomers}<small>건</small></strong>
+        </div>
+      </div>
+      <div class="partner-summary-item">
+        <div class="partner-summary-icon orange">${icon('contract')}</div>
+        <div class="partner-summary-text">
+          <span>파트너 체결 계약</span>
+          <strong>${totalPartnerContracts}<small>건</small></strong>
+        </div>
+      </div>
+    </div>
+  ` : '';
+
+  let partnerContentHtml = '';
+
+  if (isPartner) {
+    // 1차 파트너가 본인 어드민에서 하위 파트너들을 볼 때 (다른 파트너 어드민으로 이동 불가, 정보 확인만 가능)
+    if (displayPartners.length === 0) {
+      partnerContentHtml = `<section class="panel"><div class="empty">${icon('building')}<strong>등록된 직속 하위 파트너가 없습니다.</strong>우측 상단 <b>[하위 파트너 등록]</b> 버튼으로 ${esc(activeU.org)} 산하 영업파트너를 추가하세요.</div></section>`;
+    } else {
+      partnerContentHtml = `
+        <div class="partner-tree-group" style="border-top:4px solid #2563eb">
+          <div class="partner-parent-card" style="background:#f8fafd">
+            <div class="partner-top" style="margin-bottom:0">
+              <div class="avatar">${esc(activeU.org.slice(0, 2))}</div>
+              <div class="partner-title-wrap">
+                <h3>${esc(activeU.org)} ${badge('소속 파트너 (1차)', 'blue')}</h3>
+                <p>소속: 본사 직속 (1차 파트너) · 산하 직속 2차 파트너 <b>${displayPartners.length}개사</b></p>
+              </div>
+            </div>
+          </div>
+          <div class="partner-sub-container">
+            <div class="partner-sub-header">
+              <div class="partner-sub-header-title">
+                <span style="color:#8b5cf6;font-size:16px;font-weight:900">└─</span>
+                <span>[${esc(activeU.org)}] 직속 산하 2차 파트너 리스트</span>
+                ${badge(`${displayPartners.length}개사`, 'purple')}
+              </div>
+              <button type="button" class="btn sm primary" data-action="new-partner" data-parent-id="${activeU.org_id}">
+                ${icon('plus', 'sm')} 하위 파트너 등록
+              </button>
+            </div>
+            <div class="sub-partners-grid">
+              ${displayPartners.map(p => {
+                const cs = db.customers.filter(c => c.partner === p.name);
+                const ctCount = db.contracts.filter(k => cs.some(c => c.id === k.cid)).length;
+                return `
+                  <div class="sub-partner-card">
+                    <div class="sub-partner-card-top">
+                      <div>
+                        <div class="sub-partner-card-title">
+                          ${esc(p.name)}
+                          ${badge('2차 파트너', 'purple')}
+                        </div>
+                        <p class="sub-partner-card-sub">${esc(p.id)} · ${esc(p.type || '인테리어')}</p>
+                      </div>
+                      ${badge(p.active !== false ? '정상 운영' : '대기', p.active !== false ? 'green' : 'orange')}
+                    </div>
+                    <div class="sub-partner-meta-grid">
+                      <div>
+                        <label>대표 담당자</label>
+                        <b>${esc(p.person || '-')}</b>
+                      </div>
+                      <div>
+                        <label>대표 연락처</label>
+                        <b>${esc(p.phone || '-')}</b>
+                      </div>
+                    </div>
+                    <div class="sub-partner-stat-row">
+                      <span>등록 고객</span>
+                      <b>${cs.length}건</b>
+                    </div>
+                    <div class="sub-partner-stat-row">
+                      <span>계약 현황</span>
+                      <b>${ctCount}건</b>
+                    </div>
+                    <div class="sub-partner-actions">
+                      ${btn('파트너 정보', 'partner-detail', 'building', 'sm block', `data-id="${p.id}"`)}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  } else {
+    // 총괄관리자(본사)가 전체 상하위 계층 파트너를 볼 때
+    if (allPartners.length === 0) {
+      partnerContentHtml = `<section class="panel"><div class="empty">${icon('building')}<strong>등록된 영업파트너가 없습니다.</strong>우측 상단 <b>[파트너 등록]</b> 버튼으로 파트너 조직을 추가하세요.</div></section>`;
+    } else {
+      // 1차 파트너들 기준으로 그룹화
+      const primaryPartners = allPartners.filter(p => !p.parentId || p.level === 1);
+      // 혹시 1차 파트너 중 어디에도 속하지 않는 고아 2차 파트너가 있는지 체크
+      const orphanSubPartners = allPartners.filter(p => p.level > 1 && !primaryPartners.some(tp => String(tp.orgId) === String(p.parentId) || tp.name === p.parentName));
+
+      const groupsHtml = primaryPartners.map(p => {
+        const cs = db.customers.filter(c => c.partner === p.name);
+        const ctCount = db.contracts.filter(k => cs.some(c => c.id === k.cid)).length;
+        const pUser = (db.users || []).map((u, idx) => normalizeUserRecord(u, idx)).find(u => u.org === p.name || u.org_id === p.orgId || (p.username && u.username === p.username));
+        const pMenuLabels = pUser ? getUserAllowedMenuKeys(pUser).map(k => MENU_META[k]?.label || k).join(' · ') : '고객관리 · 상품관리 · 통계관리';
+
+        // 직속 하위 2차 파트너들 검색
+        const children = allPartners.filter(c => (String(c.parentId) === String(p.orgId) || String(c.parent_id) === String(p.orgId) || c.parentName === p.name) && String(c.orgId) !== String(p.orgId));
+        
+        // 산하 전체(자신 + 하위) 고객 및 계약 합산
+        const allOrgNames = [p.name, ...children.map(c => c.name)];
+        const totalSubCs = db.customers.filter(c => allOrgNames.includes(c.partner)).length;
+        const totalSubCts = db.contracts.filter(k => db.customers.some(c => allOrgNames.includes(c.partner) && c.id === k.cid)).length;
+
+        return `
+          <div class="partner-tree-group">
+            <!-- 1차 상위 파트너 정보 본체 -->
+            <div class="partner-parent-card">
+              <div class="partner-top">
+                <div class="avatar">${esc(p.name.slice(0, 2))}</div>
+                <div class="partner-title-wrap">
+                  <h3>
+                    <span>${esc(p.name)}</span>
+                    ${badge('1차 파트너', 'blue')}
+                    ${children.length > 0 ? badge(`직속 하위 ${children.length}개사`, 'green') : badge('하위 파트너 없음', 'gray')}
+                  </h3>
+                  <p>${esc(p.id)} · 업종: ${esc(p.type || '인테리어')} · 소속: 본사 직속 (1차 계통)</p>
+                </div>
+                ${badge(p.active !== false ? '정상 운영' : '대기', p.active !== false ? 'green' : 'orange')}
+              </div>
+
+              <div class="partner-info-bar">
+                <div class="partner-info-bar-item">
+                  <label>대표 담당자</label>
+                  <b>${esc(p.person || '-')}</b>
+                </div>
+                <div class="partner-info-bar-item">
+                  <label>대표 연락처</label>
+                  <b>${esc(p.phone || '-')}</b>
+                </div>
+                <div class="partner-info-bar-item">
+                  <label>직속 실적 (고객/계약)</label>
+                  <b>고객 ${cs.length}건 · 계약 ${ctCount}건</b>
+                </div>
+                <div class="partner-info-bar-item">
+                  <label>계통 전체 합산 (1·2차)</label>
+                  <b style="color:#2563eb">고객 ${totalSubCs}건 · 계약 ${totalSubCts}건</b>
+                </div>
+              </div>
+
+              <div class="partner-parent-footer">
+                <div class="partner-parent-stats">
+                  <span>허용 메뉴: <b style="color:#475569">${esc(pMenuLabels)}</b></span>
+                </div>
+                <div class="actions">
+                  ${btn('파트너 정보', 'partner-detail', 'building', 'sm', `data-id="${p.id}"`)}
+                  ${isHq ? (pUser ? btn('파트너 어드민 바로가기', 'partner-mode', 'external', 'sm soft', `data-username="${esc(pUser.username)}" data-org="${esc(p.name)}" title="새 창에서 [${esc(p.name)}] 파트너 어드민으로 접속합니다"`) : `<span class="badge gray sm" title="연결된 로그인 어드민 계정(users)이 없습니다." style="display:inline-flex;align-items:center;padding:5px 8px;font-size:11px;color:#64748b;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:4px">계정 미등록</span>`) : ''}
+                  <button type="button" class="btn sm" data-action="new-partner" data-parent-id="${p.orgId}">
+                    ${icon('plus', 'sm')} 하위(2차) 파트너 추가
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 산하 직속 2차 파트너 영역 (트리 브랜치 구조) -->
+            <div class="partner-sub-container">
+              <div class="partner-sub-header">
+                <div class="partner-sub-header-title">
+                  <span style="color:#8b5cf6;font-size:16px;font-weight:900">└─</span>
+                  <span>[${esc(p.name)}] 산하 직속 2차 파트너</span>
+                  ${badge(`${children.length}개사`, children.length > 0 ? 'purple' : 'gray')}
+                </div>
+                <small style="color:#64748b;font-size:11px">1차 파트너의 지휘 및 계약 성과가 상위로 집계되는 직속 산하 파트너 조직입니다.</small>
+              </div>
+
+              ${children.length > 0 ? `
+                <div class="sub-partners-grid">
+                  ${children.map(cp => {
+                    const cCs = db.customers.filter(c => c.partner === cp.name);
+                    const cCtCount = db.contracts.filter(k => cCs.some(c => c.id === k.cid)).length;
+                    const cpUser = (db.users || []).map((u, idx) => normalizeUserRecord(u, idx)).find(u => u.org === cp.name || u.org_id === cp.orgId || (cp.username && u.username === cp.username));
+                    return `
+                      <div class="sub-partner-card">
+                        <div class="sub-partner-card-top">
+                          <div>
+                            <div class="sub-partner-card-title">
+                              <span>${esc(cp.name)}</span>
+                              ${badge('2차 파트너', 'purple')}
+                            </div>
+                            <p class="sub-partner-card-sub">${esc(cp.id)} · ${esc(cp.type || '인테리어')}</p>
+                          </div>
+                          ${badge(cp.active !== false ? '정상 운영' : '대기', cp.active !== false ? 'green' : 'orange')}
+                        </div>
+                        <div class="sub-partner-meta-grid">
+                          <div>
+                            <label>상위 소속</label>
+                            <b style="color:#2563eb">${esc(p.name)}</b>
+                          </div>
+                          <div>
+                            <label>대표 담당자</label>
+                            <b>${esc(cp.person || '-')}</b>
+                          </div>
+                          <div>
+                            <label>대표 연락처</label>
+                            <b>${esc(cp.phone || '-')}</b>
+                          </div>
+                          <div>
+                            <label>등록 고객 / 계약</label>
+                            <b>고객 ${cCs.length}건 · 계약 ${cCtCount}건</b>
+                          </div>
+                        </div>
+                        <div class="sub-partner-actions">
+                          ${btn('파트너 정보', 'partner-detail', 'building', 'sm block', `data-id="${cp.id}"`)}
+                          ${isHq ? (cpUser ? btn('어드민 바로가기', 'partner-mode', 'external', 'sm soft', `data-username="${esc(cpUser.username)}" data-org="${esc(cp.name)}" title="새 창에서 [${esc(cp.name)}] 파트너 어드민으로 접속합니다"`) : `<span class="badge gray sm" title="연결된 로그인 어드민 계정(users)이 없습니다." style="display:inline-flex;align-items:center;padding:5px 8px;font-size:11px;color:#64748b;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:4px">계정 미등록</span>`) : ''}
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              ` : `
+                <div class="sub-partner-empty">
+                  <span>${esc(p.name)} 산하에 등록된 직속 2차 파트너가 없습니다. (단독 1차 파트너 운영 중)</span>
+                  <div style="margin-top:8px">
+                    <button type="button" class="btn sm soft" data-action="new-partner" data-parent-id="${p.orgId}">
+                      ${icon('plus', 'sm')} ${esc(p.name)} 산하에 2차 파트너 등록하기
+                    </button>
+                  </div>
+                </div>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      let orphanHtml = '';
+      if (orphanSubPartners.length > 0) {
+        orphanHtml = `
+          <div class="partner-tree-group" style="border-top:4px solid #f97316">
+            <div class="partner-parent-card" style="background:#fffaf5">
+              <div class="partner-top">
+                <div class="partner-title-wrap">
+                  <h3 style="color:#c2410c">⚠️ 상위 파트너 미지정 파트너 (${orphanSubPartners.length}개사)</h3>
+                  <p>상위 파트너가 설정되지 않았거나 연결이 끊어진 파트너 목록입니다. [파트너 정보]에서 상위 파트너를 지정해 주세요.</p>
+                </div>
+              </div>
+              <div class="sub-partners-grid" style="margin-top:14px">
+                ${orphanSubPartners.map(cp => {
+                  const cCs = db.customers.filter(c => c.partner === cp.name);
+                  const cCtCount = db.contracts.filter(k => cCs.some(c => c.id === k.cid)).length;
+                  const cpUser = (db.users || []).map((u, idx) => normalizeUserRecord(u, idx)).find(u => u.org === cp.name || u.org_id === cp.orgId || (cp.username && u.username === cp.username));
+                  return `
+                    <div class="sub-partner-card" style="border-left-color:#f97316">
+                      <div class="sub-partner-card-top">
+                        <div>
+                          <div class="sub-partner-card-title">
+                            <span>${esc(cp.name)}</span>
+                            ${badge('2차 파트너', 'orange')}
+                          </div>
+                          <p class="sub-partner-card-sub">${esc(cp.id)} · ${esc(cp.type || '인테리어')}</p>
+                        </div>
+                        ${badge(cp.active !== false ? '정상 운영' : '대기', cp.active !== false ? 'green' : 'orange')}
+                      </div>
+                      <div class="sub-partner-meta-grid">
+                        <div>
+                          <label>대표 담당자</label>
+                          <b>${esc(cp.person || '-')}</b>
+                        </div>
+                        <div>
+                          <label>대표 연락처</label>
+                          <b>${esc(cp.phone || '-')}</b>
+                        </div>
+                      </div>
+                      <div class="sub-partner-stat-row">
+                        <span>등록 고객 / 계약</span>
+                        <b>고객 ${cCs.length}건 · 계약 ${cCtCount}건</b>
+                      </div>
+                      <div class="sub-partner-actions">
+                        ${btn('파트너 정보 (상위지정)', 'partner-detail', 'building', 'sm block', `data-id="${cp.id}"`)}
+                        ${isHq ? (cpUser ? btn('어드민 바로가기', 'partner-mode', 'external', 'sm soft', `data-username="${esc(cpUser.username)}" data-org="${esc(cp.name)}" title="새 창에서 [${esc(cp.name)}] 파트너 어드민으로 접속합니다"`) : `<span class="badge gray sm" title="연결된 로그인 어드민 계정(users)이 없습니다." style="display:inline-flex;align-items:center;padding:5px 8px;font-size:11px;color:#64748b;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:4px">계정 미등록</span>`) : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      partnerContentHtml = groupsHtml + orphanHtml;
+    }
+  }
+
+  const bannerText = isPartner
+    ? `<div><b>${esc(activeU.org)}의 직속 2차 파트너만 관리합니다.</b><br>하위 파트너의 등록 고객 및 계약 성과는 ${esc(activeU.org)} 실적과 자동 연계되며, 파트너 어드민에는 <b>고객관리·상품관리·통계관리</b>가 기본 제공됩니다.</div>`
+    : `<div><b>상하위 파트너 계통 네트워크 실시간 연동</b><br>파트너 등록 시 <b>상위 파트너</b>를 지정하면 1차(본사 직속)·2차(산하 직속) 파트너가 계층형 트리로 묶여 한눈에 관리되며, 하위 파트너가 있는 1차 파트너는 본인 어드민에 <b>[파트너관리]</b> 메뉴가 자동으로 활성화됩니다.</div>`;
+
+  return pageHead(pageTitle, pageSub, btn(regBtnText, 'new-partner', 'plus', 'primary'), pageEyebrow) +
+    summaryDashboardHtml +
+    partnerContentHtml +
+    `<div class="banner" style="margin-top:22px">${icon('shield')}${bannerText}</div>`;
+}
 
 function getLiveAnalyticsSnapshot() {
   if (db.analytics && db.analytics.summary) {
@@ -4978,15 +5498,136 @@ case'mobile-consult':audit(id,'모바일 견적 화면에서 상담 요청 · �
 case'rental-start':{const c=accessibleC(id);rentalDraft={cid:c.id,name:c.name,phone:c.phone,address:c.address,plan:'60개월'};rentalStep(1);break}
 case'partner-mode':{
     setMobileNav(false);
+    const activeU = getActiveUser();
+    if (activeU.role === 'partner') {
+      toast('일반 파트너 계정에서는 다른 파트너 어드민으로 이동할 수 없습니다.');
+      break;
+    }
     const targetUser = el.dataset.username || '';
     const targetOrg = el.dataset.org || '파트너';
-    if (!targetUser) break;
-    selected.clear();page='customers';customerTab='all';partnerFilter='';stageFilter='';query='';closeDialog();
-    (async()=>{await apiSwitchRole(targetUser);await syncFromServer();render();toast(targetOrg+' 전용 화면 및 허용 메뉴로 전환했습니다.');})();
+    if (!targetUser) {
+      toast('해당 파트너의 어드민 접속 계정이 없습니다.');
+      break;
+    }
+    // 본사 관리자 화면을 유지한 채 새 창에서 해당 파트너 어드민을 독립 세션으로 오픈
+    const targetUrl = `./?switch_user=${encodeURIComponent(targetUser)}`;
+    window.open(targetUrl, '_blank');
+    toast(`[${targetOrg}] 파트너 어드민을 새 창으로 열었습니다.`);
     break;
   }
-case'partner-detail':{const p=db.partners.find(x=>x.id===id);formDialog('파트너 정보',`${field('파트너명','name',p.name,'text',true)}${field('담당자','person',p.person,'text',true)}${field('이메일','email',p.email,'email',true)}${selectField('업종','type',['인테리어','영업대행','기타'],p.type)}<div class="notice-text">소속 파트너 사용자의 표시 메뉴는 [설정 &gt; 사용자관리]에서 사용자별로 선택할 수 있습니다. 원가와 본사 마진은 비공개입니다.</div>`,'partner','',`data-id="${id}"`);break}
-case'new-partner':formDialog('영업파트너 등록',`${field('파트너명','name','','text',true)}${field('대표 담당자','person','','text',true)}${field('이메일','email','','email',true)}${selectField('업종','type',['인테리어','영업대행','기타'],'인테리어')}<div class="notice-text">체험용 파트너 등록입니다. 실제 계정 발급이나 초대 메일은 발송하지 않습니다.</div>`,'partner');break;
+case'copy-text':{
+    const txt = el.dataset.text || '';
+    if (txt) {
+      copy(txt);
+      toast('파트너 전용 상품 링크가 복사되었습니다!');
+    }
+    break;
+  }
+case'partner-detail':{
+    const p = db.partners.find(x => x.id === id || String(x.orgId) === String(id));
+    if (!p) { toast('파트너 정보를 찾을 수 없습니다.'); break; }
+    const activeU = getActiveUser();
+    const isHq = role === '본사 관리자' || activeU.role === 'hq_admin';
+    const levelNum = p.level || 1;
+    const parentOpts = [['', '최상위 (1차 파트너)'], ...(db.partners || []).filter(x => x.orgId !== p.orgId).map(x => [String(x.orgId || x.id), `${x.name} (${x.level || 1}차 파트너)`])];
+    const parentFieldHtml = isHq
+      ? selectField('상위 파트너 (레벨 관리)', 'parentId', parentOpts, String(p.parentId || ''))
+      : `<div class="field"><label>상위 파트너</label><input class="input" value="${esc(p.parentName || '본사 직속')}" readonly style="background:#f8fafc"></div>`;
+
+    formDialog('파트너 정보 상세 및 수정', `
+      <div style="margin-bottom:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        ${badge(`${levelNum}차 파트너`, levelNum === 1 ? 'blue' : 'purple')}
+        <span class="badge gray">식별 코드: ${esc(p.id)}</span>
+        ${p.subPartnerCount > 0 ? badge(`직속 하위 ${p.subPartnerCount}개사`, 'green') : ''}
+      </div>
+      ${parentFieldHtml}
+      ${field('파트너사명', 'name', p.name, 'text', true)}
+      ${field('대표 담당자', 'person', p.person, 'text', true)}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${field('연락처', 'phone', p.phone || '', 'tel')}
+        ${field('이메일', 'email', p.email || '', 'email')}
+      </div>
+      ${selectField('업종', 'type', ['인테리어', '영업대행', '건재유통', '시공업체', '기타'], p.type || '인테리어')}
+      <div class="notice-text">파트너별 어드민 접속 권한과 메뉴(고객관리·상품관리·통계관리 등)는 실시간 자동 동기화됩니다.</div>
+    `, 'partner', '', `data-id="${p.orgId || p.id}"`);
+    break;
+  }
+case'my-profile':{
+    const activeU = getActiveUser();
+    const isPartner = activeU.role === 'partner';
+    const partnerUsername = activeU.username || '';
+    const prodSubdomain = `${partnerUsername}.kcchomecc.com`;
+
+    formDialog(isPartner ? '파트너 정보 및 계정 수정' : '내 정보 및 비밀번호 수정', `
+      <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:12px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <strong style="color:#0f172a;font-size:14px">${esc(activeU.name)} (${esc(activeU.role_label)})</strong>
+          <span class="badge blue">${esc(activeU.org)}</span>
+        </div>
+        <div style="font-size:12px;color:#475569;display:flex;gap:12px;flex-wrap:wrap">
+          <span>아이디: <b style="color:#1e293b">${esc(partnerUsername)}</b></span>
+          ${isPartner ? `<span>서브도메인: <b style="color:#2563eb">${esc(prodSubdomain)}</b></span>` : ''}
+        </div>
+      </div>
+      ${isPartner ? field('파트너사명 (상호명)', 'orgName', activeU.org, 'text', true) : ''}
+      ${field('담당자 성명', 'name', activeU.name, 'text', true)}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${field('대표 연락처', 'phone', activeU.phone || '', 'tel', true)}
+        ${field('이메일', 'email', activeU.email || '', 'email')}
+      </div>
+      <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:12px;margin-top:12px">
+        <div style="font-weight:700;font-size:13px;color:#1e293b;margin-bottom:4px">🔑 비밀번호 변경 (선택)</div>
+        ${field('새 비밀번호', 'password', '', 'password', false, '변경 시에만 4자리 이상 입력')}
+        <small style="color:#64748b;font-size:11px">비밀번호를 변경하지 않으려면 공란으로 두세요.</small>
+      </div>
+      <div class="notice-text">수정된 정보는 전용 랜딩 및 고객 상담 알림 등에 즉시 반영됩니다.</div>
+    `, 'my-profile', '', '', '정보 저장');
+    break;
+  }
+case'new-partner':{
+    const activeU = getActiveUser();
+    const isPartner = activeU.role === 'partner';
+    const preselectedParentId = el.dataset.parentId ? String(el.dataset.parentId) : '';
+    const parentFieldHtml = isPartner
+      ? `<input type="hidden" name="parentId" value="${activeU.org_id}">
+         <div class="field">
+           <label>상위 파트너 (직속 귀속)</label>
+           <input class="input" value="${esc(activeU.org)} (본인 소속 ${Number(activeU.level || 1) + 1}차 하위 파트너로 자동 귀속)" readonly style="background:#f1f5f9;font-weight:600;color:#1e3a8a">
+         </div>`
+      : selectField('상위 파트너 (선택 시 레벨 자동 부여)', 'parentId', [
+          ['', '최상위 (1차 파트너 - 상위 파트너 없음)'],
+          ...(db.partners || []).map(p => [String(p.orgId || p.id), `${p.name} (${p.level || 1}차 파트너)`])
+        ], preselectedParentId);
+
+    formDialog(isPartner ? '하위 영업파트너 등록' : '신규 파트너 등록', `
+      ${parentFieldHtml}
+      ${field('파트너사명 (상호명)', 'name', '', 'text', true)}
+      ${field('대표 담당자명', 'person', '', 'text', true)}
+      <div style="background:#f8fafc;border:1px solid #bfdbfe;border-radius:8px;padding:14px;margin:12px 0">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <span class="badge blue" style="font-weight:700">🔐 어드민 계정 &amp; 전용 서브도메인</span>
+          <span class="badge green">필수 입력</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          ${field('접속 아이디 (서브도메인)', 'username', '', 'text', true, '영문 소문자·숫자 (예: partner_daon)')}
+          ${field('접속 비밀번호', 'password', '', 'password', true, '4자리 이상 입력')}
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:#1d4ed8;background:#eff6ff;padding:6px 10px;border-radius:6px">
+          🌐 <b>전용 랜딩 서브도메인</b>: <code>https://[아이디].kcchomecc.com</code> 주소로 자동 개설됩니다.
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${field('대표 연락처 (휴대폰)', 'phone', '010-', 'tel', true, '숫자 입력 시 하이픈 자동 삽입')}
+        ${field('이메일 주소', 'email', '', 'email', false, 'partner@example.com')}
+      </div>
+      ${selectField('업종', 'type', ['인테리어', '영업대행', '건재유통', '시공업체', '기타'], '인테리어')}
+      <div class="notice-text">
+        ✨ <b>파트너 기본 메뉴</b>: 고객관리, 상품관리, 통계관리<br>
+        ✨ <b>하위 파트너 등록 시</b>: 상위 파트너에게 <b>[파트너관리]</b> 메뉴가 자동으로 활성화됩니다.
+      </div>
+    `, 'partner', '', '', '파트너 등록 완료');
+    break;
+  }
 case'open-clone-link':openCloneLinkDialog(null, id !== undefined && id !== '' ? Number(id) : null);break;
 case'edit-cloned-link':openCloneLinkDialog(Number(id));break;
 case'copy-cloned-link':{
@@ -5176,6 +5817,13 @@ case'reset-data':formDialog('운영 데이터 초기화',`<div class="notice-tex
 case'request-quote':{const c=accessibleC(id);c.status='가견적요청';audit(id,'파트너 가견적 요청');render();openCustomer(id,'quotes');toast('견적 요청을 등록했습니다.');break}
 }});
 document.addEventListener('input',e=>{
+  if (e.target.name === 'phone' || e.target.type === 'tel' || e.target.id === 'phone' || e.target.id?.includes('phone')) {
+    const rawVal = e.target.value;
+    const formatted = formatPhoneNumber(rawVal);
+    if (rawVal !== formatted) {
+      e.target.value = formatted;
+    }
+  }
   if(e.target.dataset.money)formatMoneyInput(e.target);
   if(e.target.id==='customer-search'){query=e.target.value;$('#customer-rows').innerHTML=customerRows();$('#list-count').innerHTML=`검색 결과 <strong>${filteredCustomers().length}</strong>건`}
   if(e.target.id==='product-link-search'){
@@ -5536,7 +6184,94 @@ case'application':{
     break;
   }
 case'rental':{const step=Number(f.dataset.step);if(step===1){rentalDraft={...rentalDraft,name:d['r-name'],phone:d['r-phone'],address:d['r-address'],plan:d['r-plan']};rentalStep(2)}else if(step===2)rentalStep(3);else{if(d.signature.trim()!==rentalDraft.name.trim()){toast('신청자 이름과 동일하게 입력해 주세요.');return}const c=accessibleC(rentalDraft.cid);if(db.applications.some(a=>a.cid===c.id&&!['반려'].includes(a.status))){toast('해당 고객의 진행 중인 렌탈 신청이 이미 있습니다.');return}db.applications.unshift({id:'R-'+Date.now().toString().slice(-8),cid:c.id,customerName:c.name,product:c.product,plan:rentalDraft.plan,monthly:Math.round(c.quote*1.2/parseInt(rentalDraft.plan)/1000)*1000,status:'서류검토',date:new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'}),createdAt:new Date().toISOString(),createdAtText:now(),consent:true});c.status='계약진행';audit(c.id,'체험 렌탈 신청 접수');save();closeDialog();page='contracts';contractTab='rental';render();toast('체험 신청이 렌탈 신청 목록에 등록되었습니다.');}break}
-case'partner':{if(db.partners.some(p=>p.name===d.name&&p.id!==id)){toast('같은 이름의 파트너가 있습니다.');return}if(id){const p=db.partners.find(x=>x.id===id),prev=p.name;Object.assign(p,d);db.customers.forEach(c=>{if(c.partner===prev)c.partner=p.name})}else db.partners.push({...d,id:'P'+String(db.partners.length+1).padStart(3,'0'),active:true});save();closeDialog();render();toast('파트너 정보를 저장했습니다.');break}
+case'my-profile':{
+    const cleanName = (d.name || '').trim();
+    const cleanPhone = (d.phone || '').trim();
+    if (!cleanName) { toast('담당자 성명을 입력해 주세요.'); return; }
+    if (!cleanPhone) { toast('대표 연락처를 입력해 주세요.'); return; }
+    if (d.password && d.password.trim() && d.password.trim().length < 4) {
+      toast('새 비밀번호는 4자리 이상 입력해 주세요.');
+      return;
+    }
+    try {
+      const res = await apiFetch('/api/auth/profile', {
+        method: 'PATCH',
+        body: {
+          name: cleanName,
+          phone: cleanPhone,
+          email: (d.email || '').trim(),
+          orgName: (d.orgName || '').trim(),
+          password: (d.password || '').trim() || undefined
+        }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await syncFromServer();
+        closeDialog();
+        render();
+        toast(resData.message || '회원 정보가 성공적으로 수정되었습니다.');
+        break;
+      } else {
+        toast(resData.error || '정보 수정에 실패했습니다.');
+        return;
+      }
+    } catch (err) {
+      toast('정보 수정 중 오류가 발생했습니다.');
+    }
+    break;
+  }
+case'partner':{
+    const cleanName = (d.name || '').trim();
+    if (!cleanName) { toast('파트너사명을 입력해 주세요.'); return; }
+    const isEdit = Boolean(id);
+    if (!isEdit) {
+      const cleanUname = (d.username || '').trim();
+      const cleanPw = (d.password || '').trim();
+      const cleanPh = (d.phone || '').trim();
+      if (!cleanUname) { toast('어드민 접속 및 서브도메인 아이디를 입력해 주세요.'); return; }
+      if (!cleanPw || cleanPw.length < 4) { toast('비밀번호를 4자리 이상 입력해 주세요.'); return; }
+      if (!cleanPh) { toast('대표 연락처를 입력해 주세요.'); return; }
+    }
+    try {
+      const apiUrl = isEdit ? ('/api/partners/' + encodeURIComponent(id)) : '/api/partners';
+      const method = isEdit ? 'PUT' : 'POST';
+      const res = await apiFetch(apiUrl, {
+        method,
+        body: {
+          name: cleanName,
+          person: (d.person || '').trim(),
+          phone: (d.phone || '').trim(),
+          email: (d.email || '').trim(),
+          type: d.type || '인테리어',
+          parentId: d.parentId ? Number(d.parentId) : null,
+          username: (d.username || '').trim(),
+          password: (d.password || '').trim()
+        }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await syncFromServer();
+        closeDialog();
+        render();
+        toast(resData.message || (isEdit ? '파트너 정보가 수정되었습니다.' : `새 파트너 [${cleanName}] 및 어드민 계정이 등록되었습니다.`));
+        break;
+      } else {
+        toast(resData.error || '파트너 저장에 실패했습니다.');
+        return;
+      }
+    } catch (err) {
+      console.warn('Partner save error:', err);
+    }
+    // Fallback in-memory
+    if (db.partners.some(p => p.name === cleanName && p.id !== id)) { toast('같은 이름의 파트너가 있습니다.'); return; }
+    if (id) {
+      const p = db.partners.find(x => x.id === id || String(x.orgId) === String(id));
+      if (p) Object.assign(p, d);
+    } else {
+      db.partners.push({ ...d, id: 'P' + String(db.partners.length + 1).padStart(3, '0'), active: true, level: d.parentId ? 2 : 1 });
+    }
+    save(); closeDialog(); render(); toast('파트너 정보를 저장했습니다.'); break;
+  }
 case'product':{
     if(!validateURL(d.url)){toast('올바른 URL을 입력해 주세요.');return}
     const prodObj = id!==undefined ? db.products[Number(id)] : null;
@@ -5881,9 +6616,23 @@ case'messaging-config':{
         break;
       }
     } catch {}
-    db=initial();db.users=db.users.map((u,i)=>normalizeUserRecord(u,i));userRoster=[...db.users];activeUsername='admin';try{localStorage.setItem('kcc_active_username','admin');localStorage.removeItem('kcc_auth_token')}catch{}save();selected.clear();closeDialog();render();toast('운영 데이터를 클린 초기화했습니다.');break;
+    db=initial();db.users=db.users.map((u,i)=>normalizeUserRecord(u,i));userRoster=[...db.users];activeUsername='admin';try{localStorage.setItem('kcc_active_username','admin');localStorage.removeItem('kcc_auth_token');sessionStorage.clear();}catch{}save();selected.clear();closeDialog();render();toast('운영 데이터를 클린 초기화했습니다.');break;
   }
 }});
 window.addEventListener('resize',()=>{if(window.innerWidth>900&&mobileNavOpen)setMobileNav(false)});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('.overlay')){closeDialog();return}if(e.key==='Escape'&&mobileNavOpen){setMobileNav(false);return}if(e.key==='Enter'&&e.target.matches('.customer-row'))e.target.click();if(e.key==='Tab'&&$('.dialog')){const els=$$('button:not(:disabled),a[href],input:not([type=hidden]),select,textarea,[tabindex="0"]',$('.dialog')).filter(el=>el.offsetParent!==null);const first=els[0],last=els.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}});
-const params=new URLSearchParams(location.search);if(params.has('demo_quote')){const c=findC(Number(params.get('demo_quote')));if(c?.quote){const q=db.quotes.filter(x=>x.cid===c.id).at(-1);$('#app').innerHTML=`<main style="padding:25px 10px;max-width:490px;margin:auto"><div class="notice-text" style="margin-bottom:15px;text-align:center">체험용 견적 화면 · 같은 브라우저의 예시 데이터를 조회합니다.<br>실제 고객 본인 인증과 공유 기능은 운영 연결 후 제공됩니다.</div>${quoteMarkup(c,q)}</main>`;$$('[data-action]').forEach(b=>{b.removeAttribute('data-action');b.disabled=true});}else{$('#app').innerHTML='<main><h2>체험용 견적이 없습니다.</h2><p>견적을 발행한 브라우저에서 링크를 확인해 주세요.</p><a href="./">관리자 화면으로</a></main>'}}else { render(); syncFromServer(); }
+const params=new URLSearchParams(location.search);if(params.has('demo_quote')){const c=findC(Number(params.get('demo_quote')));if(c?.quote){const q=db.quotes.filter(x=>x.cid===c.id).at(-1);$('#app').innerHTML=`<main style="padding:25px 10px;max-width:490px;margin:auto"><div class="notice-text" style="margin-bottom:15px;text-align:center">체험용 견적 화면 · 같은 브라우저의 예시 데이터를 조회합니다.<br>실제 고객 본인 인증과 공유 기능은 운영 연결 후 제공됩니다.</div>${quoteMarkup(c,q)}</main>`;$$('[data-action]').forEach(b=>{b.removeAttribute('data-action');b.disabled=true});}else{$('#app').innerHTML='<main><h2>체험용 견적이 없습니다.</h2><p>견적을 발행한 브라우저에서 링크를 확인해 주세요.</p><a href="./">관리자 화면으로</a></main>'}}else {
+  const switchUserParam = params.get('switch_user') || params.get('as_user');
+  if (switchUserParam) {
+    (async () => {
+      await apiSwitchRole(switchUserParam, { isolated: true });
+      await syncFromServer();
+      render();
+      const u = getActiveUser();
+      toast(`[${u.org}] 파트너 어드민 새 창으로 접속했습니다.`);
+    })();
+  } else {
+    render();
+    syncFromServer();
+  }
+}

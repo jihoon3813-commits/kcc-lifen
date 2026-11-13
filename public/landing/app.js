@@ -345,10 +345,10 @@ function setupConsultForm({
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok && !data.alreadySubmitted) {
-        alert(data.error || '상담 접수 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+        alert(data.error || '상담 접수 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
         return;
       }
 
@@ -379,11 +379,7 @@ function setupConsultForm({
 
     } catch (err) {
       console.error('Submit error:', err);
-      if (isModal) {
-        const consultDialog = $('#consult-dialog');
-        if (consultDialog && consultDialog.open) consultDialog.close();
-      }
-      openDialog('#success-dialog');
+      alert('상담 접수 중 통신 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       if (submitBtn) submitBtn.disabled = false;
       if (submitLabel) submitLabel.textContent = origText || '월 납입금 상담 신청하기';

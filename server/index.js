@@ -31,6 +31,40 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(authenticate);
 
+// Subdomain detection middleware (for partner dedicated landing pages)
+app.use((req, res, next) => {
+  const host = req.headers.host || '';
+  const hostName = host.split(':')[0].toLowerCase();
+
+  // Skip IP addresses (e.g. 127.0.0.1, 192.168.x.x) and plain localhost
+  if (!hostName || hostName === 'localhost' || /^(\d{1,3}\.){3}\d{1,3}$/.test(hostName) || hostName.startsWith('::')) {
+    return next();
+  }
+
+  let subdomain = null;
+  if (hostName.endsWith('.localhost')) {
+    subdomain = hostName.slice(0, -'.localhost'.length);
+  } else {
+    const parts = hostName.split('.');
+    if (parts.length >= 3) {
+      subdomain = parts[0];
+    }
+  }
+
+  const ignoreSubs = ['www', 'admin', 'api', 'app', 'crm', 'mail', 'localhost'];
+  if (subdomain && !ignoreSubs.includes(subdomain)) {
+    req.partnerSubdomain = subdomain;
+    if (!req.query.partner) {
+      req.query.partner = subdomain;
+    }
+    // If requesting root on a partner subdomain, redirect to landing
+    if (req.method === 'GET' && req.path === '/') {
+      return res.redirect(`/landing/?partner=${encodeURIComponent(subdomain)}`);
+    }
+  }
+  next();
+});
+
 // 2. Static Uploads directory
 app.use('/uploads', express.static(config.uploadsDir));
 
@@ -61,6 +95,11 @@ app.get('/api/health', (req, res) => {
 
 // 4. Serve Frontend Static Files
 if (fs.existsSync(config.publicDir)) {
+  // /admin, /admin.html 접속 시 메인 통합 CRM 어드민으로 바로 연결 (2번 화면)
+  app.get(['/admin', '/admin.html'], (req, res) => {
+    return res.redirect('/');
+  });
+
   app.use(express.static(config.publicDir));
   app.use((req, res, next) => {
     if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {

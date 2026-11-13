@@ -16,13 +16,15 @@ import {
 
 const router = express.Router();
 
+const USER_SELECT_SQL = `
+  SELECT u.*, o.name as org_name, o.type as org_type, o.parent_id, o.level,
+         (SELECT COUNT(*) FROM organizations WHERE parent_id = o.id) as sub_partner_count
+  FROM users u
+  JOIN organizations o ON u.org_id = o.id
+`;
+
 function fetchUserById(id) {
-  return db.prepare(`
-    SELECT u.*, o.name as org_name, o.type as org_type
-    FROM users u
-    JOIN organizations o ON u.org_id = o.id
-    WHERE u.id = ?
-  `).get(id);
+  return db.prepare(`${USER_SELECT_SQL} WHERE u.id = ?`).get(id);
 }
 
 function resolveOrgId({ org_id, org, org_name, fallbackOrgId }) {
@@ -52,12 +54,7 @@ router.post('/login', (req, res) => {
     return res.status(400).json({ error: '아이디와 비밀번호를 입력해 주세요.' });
   }
 
-  const user = db.prepare(`
-    SELECT u.*, o.name as org_name, o.type as org_type
-    FROM users u
-    JOIN organizations o ON u.org_id = o.id
-    WHERE u.username = ?
-  `).get(username);
+  const user = db.prepare(`${USER_SELECT_SQL} WHERE u.username = ?`).get(username);
 
   if (!user || !user.active) {
     return res.status(401).json({ error: '아이디 또는 비밀번호가 일치하지 않거나 비활성화된 계정입니다.' });
@@ -81,23 +78,22 @@ router.post('/login', (req, res) => {
 function handleSwitchAccount(req, res) {
   const { userId, username, roleName } = req.body || {};
 
+  // 파트너 계정은 본인 외 타 파트너나 본사 관리자로 전환 불가
+  if (req.user && req.user.role === 'partner') {
+    const isSelf = (userId && Number(userId) === req.user.id) ||
+                   (username && String(username).trim() === req.user.username);
+    if (!isSelf) {
+      return res.status(403).json({ error: '파트너 계정에서는 다른 파트너 또는 본사 계정으로 이동할 수 없습니다.' });
+    }
+  }
+
   let user = null;
   if (userId) {
-    user = db.prepare(`
-      SELECT u.*, o.name as org_name, o.type as org_type
-      FROM users u
-      JOIN organizations o ON u.org_id = o.id
-      WHERE u.id = ? AND u.active = 1
-    `).get(Number(userId));
+    user = db.prepare(`${USER_SELECT_SQL} WHERE u.id = ? AND u.active = 1`).get(Number(userId));
   }
 
   if (!user && username) {
-    user = db.prepare(`
-      SELECT u.*, o.name as org_name, o.type as org_type
-      FROM users u
-      JOIN organizations o ON u.org_id = o.id
-      WHERE u.username = ? AND u.active = 1
-    `).get(String(username).trim());
+    user = db.prepare(`${USER_SELECT_SQL} WHERE u.username = ? AND u.active = 1`).get(String(username).trim());
   }
 
   if (!user && roleName) {
@@ -114,31 +110,17 @@ function handleSwitchAccount(req, res) {
     };
     const mappedUsername = roleMap[roleName];
     if (mappedUsername) {
-      user = db.prepare(`
-        SELECT u.*, o.name as org_name, o.type as org_type
-        FROM users u
-        JOIN organizations o ON u.org_id = o.id
-        WHERE u.username = ? AND u.active = 1
-      `).get(mappedUsername);
+      user = db.prepare(`${USER_SELECT_SQL} WHERE u.username = ? AND u.active = 1`).get(mappedUsername);
     } else {
-      user = db.prepare(`
-        SELECT u.*, o.name as org_name, o.type as org_type
-        FROM users u
-        JOIN organizations o ON u.org_id = o.id
-        WHERE (u.username = ? OR u.name = ? OR o.name = ?) AND u.active = 1
-        ORDER BY u.id ASC LIMIT 1
-      `).get(roleName, roleName, roleName);
+      user = db.prepare(
+        USER_SELECT_SQL +
+        ' WHERE (u.username = ? OR u.name = ? OR o.name = ?) AND u.active = 1 ORDER BY u.id ASC LIMIT 1'
+      ).get(roleName, roleName, roleName);
     }
   }
 
   if (!user) {
-    user = db.prepare(`
-      SELECT u.*, o.name as org_name, o.type as org_type
-      FROM users u
-      JOIN organizations o ON u.org_id = o.id
-      WHERE u.active = 1
-      ORDER BY u.id ASC LIMIT 1
-    `).get();
+    user = db.prepare(USER_SELECT_SQL + ' WHERE u.active = 1 ORDER BY u.id ASC LIMIT 1').get();
   }
 
   if (!user) {
@@ -159,14 +141,14 @@ router.post('/switch-user', handleSwitchAccount);
 
 // 2b. Active User Roster (for workspace account switcher & menu catalog)
 router.get('/roster', (req, res) => {
-  const rows = db.prepare(`
-    SELECT u.id, u.username, u.name, u.phone, u.email, u.role, u.allowed_menus, u.active, u.created_at,
-           o.id as org_id, o.name as org_name, o.type as org_type
-    FROM users u
-    JOIN organizations o ON u.org_id = o.id
-    WHERE u.active = 1
-    ORDER BY u.id ASC
-  `).all();
+  const isPartner = req.user && req.user.role === 'partner';
+  let rows;
+  if (isPartner) {
+    // 일반 파트너는 본인 계정 정보만 제공
+    rows = db.prepare(USER_SELECT_SQL + ' WHERE u.id = ? AND u.active = 1').all(req.user.id);
+  } else {
+    rows = db.prepare(USER_SELECT_SQL + ' WHERE u.active = 1 ORDER BY u.id ASC').all();
+  }
 
   res.json({
     menus: ALL_MENUS,
@@ -179,15 +161,62 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
+// 3b. Update My Profile (Self Service - including Partner Admins)
+router.patch(['/profile', '/me'], requireAuth, (req, res) => {
+  const userId = req.user.id;
+  const current = fetchUserById(userId);
+  if (!current) {
+    return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+  }
+
+  const { name, phone, email, password, orgName } = req.body || {};
+
+  const nextName = name !== undefined && String(name).trim() ? String(name).trim() : current.name;
+  const nextPhone = phone !== undefined ? String(phone).trim() : (current.phone || '');
+  const nextEmail = email !== undefined ? String(email).trim() : (current.email || '');
+
+  // 1. If password provided, update hash
+  if (password && String(password).trim()) {
+    const passwordHash = bcrypt.hashSync(String(password).trim(), 10);
+    db.prepare('UPDATE users SET name = ?, phone = ?, email = ?, password_hash = ? WHERE id = ?')
+      .run(nextName, nextPhone, nextEmail, passwordHash, userId);
+  } else {
+    db.prepare('UPDATE users SET name = ?, phone = ?, email = ? WHERE id = ?')
+      .run(nextName, nextPhone, nextEmail, userId);
+  }
+
+  // 2. If partner role and orgName provided, update organization name & phone
+  if (current.role === 'partner' && current.org_id && orgName && String(orgName).trim()) {
+    const cleanOrgName = String(orgName).trim();
+    const dup = db.prepare('SELECT id FROM organizations WHERE name = ? AND id != ?').get(cleanOrgName, current.org_id);
+    if (!dup) {
+      db.prepare('UPDATE organizations SET name = ?, phone = ? WHERE id = ?').run(cleanOrgName, nextPhone, current.org_id);
+      if (cleanOrgName !== current.org_name) {
+        db.prepare('UPDATE projects SET partner_name = ? WHERE org_id = ?').run(cleanOrgName, current.org_id);
+        db.prepare('UPDATE landing_links SET partner_name = ? WHERE partner_name = ?').run(cleanOrgName, current.org_name);
+      }
+    }
+  } else if (current.role === 'partner' && current.org_id && phone !== undefined) {
+    db.prepare('UPDATE organizations SET phone = ? WHERE id = ?').run(nextPhone, current.org_id);
+  }
+
+  const updated = fetchUserById(userId);
+  recordAuditLog({
+    action: '본인 정보 수정',
+    detail: `${updated.name} (${updated.username}) 프로필/연락처/비밀번호 수정`,
+    req
+  });
+
+  res.json({
+    success: true,
+    user: serializeUser(updated),
+    message: '회원 정보가 성공적으로 수정되었습니다.'
+  });
+});
+
 // 4. List Users (Settings > User Management)
 router.get('/users', requireAuth, (req, res) => {
-  let query = `
-    SELECT u.id, u.username, u.name, u.phone, u.email, u.role, u.allowed_menus, u.active, u.created_at,
-           o.id as org_id, o.name as org_name, o.type as org_type
-    FROM users u
-    JOIN organizations o ON u.org_id = o.id
-    WHERE u.active = 1
-  `;
+  let query = USER_SELECT_SQL + ' WHERE u.active = 1';
   const params = [];
 
   if (req.user.role === 'partner' && !req.user.allowed_menus?.includes('settings')) {

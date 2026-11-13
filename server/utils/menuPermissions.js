@@ -54,7 +54,7 @@ export function getDefaultMenusForRole(roleInput) {
     case 'accountant':
       return ['customers', 'contracts', 'stats'];
     case 'partner':
-      return ['customers', 'contracts', 'products'];
+      return ['customers', 'products', 'stats'];
     default:
       return ['customers', 'quotes', 'contracts', 'products'];
   }
@@ -112,6 +112,13 @@ export function serializeUser(row) {
   if (!row) return null;
   const roleCode = normalizeRoleCode(row.role);
   const allowedMenus = parseAllowedMenus(row.allowed_menus, roleCode, row.username);
+  const subPartnerCount = Number(row.sub_partner_count || 0);
+
+  // If a partner has child/sub-partners, grant them the 'partners' management menu dynamically
+  if (roleCode === 'partner' && subPartnerCount > 0 && !allowedMenus.includes('partners')) {
+    allowedMenus.push('partners');
+  }
+
   return {
     id: row.id,
     username: row.username,
@@ -125,6 +132,10 @@ export function serializeUser(row) {
     org_name: row.org_name || '라이프앤조이',
     org: row.org_name || '라이프앤조이',
     org_type: row.org_type || (roleCode === 'partner' ? 'partner' : 'hq'),
+    parent_id: row.parent_id || null,
+    level: row.level || 1,
+    sub_partner_count: subPartnerCount,
+    has_sub_partners: subPartnerCount > 0,
     allowed_menus: allowedMenus,
     created_at: row.created_at
   };

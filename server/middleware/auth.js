@@ -22,7 +22,8 @@ export function authenticate(req, res, next) {
     const decoded = jwt.verify(token, config.jwtSecret);
     let user = db.prepare(`
       SELECT u.id, u.org_id, u.username, u.name, u.email, u.phone, u.role, u.allowed_menus, u.active, u.created_at,
-             o.name as org_name, o.type as org_type
+             o.name as org_name, o.type as org_type, o.parent_id, o.level,
+             (SELECT COUNT(*) FROM organizations WHERE parent_id = o.id) as sub_partner_count
       FROM users u
       JOIN organizations o ON u.org_id = o.id
       WHERE u.id = ? AND u.active = 1
@@ -31,7 +32,8 @@ export function authenticate(req, res, next) {
     if (!user && decoded.username) {
       user = db.prepare(`
         SELECT u.id, u.org_id, u.username, u.name, u.email, u.phone, u.role, u.allowed_menus, u.active, u.created_at,
-               o.name as org_name, o.type as org_type
+               o.name as org_name, o.type as org_type, o.parent_id, o.level,
+               (SELECT COUNT(*) FROM organizations WHERE parent_id = o.id) as sub_partner_count
         FROM users u
         JOIN organizations o ON u.org_id = o.id
         WHERE u.username = ? AND u.active = 1

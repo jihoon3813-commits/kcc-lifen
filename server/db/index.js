@@ -128,6 +128,15 @@ export const DEFAULT_CONTRACT_STATUSES = [
   { name: '계약취소', color: 'red', sort_order: 9 }
 ];
 
+export function ensureDefaultProducts() {
+  const cnt = db.prepare('SELECT COUNT(*) as cnt FROM products').get()?.cnt || 0;
+  if (cnt > 0) return;
+  const insertProduct = db.prepare('INSERT INTO products (name, code, price_text, category, url) VALUES (?, ?, ?, ?, ?)');
+  insertProduct.run('KCC 홈씨씨 창호', 'PROD_WINDOW', '우리 집에 맞는 창호 교체, 상담부터 시공까지.', '창호', '/landing/');
+  insertProduct.run('KCC 홈씨씨 키친', 'PROD_KITCHEN', '생활의 중심이 되는 주방, 맞춤 리모델링 상담.', '주방', '');
+  insertProduct.run('KCC 홈씨씨 욕실', 'PROD_BATH', '매일의 편안함을 만드는 욕실 리모델링.', '욕실', '');
+}
+
 export function ensureDefaultContractStatuses() {
   const cnt = db.prepare('SELECT COUNT(*) as cnt FROM system_contract_statuses').get()?.cnt || 0;
   if (cnt > 0) return;
@@ -474,6 +483,14 @@ export function initDatabase() {
   const schemaSql = fs.readFileSync(config.schemaPath, 'utf8');
   db.exec(schemaSql);
 
+  const orgCols = db.prepare("PRAGMA table_info(organizations)").all().map(c => c.name);
+  if (!orgCols.includes('parent_id')) {
+    db.exec("ALTER TABLE organizations ADD COLUMN parent_id INTEGER REFERENCES organizations(id)");
+  }
+  if (!orgCols.includes('level')) {
+    db.exec("ALTER TABLE organizations ADD COLUMN level INTEGER NOT NULL DEFAULT 1");
+  }
+
   const cols = db.prepare("PRAGMA table_info(projects)").all().map(c => c.name);
   if (!cols.includes('rough_quote_url')) {
     db.exec("ALTER TABLE projects ADD COLUMN rough_quote_url TEXT");
@@ -567,6 +584,7 @@ export function initDatabase() {
   }
 
   // Ensure approved rental consent forms exist if consent_forms table has data
+  ensureDefaultProducts();
   ensureDefaultContractStatuses();
   const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get().cnt;
   if (userCount > 0) {

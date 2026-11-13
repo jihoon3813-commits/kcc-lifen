@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS organizations (
   code TEXT UNIQUE,
   phone TEXT,
   address TEXT,
+  parent_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+  level INTEGER NOT NULL DEFAULT 1,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -5,26 +5,26 @@ import { getDefaultMenusForRole } from '../utils/menuPermissions.js';
 export function seedDatabase() {
   initDatabase();
 
-  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-  if (userCount > 0) {
-    console.log('Database already has data. Skipping seed.');
+  const custCount = db.prepare('SELECT COUNT(*) as count FROM customers').get().count;
+  if (custCount > 0) {
+    console.log('Database already has customer/quote data. Skipping seed.');
     return;
   }
 
   console.log('Seeding initial database data...');
 
   const insertOrg = db.prepare(`
-    INSERT INTO organizations (id, name, type, code, phone, address)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO organizations (id, name, type, code, phone, address, parent_id, level)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  insertOrg.run(1, '라이프앤조이', 'hq', 'HQ001', '1588-0000', '서울 강남구 역삼동');
-  insertOrg.run(2, '한빛인테리어', 'partner', 'P001', '02-1234-5678', '서울 송파구 문정동');
-  insertOrg.run(3, '리움디자인', 'partner', 'P002', '031-987-6543', '경기 성남시 분당구');
-  insertOrg.run(4, '온유하우스', 'partner', 'P003', '031-111-2222', '경기 일산서구');
+  insertOrg.run(1, '라이프앤조이', 'hq', 'HQ001', '1588-0000', '서울 강남구 역삼동', null, 0);
+  insertOrg.run(2, '한빛인테리어', 'partner', 'P001', '02-1234-5678', '서울 송파구 문정동', null, 1);
+  insertOrg.run(3, '리움디자인', 'partner', 'P002', '031-987-6543', '경기 성남시 분당구', 2, 2);
+  insertOrg.run(4, '온유하우스', 'partner', 'P003', '031-111-2222', '경기 일산서구', null, 1);
 
   const insertUser = db.prepare(`
-    INSERT INTO users (id, org_id, username, password_hash, name, phone, email, role, allowed_menus, active)
+    INSERT OR IGNORE INTO users (id, org_id, username, password_hash, name, phone, email, role, allowed_menus, active)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `);
 
@@ -37,26 +37,30 @@ export function seedDatabase() {
   insertUser.run(2, 1, 'youngjin', userHash, '오영진', '010-2222-3333', 'youngjin@example.com', 'consultant', JSON.stringify(getDefaultMenusForRole('consultant')));
   insertUser.run(3, 1, 'jeongyeon', userHash, '김정연', '010-3333-4444', 'jeongyeon@example.com', 'estimator', JSON.stringify(getDefaultMenusForRole('estimator')));
   insertUser.run(4, 1, 'jihee', userHash, '마지희', '010-4444-5555', 'jihee@example.com', 'accountant', JSON.stringify(getDefaultMenusForRole('accountant')));
-  insertUser.run(5, 2, 'partner_hanbit', partnerHash, '이현우', '010-5555-6666', 'hanbit@example.com', 'partner', JSON.stringify(getDefaultMenusForRole('partner')));
-  insertUser.run(6, 3, 'partner_rium', partnerHash, '박수진', '010-6666-7777', 'rium@example.com', 'partner', JSON.stringify(getDefaultMenusForRole('partner')));
+  // 한빛인테리어: 하위 파트너(리움디자인 등)가 있으므로 파트너관리('partners') 포함
+  insertUser.run(5, 2, 'partner_hanbit', partnerHash, '이현우', '010-5555-6666', 'hanbit@example.com', 'partner', JSON.stringify(['customers', 'products', 'stats', 'partners']));
+  // 리움디자인: 하위 파트너가 없으므로 고객관리, 상품관리, 통계관리만
+  insertUser.run(6, 3, 'partner_rium', partnerHash, '박수진', '010-6666-7777', 'rium@example.com', 'partner', JSON.stringify(['customers', 'products', 'stats']));
+  // 온유하우스: 단독 1차 파트너
+  insertUser.run(7, 4, 'partner_onyou', partnerHash, '정온유', '010-7777-8888', 'onyou@example.com', 'partner', JSON.stringify(['customers', 'products', 'stats']));
 
   // Labels
-  const insertLabel = db.prepare('INSERT INTO system_labels (name, color) VALUES (?, ?)');
+  const insertLabel = db.prepare('INSERT OR IGNORE INTO system_labels (name, color) VALUES (?, ?)');
   insertLabel.run('일반', '#7194dd');
   insertLabel.run('긴급', '#e88485');
   insertLabel.run('체크', '#c39b56');
   insertLabel.run('완료', '#74b6a1');
 
   // Stages
-  const insertStage = db.prepare('INSERT INTO system_stages (name, sort_order, is_active) VALUES (?, ?, 1)');
   const stages = ['신규접수', '상담중', '가견적요청', '견적안내', '실측예정', '실측완료', '계약진행', '계약완료', '시공예정', '시공완료', '보류'];
+  const insertStage = db.prepare('INSERT OR IGNORE INTO system_stages (name, sort_order, is_active) VALUES (?, ?, 1)');
   stages.forEach((st, idx) => insertStage.run(st, idx + 1));
 
   // Contract & Payment Statuses
   ensureDefaultContractStatuses();
 
   // Products
-  const insertProduct = db.prepare('INSERT INTO products (name, code, price_text, category, url) VALUES (?, ?, ?, ?, ?)');
+  const insertProduct = db.prepare('INSERT OR IGNORE INTO products (name, code, price_text, category, url) VALUES (?, ?, ?, ?, ?)');
   insertProduct.run('KCC 홈씨씨 창호', 'PROD_WINDOW', '맞춤견적', '창호', '/landing/');
   insertProduct.run('KCC 홈씨씨 키친', 'PROD_KITCHEN', '맞춤견적', '주방', 'https://kcchomecc-partner.com/products/kitchen');
   insertProduct.run('KCC 홈씨씨 욕실', 'PROD_BATH', '맞춤견적', '욕실', 'https://kcchomecc-partner.com/products/bath');
@@ -79,17 +83,17 @@ export function seedDatabase() {
   ];
 
   const insertCust = db.prepare(`
-    INSERT INTO customers (id, org_id, name, phone, address, marketing_agreed, created_at)
+    INSERT OR IGNORE INTO customers (id, org_id, name, phone, address, marketing_agreed, created_at)
     VALUES (?, ?, ?, ?, ?, 1, ?)
   `);
 
   const insertProj = db.prepare(`
-    INSERT INTO projects (id, customer_id, org_id, title, product, status, label, source, partner_name, owner_name, measure_date, build_date, note, created_at)
+    INSERT OR IGNORE INTO projects (id, customer_id, org_id, title, product, status, label, source, partner_name, owner_name, measure_date, build_date, note, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertConsult = db.prepare(`
-    INSERT INTO consultations (project_id, author_name, type, content, is_important, created_at)
+    INSERT OR IGNORE INTO consultations (project_id, author_name, type, content, is_important, created_at)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
@@ -114,12 +118,12 @@ export function seedDatabase() {
 
   // Quotes for 3103, 3104, 3106, 3107, 3109, 3110
   const insertQuote = db.prepare(`
-    INSERT INTO quotes (id, project_id, version, title, quote_type, status, total_cost, margin_rate, sale_price, vat, total_price, discount_amount, access_token, published_at, created_at)
+    INSERT OR IGNORE INTO quotes (id, project_id, version, title, quote_type, status, total_cost, margin_rate, sale_price, vat, total_price, discount_amount, access_token, published_at, created_at)
     VALUES (?, ?, ?, ?, ?, 'published', ?, 20.0, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertQuoteItem = db.prepare(`
-    INSERT INTO quote_items (quote_id, sort_order, name, spec, category, detail_json, quantity, cost_unit_price, cost_total, sale_unit_price, sale_total)
+    INSERT OR IGNORE INTO quote_items (quote_id, sort_order, name, spec, category, detail_json, quantity, cost_unit_price, cost_total, sale_unit_price, sale_total)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 

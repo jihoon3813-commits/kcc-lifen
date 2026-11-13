@@ -29,10 +29,22 @@ router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
   `;
   const params = [];
 
-  // Partner Isolation (Server-enforced!)
+  // Partner Isolation (Server-enforced! Supports Sub-Partners)
   if (req.partnerOrgId) {
-    sql += ' AND p.org_id = ?';
-    params.push(req.partnerOrgId);
+    const childOrgs = db.prepare('SELECT id, name FROM organizations WHERE parent_id = ?').all(req.partnerOrgId);
+    if (childOrgs.length > 0) {
+      const allowedOrgIds = [req.partnerOrgId, ...childOrgs.map(c => c.id)];
+      const idPlaceholders = allowedOrgIds.map(() => '?').join(',');
+      sql += ` AND (p.org_id IN (${idPlaceholders}) OR p.partner_name IN (SELECT name FROM organizations WHERE id IN (${idPlaceholders})))`;
+      params.push(...allowedOrgIds, ...allowedOrgIds);
+    } else {
+      sql += ' AND (p.org_id = ? OR p.partner_name = (SELECT name FROM organizations WHERE id = ?))';
+      params.push(req.partnerOrgId, req.partnerOrgId);
+    }
+    if (partner && partner !== 'all') {
+      sql += ' AND p.partner_name = ?';
+      params.push(partner);
+    }
   } else if (partner && partner !== 'all') {
     sql += ' AND p.partner_name = ?';
     params.push(partner);

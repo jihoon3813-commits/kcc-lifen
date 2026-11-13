@@ -35,6 +35,15 @@ function resolveOrganization(partnerInput) {
   const org = db.prepare('SELECT id, name, code, phone FROM organizations WHERE name = ? OR code = ?').get(p, p);
   if (org) return org;
 
+  // Match by partner user's username (e.g. partner_daon, daon)
+  const userOrg = db.prepare(`
+    SELECT o.id, o.name, o.code, o.phone
+    FROM users u
+    JOIN organizations o ON u.org_id = o.id
+    WHERE LOWER(u.username) = LOWER(?) OR LOWER(u.username) = LOWER(?)
+  `).get(p, `partner_${p}`);
+  if (userOrg) return userOrg;
+
   if (p.toLowerCase().includes('hanbit') || p.includes('한빛')) {
     const hanbit = db.prepare("SELECT id, name, code, phone FROM organizations WHERE name LIKE '%한빛%'").get();
     if (hanbit) return hanbit;
