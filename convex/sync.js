@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server.js";
+import { mutation, internalMutation } from "./_generated/server.js";
 import { v } from "convex/values";
 
 // 1. 일괄 프로젝트 동기화 뮤테이션
@@ -284,5 +284,142 @@ export const batchSyncUsers = mutation({
       count++;
     }
     return { count };
+  },
+});
+
+const PRESERVED_RENTAL_FIELDS_JSON = JSON.stringify([
+  {"id":"f_date_p1_ie2q","key":"date","label":"날짜","page":1,"x":16.9,"y":90.1,"w":18.5,"h":2.3,"fontSize":14,"fontWeight":"normal","color":"#1a202c","align":"center","format":"YYYY년 MM월 DD일","enabled":true},
+  {"id":"f_name_p1_mxle","key":"name","label":"성명","page":1,"x":46.4,"y":90.3,"w":13.6,"h":1.7,"fontSize":15,"fontWeight":"bold","color":"#1a202c","align":"center","enabled":true},
+  {"id":"f_signature_p1_4ury","key":"signature","label":"서명","page":1,"x":56.6,"y":89.9,"w":14.5,"h":2.7,"fontSize":14,"fontWeight":"normal","color":"#1a202c","align":"center","enabled":true},
+  {"id":"f_birthDate_p1_ax34","key":"birthDate","label":"생년월일","page":1,"x":75.1,"y":90,"w":16.4,"h":2.5,"fontSize":14,"fontWeight":"normal","color":"#1a202c","align":"center","format":"YYYY-MM-DD","enabled":true},
+  {"id":"f_phone_p1_kxkh","key":"phone","label":"연락처","page":1,"x":46.2,"y":92.3,"w":20.7,"h":2.1,"fontSize":14,"fontWeight":"normal","color":"#1a202c","align":"center","enabled":true},
+  {"id":"f_name_p2_mwd9gsl8_m6d","key":"name","label":"성명","page":2,"x":62,"y":83.2,"w":16,"h":3.6,"fontSize":15,"fontWeight":"bold","color":"#1a202c","align":"center","enabled":true},
+  {"id":"f_signature_p2_mwd9gtkp_cd4","key":"signature","label":"서명","page":2,"x":78.5,"y":81.2,"w":16,"h":6.8,"fontSize":14,"fontWeight":"normal","color":"#1a202c","align":"center","enabled":true},
+  {"id":"f_name_p3_mwd9h1yq_v6u","key":"name","label":"성명","page":3,"x":62,"y":83.2,"w":16,"h":3.6,"fontSize":15,"fontWeight":"bold","color":"#1a202c","align":"center","enabled":true},
+  {"id":"f_signature_p3_mwd9h2qx_bb8","key":"signature","label":"서명","page":3,"x":78.5,"y":81.2,"w":16,"h":6.8,"fontSize":14,"fontWeight":"normal","color":"#1a202c","align":"center","enabled":true},
+  {"id":"f_date_p3_mwd9h3r9_z2i","key":"date","label":"날짜","page":3,"x":58,"y":78.5,"w":32,"h":3.6,"fontSize":14,"fontWeight":"normal","color":"#1a202c","align":"center","format":"YYYY년 MM월 DD일","enabled":true}
+]);
+
+// 8. 운영 데이터 클린 초기화 내부 뮤테이션 (관리자 CLI/대시보드 전용)
+export const resetOperationalData = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const wipeTables = [
+      "customers",
+      "projects",
+      "quotes",
+      "quoteItems",
+      "contracts",
+      "rentalApplications",
+      "consultations",
+      "customerConsultRequests",
+      "appSettings",
+    ];
+
+    const deleted = {};
+    for (const table of wipeTables) {
+      let count = 0;
+      for await (const doc of ctx.db.query(table)) {
+        await ctx.db.delete(doc._id);
+        count++;
+      }
+      deleted[table] = count;
+    }
+
+    // 조직: 본사(hq) 1건('라이프앤조이')만 유지하고 파트너 조직 전체 삭제
+    let orgDeleted = 0;
+    let hqDoc = null;
+    for await (const org of ctx.db.query("organizations")) {
+      if (org.type === "hq" && org.name === "라이프앤조이" && !hqDoc) {
+        hqDoc = org;
+      } else {
+        await ctx.db.delete(org._id);
+        orgDeleted++;
+      }
+    }
+    const nowIso = new Date().toISOString();
+    const hqPayload = {
+      name: "라이프앤조이",
+      type: "hq",
+      code: "HQ001",
+      phone: "1588-0000",
+      address: "서울 강남구 역삼동",
+      createdAt: hqDoc?.createdAt || nowIso,
+    };
+    if (hqDoc) {
+      await ctx.db.patch(hqDoc._id, hqPayload);
+    } else {
+      await ctx.db.insert("organizations", hqPayload);
+    }
+    deleted.organizations = orgDeleted;
+
+    // 사용자: admin(김지훈) 1건만 유지하고 나머지 계정 전체 삭제
+    let userDeleted = 0;
+    let adminDoc = null;
+    for await (const u of ctx.db.query("users")) {
+      if (u.username === "admin" && !adminDoc) {
+        adminDoc = u;
+      } else {
+        await ctx.db.delete(u._id);
+        userDeleted++;
+      }
+    }
+    const adminPayload = {
+      username: "admin",
+      passwordHash: "$2b$10$ymsIcE/alNOjOMywbSLLF.mcF78dalNUxvO7myPeq.tL2gQmgWJpC",
+      name: "김지훈",
+      phone: "010-1111-2222",
+      email: "admin@example.com",
+      role: "hq_admin",
+      allowedMenus: JSON.stringify(["customers", "quotes", "contracts", "products", "partners", "stats", "settings"]),
+      active: true,
+      createdAt: adminDoc?.createdAt || nowIso,
+    };
+    if (adminDoc) {
+      await ctx.db.patch(adminDoc._id, adminPayload);
+    } else {
+      await ctx.db.insert("users", adminPayload);
+    }
+    deleted.users = userDeleted;
+
+    // 동의서 양식: rental_privacy(v7) 1건만 유지
+    let formDeleted = 0;
+    let rentalFormDoc = null;
+    for await (const f of ctx.db.query("consentForms")) {
+      if (f.formId === "rental_privacy" && !rentalFormDoc) {
+        rentalFormDoc = f;
+      } else {
+        await ctx.db.delete(f._id);
+        formDeleted++;
+      }
+    }
+    const formPayload = {
+      formId: "rental_privacy",
+      name: "(렌탈) 개인정보 동의서",
+      type: "rental",
+      pdfPath: "/uploads/forms/form_1794469868135_ctjfux.pdf",
+      fileName: "BSON_제휴영업팀 신용정보동의서_에디터용.pdf",
+      fieldsConfigJson: PRESERVED_RENTAL_FIELDS_JSON,
+      version: 7,
+      enabled: true,
+      createdAt: rentalFormDoc?.createdAt || nowIso,
+      updatedAt: nowIso,
+    };
+    if (rentalFormDoc) {
+      await ctx.db.patch(rentalFormDoc._id, formPayload);
+    } else {
+      await ctx.db.insert("consentForms", formPayload);
+    }
+    deleted.consentForms = formDeleted;
+
+    return {
+      ok: true,
+      deleted,
+      preserved: {
+        organizations: 1,
+        users: 1,
+        consentForms: 1,
+      },
+    };
   },
 });
