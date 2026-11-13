@@ -167,3 +167,21 @@ export const updateUser = mutation({
     return await ctx.db.get(target._id);
   },
 });
+
+export const deactivateUsersByUsernames = mutation({
+  args: {
+    usernames: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const set = new Set(args.usernames);
+    const users = await ctx.db.query("users").collect();
+    let updated = 0;
+    for (const u of users) {
+      if (set.has(u.username) && u.active) {
+        await ctx.db.patch(u._id, { active: false });
+        updated += 1;
+      }
+    }
+    return { updated };
+  },
+});

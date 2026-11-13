@@ -523,3 +523,47 @@ export const getAnalyticsData = query({
     return { projects, landingEvents, landingLinks, contracts, rentalApplications, customers };
   },
 });
+
+export const deleteProjects = mutation({
+  args: {
+    projectIds: v.array(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const idSet = new Set(args.projectIds.map((id) => Number(id)));
+    if (idSet.size === 0) return { deleted: 0 };
+
+    const tablesByIndex = [
+      ["projects", "by_projectId"],
+      ["quotes", "by_project"],
+      ["quoteItems", "by_project"],
+      ["contracts", "by_project"],
+      ["consultations", "by_project"],
+      ["quoteViews", "by_project"],
+      ["quoteDispatches", "by_project"],
+      ["auditLogs", "by_project"],
+    ];
+
+    let deletedProjects = 0;
+    for (const projectId of idSet) {
+      for (const [table, indexName] of tablesByIndex) {
+        const rows = await ctx.db
+          .query(table)
+          .withIndex(indexName, (q) => q.eq("projectId", projectId))
+          .collect();
+        for (const r of rows) {
+          await ctx.db.delete(r._id);
+          if (table === "projects") deletedProjects += 1;
+        }
+      }
+    }
+
+    const rentals = await ctx.db.query("rentalApplications").collect();
+    for (const ra of rentals) {
+      if (ra.projectId !== undefined && idSet.has(Number(ra.projectId))) {
+        await ctx.db.delete(ra._id);
+      }
+    }
+
+    return { deleted: deletedProjects };
+  },
+});

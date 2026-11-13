@@ -141,6 +141,8 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
         partner: p.partnerName,
         owner: p.ownerName,
         date: formatKstDateSlice(p.createdAt),
+        createdAt: p.createdAt || '',
+        updatedAt: p.updatedAt || '',
         note: p.note || '',
         measure: p.measureDate || '',
         build: p.buildDate || '',
@@ -382,6 +384,37 @@ router.post('/:id/notes', requireAuth, checkPartnerAccess, async (req, res) => {
   } catch (err) {
     console.error('[Convex] POST /api/customers/:id/notes error:', err);
     res.status(500).json({ error: 'Convex 서버에 상담 이력을 저장하지 못했습니다.' });
+  }
+});
+
+// 6. Bulk Delete Customers / Projects
+router.post('/bulk-delete', requireAuth, checkPartnerAccess, async (req, res) => {
+  try {
+    const rawIds = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const projectIds = [...new Set(rawIds.map((id) => parseInt(id, 10)).filter((n) => Number.isFinite(n) && n > 0))];
+    if (projectIds.length === 0) {
+      return res.status(400).json({ error: '삭제할 고객 ID 목록이 필요합니다.' });
+    }
+    const result = await convexClient.mutation(api.crm.deleteProjects, { projectIds });
+    res.json({ success: true, deleted: result?.deleted ?? projectIds.length, deletedIds: projectIds });
+  } catch (err) {
+    console.error('[Convex] POST /api/customers/bulk-delete error:', err);
+    res.status(500).json({ error: '고객 일괄 삭제 중 오류가 발생했습니다.' });
+  }
+});
+
+// 7. Delete Single Customer / Project
+router.delete('/:id', requireAuth, checkPartnerAccess, async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    if (!projectId || Number.isNaN(projectId)) {
+      return res.status(400).json({ error: '유효하지 않은 프로젝트 ID입니다.' });
+    }
+    const result = await convexClient.mutation(api.crm.deleteProjects, { projectIds: [projectId] });
+    res.json({ success: true, deleted: result?.deleted ?? 1 });
+  } catch (err) {
+    console.error('[Convex] DELETE /api/customers/:id error:', err);
+    res.status(500).json({ error: '고객 삭제 중 오류가 발생했습니다.' });
   }
 });
 

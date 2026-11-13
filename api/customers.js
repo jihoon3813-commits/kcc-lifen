@@ -118,6 +118,8 @@ export default async function handler(req, res) {
           partner: p.partnerName,
           owner: p.ownerName,
           date: formatKstDateSlice(p.createdAt),
+          createdAt: p.createdAt || "",
+          updatedAt: p.updatedAt || "",
           note: p.note || "",
           measure: p.measureDate || "",
           build: p.buildDate || "",

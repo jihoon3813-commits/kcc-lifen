@@ -161,5 +161,24 @@ export default async function handler(req, res) {
     }
   }
 
+  if (req.method === "DELETE") {
+    try {
+      const detail = await convexClient.query(api.crm.getCustomerDetail, { projectId });
+      if (!detail || !detail.project) {
+        return res.status(404).json({ error: "고객 공사건을 찾을 수 없습니다." });
+      }
+      if (!isPartnerAllowed(auth, detail.project)) {
+        return res.status(403).json({ error: "해당 고객을 삭제할 권한이 없습니다." });
+      }
+      const result = await convexClient.mutation(api.crm.deleteProjects, {
+        projectIds: [projectId],
+      });
+      return res.status(200).json({ success: true, deleted: result?.deleted || 1 });
+    } catch (err) {
+      console.error("Vercel DELETE /api/customers/[id] error:", err);
+      return res.status(500).json({ error: "고객 삭제 중 오류가 발생했습니다." });
+    }
+  }
+
   return res.status(405).json({ error: "Method Not Allowed" });
 }
