@@ -1071,19 +1071,27 @@ function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUr
     '※ 열람 시 고객님 본인 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.';
 }
 
-function quoteSideRow(label, qType, qMeta, url, editAction, id, hasAnyQuote) {
-  if (qMeta || hasAnyQuote) {
+function quoteSideRow(label, qType, qMeta, url, editAction, id, canEditLink = canManageQuotes()) {
+  const effectiveUrl = qMeta?.url || (qMeta?.token ? `/quote.html?token=${encodeURIComponent(qMeta.token)}` : '') || url || '';
+  if (qMeta) {
     return '<div style="display:flex;gap:5px">' +
       '<button class="btn soft sm" type="button" data-action="preview" data-id="' + id + '" data-type="' + qType + '" style="flex:1">' +
-        icon('eye') + label + ' 미리보기' + (qMeta ? '' : ' (예시)') +
+        icon('eye') + label + ' 미리보기' +
       '</button>' +
-      (url ? '<a class="btn sm" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" title="' + label + ' 새창 열기" style="padding:6px 8px">' + icon('external') + '</a>' : '') +
-      '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 8px">' + icon('edit') + '</button>' +
+      (effectiveUrl ? '<a class="btn sm" href="' + esc(effectiveUrl) + '" target="_blank" rel="noopener noreferrer" title="' + label + ' 새창 열기" style="padding:6px 8px">' + icon('external') + '</a>' : '') +
+      (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 8px">' + icon('edit') + '</button>' : '') +
     '</div>';
   }
-  return url
-    ? '<div style="display:flex;gap:6px"><a class="btn soft sm" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + label + ' 바로가기</a><button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" style="padding:6px 9px">' + icon('edit') + '</button></div>'
-    : btn(label + ' 링크 등록', editAction, 'link', 'sm block', 'data-id="' + id + '"');
+  if (effectiveUrl) {
+    return '<div style="display:flex;gap:6px">' +
+      '<a class="btn soft sm" href="' + esc(effectiveUrl) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + label + ' 바로가기</a>' +
+      (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 9px">' + icon('edit') + '</button>' : '') +
+    '</div>';
+  }
+  return '<div style="display:flex;align-items:center;gap:5px">' +
+    '<span class="btn sm" style="flex:1;opacity:0.5;cursor:default;pointer-events:none;background:#f8fafc;color:#94a3b8;border-color:#e2e8f0">' + label + ' 미발행</span>' +
+    (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 외부 링크 직접 등록" style="padding:6px 8px">' + icon('link') + '</button>' : '') +
+  '</div>';
 }
 
 function buildPreviewBannerHtml(c, qDraft, selectedType) {
@@ -4926,28 +4934,28 @@ if(tab==='quotes')content=`
       <div class="quote-stage-card is-rough">
         <div class="qs-head"><b>가견적 (실측 전 예상안)</b>${c.roughQuote?badge('v'+c.roughQuote.version+' 발행완료','orange'):badge('미발행','gray')}</div>
         <div class="qs-price ${c.roughQuote?'':'empty-price'}">${c.roughQuote?won(c.roughQuote.totalPrice):'아직 발행된 가견적이 없습니다'}</div>
-        <div class="qs-meta">${c.roughQuote?('발행일 '+esc(c.roughQuote.date)+' · '+(c.roughQuote.viewed?'고객 열람완료':'미열람')):(c.quote?'현재 견적 기준 가견적 화면 예시 미리보기 가능':'원본 엑셀을 등록해 가견적을 발행하세요')}</div>
+        <div class="qs-meta">${c.roughQuote?('발행일 '+esc(c.roughQuote.date)+' · '+(c.roughQuote.viewed?'고객 열람완료':'미열람')):'원본 엑셀을 등록해 가견적을 발행하세요'}</div>
         <div class="qs-actions">
-          ${c.quote?btn(c.roughQuote?'가견적 미리보기':'가견적 예시보기','preview','eye','sm soft',`data-id="${id}" data-type="가견적"`):''}
+          ${c.roughQuote?btn('가견적 미리보기','preview','eye','sm soft',`data-id="${id}" data-type="가견적"`):''}
           ${c.roughQuote?btn('가견적 발송','send-quote','send','sm primary',`data-id="${id}" data-type="가견적"`):''}
           ${canManageQuotes()?btn(c.roughQuote?'가견적 재작성':'가견적 작성','new-quote','plus','sm',`data-id="${id}" data-type="가견적"`):''}
-          ${btn('링크','rough-quote-link','link','sm',`data-id="${id}"`)}
+          ${(c.roughQuote||c.roughQuoteUrl)?btn('링크','rough-quote-link','link','sm',`data-id="${id}"`):''}
         </div>
       </div>
       <div class="quote-stage-card is-final">
         <div class="qs-head"><b>최종견적 (실측 확정안)</b>${c.finalQuote?badge('v'+c.finalQuote.version+' 발행완료','green'):badge('실측 후 확정 대기','gray')}</div>
         <div class="qs-price ${c.finalQuote?'':'empty-price'}">${c.finalQuote?won(c.finalQuote.totalPrice):'아직 발행된 최종견적이 없습니다'}</div>
-        <div class="qs-meta">${c.finalQuote?('발행일 '+esc(c.finalQuote.date)+' · '+(c.finalQuote.viewed?'고객 열람완료':'미열람')):(c.quote?'발행 전 최종견적 모바일 화면 예시 미리보기 가능':'방문 실측 후 최종견적을 확정 발행하세요')}</div>
+        <div class="qs-meta">${c.finalQuote?('발행일 '+esc(c.finalQuote.date)+' · '+(c.finalQuote.viewed?'고객 열람완료':'미열람')):'방문 실측 후 최종견적을 확정 발행하세요'}</div>
         <div class="qs-actions">
-          ${c.quote?btn(c.finalQuote?'최종견적 미리보기':'최종견적 예시보기','preview','eye','sm soft',`data-id="${id}" data-type="최종견적"`):''}
+          ${c.finalQuote?btn('최종견적 미리보기','preview','eye','sm soft',`data-id="${id}" data-type="최종견적"`):''}
           ${c.finalQuote?btn('최종견적 발송','send-quote','send','sm primary',`data-id="${id}" data-type="최종견적"`):''}
           ${canManageQuotes()?btn(c.finalQuote?'최종견적 수정':'최종견적 작성','new-quote','plus','sm',`data-id="${id}" data-type="최종견적"`):''}
-          ${btn('링크','final-quote-link','link','sm',`data-id="${id}"`)}
+          ${(c.finalQuote||c.finalQuoteUrl)?btn('링크','final-quote-link','link','sm',`data-id="${id}"`):''}
         </div>
       </div>
     </div>
     <div class="actions" style="margin-bottom:14px">
-      ${canManageQuotes()?btn('새 견적서 작성','new-quote','plus','primary sm',`data-id="${id}"`):btn('본사 견적 요청','request-quote','plus','primary sm',`data-id="${id}"`)}
+      ${canManageQuotes()?btn('새 견적서 작성','new-quote','plus','primary sm',`data-id="${id}"`):(isPartnerUser()?btn('본사 견적 요청','request-quote','plus','primary sm',`data-id="${id}"`):'')}
       ${c.quote?btn('문자·카톡 발송창 열기','send-quote','send','sm soft',`data-id="${id}"`)+btn('대표 링크 복사','copy-quote','copy','sm',`data-id="${id}"`):''}
     </div>
     ${(c.publishedQuotes&&c.publishedQuotes.length)?`<h4 style="margin:8px 0 10px;font-size:12px">발행 견적 버전 히스토리 (${c.publishedQuotes.length}건)</h4>`+c.publishedQuotes.map(pq=>`<div class="file-card" style="flex-wrap:wrap">${icon('file')}<div style="flex:1;min-width:160px"><b>[v${pq.version} · ${esc(pq.quoteType)}] ${esc(pq.title)}</b><small>${won(pq.totalPrice)} · 발행일 ${esc(pq.date)} · ${pq.viewed?'고객 열람완료':'미열람'}</small></div><div class="actions">${btn('미리보기','preview','eye','sm soft',`data-id="${id}" data-type="${esc(pq.quoteType)}" data-quote-id="${pq.id}"`)}${btn('발송','send-quote','send','sm',`data-id="${id}" data-type="${esc(pq.quoteType)}"`)}</div></div>`).join(''):(c.quote?'':'<div class="notice-text">아직 발행된 견적이 없습니다. 원본 엑셀을 등록해 가견적 또는 최종견적을 작성하세요.</div>')}
@@ -5025,12 +5033,16 @@ if (existingDetail && detailId === c.id) {
   return;
 }
 
+const canViewQuotesMenu = getUserAllowedMenuKeys(getActiveUser()).includes('quotes');
 const quoteShortcutBtn = canManageQuotes()
   ? btn('견적등록', 'new-quote', 'plus', 'soft sm', `data-id="${id}"`)
-  : btn('본사 견적 요청', 'request-quote', 'plus', 'soft sm', `data-id="${id}"`);
+  : (isPartnerUser() ? btn('본사 견적 요청', 'request-quote', 'plus', 'soft sm', `data-id="${id}"`) : '');
+const quoteSideShortcutBtn = canManageQuotes()
+  ? btn('견적등록 바로가기', 'new-quote', 'plus', 'primary sm block', `data-id="${id}"`)
+  : (isPartnerUser() ? btn('본사 견적 요청', 'request-quote', 'plus', 'primary sm block', `data-id="${id}"`) : '');
 const displayCustCh = getCustomerChannel(c);
 const chDatalist = `<datalist id="ad-channel-presets">${AD_CHANNEL_PRESETS.map(p => `<option value="${esc(p)}"></option>`).join('')}<option value="직접등록"></option></datalist>`;
-const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${canManageQuotes()?`<button type="button" class="link-chip" style="background:#eef4ff;color:#2753a8;border-color:#c6d8f8" data-action="new-quote" data-id="${id}">+ 견적등록</button>`:''}<button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',stages,c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 상담사','detail-owner',getHqOwnerOptions(c.owner),c.owner)}<div class="field"><label for="detail-source" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">유입경로 (채널) <span class="ch-pill ${channelTone(displayCustCh)}">${esc(displayCustCh)}</span></label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${canManageQuotes()?btn('견적등록 바로가기','new-quote','plus','primary sm block',`data-id="${id}"`):btn('본사 견적 요청','request-quote','plus','primary sm block',`data-id="${id}"`)}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,Boolean(c.quote))}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,Boolean(c.quote))}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${custContracts.length?btn('계약관리에서 보기','go-customer-contracts','external','soft block',`data-id="${id}"`):''}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history">${renderCustomerHistoryHtml(c,displayCustCh)}</aside></div>`;
+const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${canManageQuotes()?`<button type="button" class="link-chip" style="background:#eef4ff;color:#2753a8;border-color:#c6d8f8" data-action="new-quote" data-id="${id}">+ 견적등록</button>`:''}<button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',stages,c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 상담사','detail-owner',getHqOwnerOptions(c.owner),c.owner)}<div class="field"><label for="detail-source" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">유입경로 (채널) <span class="ch-pill ${channelTone(displayCustCh)}">${esc(displayCustCh)}</span></label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${quoteSideShortcutBtn}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,canViewQuotesMenu)}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,canViewQuotesMenu)}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${custContracts.length?btn('계약관리에서 보기','go-customer-contracts','external','soft block',`data-id="${id}"`):''}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history">${renderCustomerHistoryHtml(c,displayCustCh)}</aside></div>`;
 const detailFooter = `<small>고객 상태: ${badge(c.status)}${custContracts.length ? ` · 계약 <b>${custContracts.length}건</b>` : ''} · ${esc(c.product)} · ${esc(c.partner)}</small>${custContracts.length ? btn('계약관리 이동', 'go-customer-contracts', 'external', 'sm soft', `data-id="${id}"`) : ''}${quoteShortcutBtn}${c.quote ? btn('모바일 견적 미리보기', 'preview', 'eye', 'sm soft', `data-id="${id}"`) : ''}${btn('닫기', 'close', '', 'sm')}`;
 openDialog(`${esc(c.name)} <span style="font-size:11px;font-weight:400;color:#91a6c9;margin-left:8px">No. ${c.id}</span>`,body,detailFooter,'wide',`${esc(c.phone)}　｜　${esc(c.address)}`,true);detailId=c.id;detailTab=tab;
 if (!wasAlreadyOpen) loadCustomerDetail(c.id);
