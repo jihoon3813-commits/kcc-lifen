@@ -60,7 +60,13 @@ export function signCustomerViewerToken({ quote, project }) {
 
 export function resolveCustomerViewer(req) {
   const cookies = parseCookies(req);
-  const token = cookies[CUSTOMER_SESSION_COOKIE];
+  let token = cookies[CUSTOMER_SESSION_COOKIE];
+  if (!token) {
+    const authHeader = req.headers?.authorization || req.headers?.Authorization || "";
+    if (authHeader.startsWith("Bearer ")) {
+      token = authHeader.slice(7).trim();
+    }
+  }
   if (!token) return null;
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
