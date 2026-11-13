@@ -5,19 +5,34 @@ import {
   parseBody,
   authenticateRequest,
 } from "../_lib/authHelper.js";
+import { getRentalStatusLabel } from "../_lib/crmHelper.js";
 
-function mapContract(c, projectMap) {
+function mapContract(c, projectMap, rentalByAppNo, rentalByProject) {
   const p = projectMap.get(Number(c.projectId));
   const totalAmount = Number(c.totalAmount || 0);
   const depositAmount = Number(c.depositAmount || 0);
   const balanceAmount = Number(c.balanceAmount || 0);
   const createdAt = c.createdAt || "";
   const date = c.contractDate || (createdAt ? createdAt.slice(0, 10) : "");
-  const isRental = String(c.contractNo || "").startsWith("R-") || String(c.status || "").includes("렌탈");
+  const rApp = rentalByAppNo.get(c.contractNo) || rentalByProject.get(Number(c.projectId)) || null;
+  const isRental =
+    String(c.contractNo || "").startsWith("R-") ||
+    String(c.status || "").includes("렌탈");
+
+  const months = isRental ? Number(rApp?.rentalPeriod || 60) : undefined;
+  const monthly = isRental && rApp ? Number(rApp.monthlyFee || 0) : undefined;
+  const total = isRental && rApp ? Number(rApp.totalRentalFee || totalAmount) : undefined;
+  const upfront = isRental && rApp ? Math.max(0, Number(rApp.totalRentalFee || 0) - Number(rApp.monthlyFee || 0) * Number(rApp.rentalPeriod || 60)) : undefined;
 
   return {
     id: c.contractNo,
     contract_no: c.contractNo,
+    rentalAppId: isRental ? (rApp?.appNo || (String(c.contractNo || "").startsWith("R-") ? c.contractNo : undefined)) : undefined,
+    rentalStatus: isRental ? getRentalStatusLabel(rApp?.status || "received") : undefined,
+    rentalPeriodMonths: months,
+    rentalMonthlyFee: monthly,
+    rentalTotalFee: total,
+    rentalUpfrontFee: upfront,
     cid: Number(c.projectId),
     project_id: Number(c.projectId),
     customerName: c.customerName || p?.customerName || "",
@@ -60,9 +75,18 @@ export default async function handler(req, res) {
       ]);
       const projects = data.projects || [];
       const projectMap = new Map(projects.map((p) => [Number(p.projectId), p]));
+      const rentalByAppNo = new Map((rentalApps || []).map((a) => [a.appNo, a]));
+      const rentalByProject = new Map();
+      for (const a of rentalApps || []) {
+        if (a.projectId && !rentalByProject.has(Number(a.projectId))) {
+          rentalByProject.set(Number(a.projectId), a);
+        }
+      }
       const isPartner = auth.user.role === "partner" && auth.user.org_name;
 
-      const contracts = (data.contracts || []).map((c) => mapContract(c, projectMap));
+      const contracts = (data.contracts || []).map((c) =>
+        mapContract(c, projectMap, rentalByAppNo, rentalByProject)
+      );
       const contractNoSet = new Set(contracts.map((c) => c.contract_no));
 
       for (const a of rentalApps || []) {
@@ -79,6 +103,7 @@ export default async function handler(req, res) {
           id: a.appNo,
           contract_no: a.appNo,
           rentalAppId: a.appNo,
+          rentalStatus: getRentalStatusLabel(a.status || "received"),
           cid: Number(a.projectId),
           project_id: Number(a.projectId),
           customerName: a.customerName || p?.customerName || "",
@@ -128,7 +153,7 @@ export default async function handler(req, res) {
     }
 
     try {
-      const bundle = await convexClient.query(api.crm.getProjectDetailBundle, { projectId });
+      const bundle = await convexClient.query(api.crm.getCustomerDetail, { projectId });
       const proj = bundle?.project;
       const contractNo = String(
         body.contractNo || body.contract_no || `C-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${projectId}`

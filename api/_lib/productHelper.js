@@ -130,3 +130,39 @@ export function formatProductsAndLinks(data, user) {
     landingLinks: formattedLinks,
   };
 }
+
+export const DEFAULT_PRODUCTS = [
+  {
+    prodId: 1,
+    name: "KCC 홈씨씨 창호",
+    code: "PROD_WINDOW",
+    category: "창호",
+    description: "우리 집에 맞는 창호 교체, 상담부터 시공까지.",
+    url: "/landing/",
+    active: true,
+  },
+  {
+    prodId: 2,
+    name: "KCC 홈씨씨 키친",
+    code: "PROD_KITCHEN",
+    category: "주방",
+    description: "생활의 중심이 되는 주방, 맞춤 리모델링 상담.",
+    url: "",
+    active: true,
+  },
+  {
+    prodId: 3,
+    name: "KCC 홈씨씨 욕실",
+    code: "PROD_BATH",
+    category: "욕실",
+    description: "매일의 편안함을 만드는 욕실 리모델링.",
+    url: "",
+    active: true,
+  },
+];
+
+export async function ensureDefaultProductsInConvex(convexClient, api) {
+  for (const prod of DEFAULT_PRODUCTS) {
+    await convexClient.mutation(api.crm.upsertProduct, prod);
+  }
+}

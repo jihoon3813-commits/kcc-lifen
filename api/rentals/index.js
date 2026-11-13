@@ -1,15 +1,7 @@
 import { api } from "../../convex/_generated/api.js";
 import { convexClient, setCors, authenticateRequest } from "../_lib/authHelper.js";
+import { getRentalStatusLabel, normalizeRentalStatusCode } from "../_lib/crmHelper.js";
 import { maskPhone } from "../../server/utils/mobileQuoteFormatter.js";
-
-const STATUS_LABELS = {
-  received: "접수완료",
-  reviewing: "심사중",
-  supplement: "서류보완",
-  approved: "심사승인",
-  rejected: "심사반려",
-  cancelled: "취소",
-};
 
 export default async function handler(req, res) {
   setCors(res);
@@ -25,12 +17,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [apps, crmData] = await Promise.all([
+    const [apps, projectsList] = await Promise.all([
       convexClient.query(api.rentals.list, {}),
-      convexClient.query(api.crm.listProjectsBundle, {}),
+      convexClient.query(api.projects.list, {}),
     ]);
 
-    const projects = crmData?.projects || [];
+    const projects = Array.isArray(projectsList) ? projectsList : [];
     const projMap = new Map(projects.map((p) => [Number(p.projectId), p]));
     const isPartner = auth.user.role === "partner" && auth.user.org_name;
 
@@ -44,8 +36,8 @@ export default async function handler(req, res) {
         const monthly = Number(a.monthlyFee || 0);
         const total = Number(a.totalRentalFee || monthly * months);
         const upfront = Math.max(0, total - monthly * months);
-        const statusCode = String(a.status || "received");
-        const statusLabel = STATUS_LABELS[statusCode] || statusCode;
+        const statusCode = normalizeRentalStatusCode(a.status);
+        const statusLabel = getRentalStatusLabel(statusCode);
         const createdAt = a.createdAt || "";
         const date = createdAt ? createdAt.slice(0, 10) : "";
         const createdAtText = createdAt ? createdAt.replace("T", " ").slice(0, 16) : "";

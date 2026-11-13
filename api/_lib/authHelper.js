@@ -97,3 +97,43 @@ export async function authenticateRequest(req) {
 }
 
 export { ALL_MENUS };
+
+/**
+ * Extract path segments for Vercel `[...slug].js` routes regardless of whether
+ * the runtime sets `req.query.slug`, `req.query["...slug"]`, or only `req.url`.
+ */
+export function extractSlug(req, basePath) {
+  const fromQuery = req.query?.slug ?? req.query?.["...slug"];
+  if (fromQuery !== undefined && fromQuery !== null && String(fromQuery).trim() !== "") {
+    const arr = Array.isArray(fromQuery) ? fromQuery : [fromQuery];
+    const parts = arr
+      .flatMap((item) => String(item).split("/"))
+      .map((s) => {
+        try {
+          return decodeURIComponent(s).trim();
+        } catch {
+          return String(s).trim();
+        }
+      })
+      .filter(Boolean);
+    if (parts.length > 0) return parts;
+  }
+
+  const rawUrl = String(req.url || "");
+  const pathname = rawUrl.split("?")[0];
+  const prefix = basePath.endsWith("/") ? basePath : `${basePath}/`;
+  if (pathname.startsWith(prefix)) {
+    return pathname
+      .slice(prefix.length)
+      .split("/")
+      .map((s) => {
+        try {
+          return decodeURIComponent(s).trim();
+        } catch {
+          return String(s).trim();
+        }
+      })
+      .filter(Boolean);
+  }
+  return [];
+}

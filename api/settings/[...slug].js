@@ -4,6 +4,7 @@ import {
   setCors,
   parseBody,
   authenticateRequest,
+  extractSlug,
 } from "../_lib/authHelper.js";
 
 const DEFAULT_CONTRACT_STATUSES = [
@@ -23,7 +24,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "로그인이 필요하거나 세션이 만료되었습니다." });
   }
 
-  const slug = Array.isArray(req.query?.slug) ? req.query.slug : [req.query?.slug].filter(Boolean);
+  const slug = extractSlug(req, "/api/settings");
   const section = String(slug[0] || "").trim();
   const sub = String(slug[1] || "").trim();
 

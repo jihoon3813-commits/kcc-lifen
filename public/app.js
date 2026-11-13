@@ -1572,7 +1572,9 @@ function quotesPage() {
     `<div class="metrics">${metric('원본 수령 대기', ready.length, '건', 'KCC 영업지원팀 요청 건', 'clock', 'orange')}${metric('발행된 견적', published.length, '건', '고객별 최신 견적 기준', 'file')}${metric('고객 열람', published.filter(c => c.viewed).length, '건', '발행 이후 열람한 고객', 'eye', 'green')}${metric('견적 문의', inquiryRows.length, '건', '모바일 견적서 고객 문의', 'bell', 'purple', 'quote-tab', 'data-value="inquiries"')}</div>` +
     `<div class="banner">${icon('info')}<div><b>원본 엑셀 → 판매가 설정 → 고객견적 발행</b><br>공급원가와 내부 마진은 고객용 견적서에 표시되지 않습니다. 고객이 견적서에서 문의를 남기면 고객명 옆 토글 및 [고객 문의] 탭에서 바로 확인할 수 있습니다.</div></div>` +
     `<section class="panel"><div class="tabs">${tabMeta.map(([v, l, cnt, isAlert]) => `<button class="tab ${quoteTab === v ? 'active' : ''}" data-action="quote-tab" data-value="${v}">${l}${cnt > 0 ? `<span class="count${isAlert ? ' count-red' : ''}">${cnt}</span>` : ''}</button>`).join('')}</div><div class="panel-head"><div><h3>${quoteTab === 'inquiries' ? '고객 견적 문의 내역' : '견적 요청 및 발행 현황'}</h3><p>${quoteTab === 'inquiries' ? '모바일 견적서에서 상담·문의를 요청한 고객 목록입니다.' : '고객·공사건에 연결된 견적을 관리합니다.'}</p></div>${badge('실운영 데이터', 'blue')}</div><div class="toolbar"><span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="quotes" ${allQuotesSelected ? 'checked' : ''}> 전체 선택</label><span>목록 <strong>${rows.length}</strong>건</span>${selected.size ? `· ${btn(`선택 삭제 (${selected.size})`, 'delete-selected', 'trash', 'sm danger')}` : ''}</span><div class="actions">${btn(selected.size ? `선택 엑셀 (${selected.size})` : '엑셀용 CSV', 'export', 'download', 'sm')}</div></div><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th style="width:36px"><input type="checkbox" data-select-all="quotes" ${allQuotesSelected ? 'checked' : ''} aria-label="견적 고객 전체 선택"></th><th>고객 / 견적번호</th><th>상품</th><th>진행 상태</th><th>고객 견적금액</th><th>고객 열람</th><th>담당자</th><th>관리</th></tr></thead><tbody>${rows.length ? rows.map(c => {
-      const strip = activityStripInfo(getQuoteRowActivityState(c));
+      const quoteAct = getQuoteRowActivityState(c);
+      const strip = activityStripInfo(quoteAct);
+      const quoteStripBadge = quoteAct.kind === 'updated' ? '' : strip.badge;
       const inqList = Array.isArray(c.quoteInquiries) ? c.quoteInquiries : [];
       const isExpanded = expandedQuoteInquiries.has(c.id);
       const latestInq = inqList[0] || null;
@@ -1582,7 +1584,7 @@ function quotesPage() {
       const inqPreviewHtml = (quoteTab === 'inquiries' && latestInq && !isExpanded)
         ? `<div class="quote-inquiry-inline-preview">${esc((latestInq.topics || []).join(', ') || '견적 상담')}${latestInq.memo ? ` · "${esc(latestInq.memo)}"` : ''}</div>`
         : '';
-      return `<tr class="${strip.cls.trim()}"><td><input type="checkbox" data-select="${c.id}" ${selected.has(c.id) ? 'checked' : ''} aria-label="${esc(c.name)} 선택"></td><td class="card-primary"><div class="quote-cust-name-row">${strip.badge}<button type="button" class="quote-customer-name" data-action="customer" data-id="${c.id}" title="고객 상세 보기" style="background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--navy);cursor:pointer;text-align:left">${esc(c.name)}</button>${inqToggleHtml}</div><small>${c.quote ? 'Q' : 'REQ'}-${c.id} · ${esc(c.address)}</small>${inqPreviewHtml}</td><td data-label="상품">${badge(c.product, 'gray')}</td><td data-label="진행 상태">${badge(c.quote ? '발행완료' : '원본대기', c.quote ? 'green' : 'orange')}</td><td data-label="고객 견적금액" class="money"><b>${c.quote ? won(c.quote) : '—'}</b></td><td data-label="고객 열람">${c.quote ? badge(c.viewed ? '열람완료' : '미열람', c.viewed ? 'green' : 'gray') : '—'}</td><td data-label="담당자">${esc(c.owner)}</td><td class="card-actions"><div class="actions">${btn(c.quote ? '수정본 작성' : '엑셀 등록', 'new-quote', c.quote ? 'edit' : 'upload', 'sm', `data-id="${c.id}"`)}${c.quote ? renderQuotePreviewButtons(c, 'sm soft') + btn('문자·카톡 발송', 'send-quote', 'send', 'sm primary', `data-id="${c.id}"`) : ''}</div></td></tr>` + (isExpanded ? renderQuoteInquiryDetailRow(c) : '');
+      return `<tr class="${strip.cls.trim()}"><td><input type="checkbox" data-select="${c.id}" ${selected.has(c.id) ? 'checked' : ''} aria-label="${esc(c.name)} 선택"></td><td class="card-primary"><div class="quote-cust-name-row">${quoteStripBadge}<button type="button" class="quote-customer-name" data-action="customer" data-id="${c.id}" title="고객 상세 보기" style="background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--navy);cursor:pointer;text-align:left">${esc(c.name)}</button>${inqToggleHtml}</div><small>${c.quote ? 'Q' : 'REQ'}-${c.id} · ${esc(c.address)}</small>${inqPreviewHtml}</td><td data-label="상품">${badge(c.product, 'gray')}</td><td data-label="진행 상태">${badge(c.quote ? '발행완료' : '원본대기', c.quote ? 'green' : 'orange')}</td><td data-label="고객 견적금액" class="money"><b>${c.quote ? won(c.quote) : '—'}</b></td><td data-label="고객 열람">${c.quote ? badge(c.viewed ? '열람완료' : '미열람', c.viewed ? 'green' : 'gray') : '—'}</td><td data-label="담당자">${esc(c.owner)}</td><td class="card-actions"><div class="actions">${btn(c.quote ? '수정본 작성' : '엑셀 등록', 'new-quote', c.quote ? 'edit' : 'upload', 'sm', `data-id="${c.id}"`)}${c.quote ? renderQuotePreviewButtons(c, 'sm soft') + btn('문자·카톡 발송', 'send-quote', 'send', 'sm primary', `data-id="${c.id}"`) : ''}</div></td></tr>` + (isExpanded ? renderQuoteInquiryDetailRow(c) : '');
     }).join('') : `<tr><td colspan="8"><div class="empty">${icon('file')}<strong>${quoteTab === 'inquiries' ? '접수된 견적 문의가 없습니다.' : '아직 견적 요청 또는 발행된 견적이 없습니다.'}</strong>${quoteTab === 'inquiries' ? '고객이 모바일 견적서에서 문의를 남기면 이곳에 표시됩니다.' : '고객을 등록한 뒤 원본 엑셀로 견적서를 발행해 보세요.'}</div></td></tr>`}</tbody></table></div></section>`;
 }
 function contractsPage(){
@@ -1690,12 +1692,12 @@ function contractsPage(){
                 const cid = Number(c.id || k.cid);
                 const isRental = k.type === '렌탈';
                 const rApp = (k.rentalAppId ? db.applications.find(a => a.id === k.rentalAppId) : null) ||
-                             db.applications.find(a => a.cid === k.cid);
+                             db.applications.find(a => a.id === k.id || Number(a.cid) === Number(k.cid));
                 const months = k.rentalPeriodMonths || rApp?.months || 60;
                 const monthly = k.rentalMonthlyFee || rApp?.monthly || (k.amount ? Math.round((k.amount * 1.2) / months / 1000) * 1000 : 0);
                 const total = k.rentalTotalFee || rApp?.total || (monthly * months) || k.amount;
                 const upfront = k.rentalUpfrontFee || rApp?.upfront || 0;
-                const rAppId = k.rentalAppId || rApp?.id;
+                const rAppId = k.rentalAppId || rApp?.id || (isRental && String(k.id || '').startsWith('R-') ? k.id : null);
 
                 const strip = activityStripInfo(getActivityState(k), '최근 24시간 이내 신규 계약');
                 const custCellHtml = `
@@ -1752,9 +1754,11 @@ function contractsPage(){
                       </div>
                     </div>`;
 
+                const rawRentalSt = k.rentalStatus || rApp?.status || '접수완료';
+                const rentalStText = RENTAL_STATUS_MAP[rawRentalSt] || rawRentalSt;
                 const statusHtml = `<div class="contract-status-cell">
                   <div class="status-main-badge">${badge(k.status)}</div>
-                  ${isRental ? `<div class="rental-review-pill" title="렌탈 심사 상태">심사 <b>${esc(k.rentalStatus || rApp?.status || '접수완료')}</b></div>` : ''}
+                  ${isRental ? `<div class="rental-review-pill" title="렌탈 심사 상태">심사 <b>${esc(rentalStText)}</b></div>` : ''}
                 </div>`;
 
                 const actionsHtml = `<div class="actions">
@@ -4144,11 +4148,13 @@ if(tab==='quotes')content=`
   `;
 if(tab==='contract')content=`${custContracts.map(k=>{
   const isRental = k.type === '렌탈';
-  const rApp = (k.rentalAppId ? db.applications.find(a => a.id === k.rentalAppId) : null) || db.applications.find(a => a.cid === k.cid);
+  const rApp = (k.rentalAppId ? db.applications.find(a => a.id === k.rentalAppId) : null) || db.applications.find(a => a.id === k.id || Number(a.cid) === Number(k.cid));
   const months = k.rentalPeriodMonths || rApp?.months || 60;
   const monthly = k.rentalMonthlyFee || rApp?.monthly || (k.amount ? Math.round((k.amount * 1.2) / months / 1000) * 1000 : 0);
   const total = k.rentalTotalFee || rApp?.total || (monthly * months) || k.amount;
-  const rAppId = k.rentalAppId || rApp?.id;
+  const rAppId = k.rentalAppId || rApp?.id || (isRental && String(k.id || '').startsWith('R-') ? k.id : null);
+  const rawRentalSt = k.rentalStatus || rApp?.status || '접수완료';
+  const rentalStText = RENTAL_STATUS_MAP[rawRentalSt] || rawRentalSt;
 
   if (isRental) {
     return `<div class="file-card" style="border-left:3px solid #6366f1">
@@ -4162,7 +4168,7 @@ if(tab==='contract')content=`${custContracts.map(k=>{
         <div style="margin-top:4px;font-size:13px;color:#3730a3;font-weight:700">
           월 ${won(monthly)} <small style="color:#6366f1;font-weight:500">(${months}개월 분납 · 총 ${won(total)})</small>
         </div>
-        <small style="color:#64748b">렌탈 심사: <b>${esc(k.rentalStatus || rApp?.status || '접수완료')}</b>${k.createdAtText ? ' · ' + esc(k.createdAtText) : ''}</small>
+        <small style="color:#64748b">렌탈 심사: <b>${esc(rentalStText)}</b>${k.createdAtText ? ' · ' + esc(k.createdAtText) : ''}</small>
       </div>
       <div class="actions">
         ${btn('계약보기', 'contract', '', 'sm soft', `data-id="${k.id}"`)}
@@ -4889,23 +4895,17 @@ window.openImageLightbox = function(src, title = '이미지 미리보기') {
 function openContract(id, forceCashModal = false){
   const k = db.contracts.find(k => k.id === id);
   if (!k || !accessibleC(k.cid)) return;
-  const c = findC(k.cid);
+  const c = findC(k.cid) || { id: k.cid, name: k.customerName || '고객', product: k.product || '창호' };
   const isRental = k.type === '렌탈' || !isCashContract(k);
 
-  // 렌탈 계약일 경우 일시불 모달을 거치지 않고 바로 렌탈 신청/내역 모달을 연다
-  if (!forceCashModal && isRental) {
-    const app = db.applications.find(x => x.cid === Number(k.cid) || x.id === (k.rentalAppId || k.applicationId));
-    if (app) {
-      openApplication(app.id, k.id);
-      return;
-    }
-  }
-
-  const rApp = (k.rentalAppId ? db.applications.find(a => a.id === k.rentalAppId) : null) || db.applications.find(a => a.cid === k.cid);
+  const rApp = (k.rentalAppId ? db.applications.find(a => a.id === k.rentalAppId) : null) ||
+               db.applications.find(a => a.id === k.id || Number(a.cid) === Number(k.cid));
   const months = k.rentalPeriodMonths || rApp?.months || 60;
   const monthly = k.rentalMonthlyFee || rApp?.monthly || (k.amount ? Math.round((k.amount * 1.2) / months / 1000) * 1000 : 0);
   const total = k.rentalTotalFee || rApp?.total || (monthly * months) || k.amount;
   const upfront = k.rentalUpfrontFee || rApp?.upfront || 0;
+  const rawRentalSt = k.rentalStatus || rApp?.status || '접수완료';
+  const rentalStText = RENTAL_STATUS_MAP[rawRentalSt] || rawRentalSt;
 
   const statusList = [...new Set([...getContractStatusNames(), k.status].filter(Boolean))];
   const canEditSettings = getUserAllowedMenuKeys(getActiveUser()).includes('settings');
@@ -4915,7 +4915,7 @@ function openContract(id, forceCashModal = false){
     <div class="mini-stat"><span>총 렌탈료 (약정 총액)</span><b style="color:var(--navy)">${won(total)}</b></div>
     ${upfront > 0 ? `<div class="mini-stat"><span>초기 선납금</span><b>${won(upfront)}</b></div>` : ''}
     <div class="mini-stat"><span>결제 방식</span><b style="color:var(--purple)">렌탈 분납약정 (자동이체/CMS)</b></div>
-    <div class="mini-stat"><span>렌탈 심사 상태</span><b>${badge(k.rentalStatus || rApp?.status || '접수완료', 'purple')}</b></div>
+    <div class="mini-stat"><span>렌탈 심사 상태</span><b>${badge(rentalStText, 'purple')}</b></div>
   ` : `
     <div class="mini-stat"><span>계약금액</span><b>${won(k.amount)}</b></div>
     <div class="mini-stat"><span>수납액</span><b style="color:var(--green)">${won(k.paid)}</b></div>
@@ -4947,7 +4947,8 @@ function openContract(id, forceCashModal = false){
     </div>
   </div>`;
 
-  const footer = `${btn('고객 보기', 'customer', 'users', '', `data-id="${c.id}"`)}${renderQuotePreviewButtons(c, 'soft')}${!isRental ? btn('수납 등록', 'receipt', 'credit', 'primary', `data-id="${k.id}"`) : (rApp ? btn('렌탈 심사·서류 검토', 'application', 'file', 'primary', `data-id="${rApp.id}"`) : btn('렌탈 신청 확인', 'find-application', 'file', 'primary', `data-id="${c.id}"`))}`;
+  const rAppId = k.rentalAppId || rApp?.id || (isRental && String(k.id || '').startsWith('R-') ? k.id : null);
+  const footer = `${btn('고객 보기', 'customer', 'users', '', `data-id="${c.id}"`)}${renderQuotePreviewButtons(c, 'soft')}${!isRental ? btn('수납 등록', 'receipt', 'credit', 'primary', `data-id="${k.id}"`) : (rAppId ? btn('렌탈 심사·서류 검토', 'application', 'file', 'primary', `data-id="${rAppId}"`) : btn('렌탈 신청 확인', 'find-application', 'file', 'primary', `data-id="${c.id}"`))}`;
 
   openDialog('계약 상세', body, footer, '', `${esc(c.name)} 고객의 ${isRental ? '렌탈 계약·약정' : '계약·결제'} 현황`);
 }
@@ -5013,9 +5014,12 @@ async function openSupplementDialog(appId) {
 const RENTAL_STATUS_MAP = {
   received: '신규 접수',
   review: '서류 확인 중',
+  reviewing: '서류 확인 중',
   needs_info: '보완 요청',
+  supplement: '보완 요청',
   screening: '심사 중',
   confirmed: '계약 확정',
+  approved: '계약 확정',
   rejected: '진행 불가',
   cancelled: '취소'
 };
@@ -5248,7 +5252,8 @@ function openCloneLinkDialog(linkId = null, defaultProdIdx = null) {
   const initMedium = existing?.medium || (isP ? '파트너추천' : '검색광고');
   const initPartner = existing?.partnerName || (isP ? activeU.org : '직영');
 
-  const prodOptionsHtml = products.map((p, idx) => {
+  const prodList = products.length ? products : [defaultProd];
+  const prodOptionsHtml = prodList.map((p, idx) => {
     const tUrl = p.url || '/landing/';
     const isSel = Number(p.id || idx) === Number(defaultProd.id || 0);
     return `<option value="${p.id || ''}" data-url="${esc(tUrl)}" ${isSel ? 'selected' : ''}>${esc(p.name)} (${esc(p.category)} · ${esc(tUrl)})</option>`;

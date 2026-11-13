@@ -37,24 +37,24 @@ export function formatShortKst(isoStr) {
 
 export function parseQuoteInquiry(doc) {
   const raw = String(doc?.content || "");
-  const parts = raw.split(" · ").map((s) => s.trim()).filter(Boolean);
-  let planSummary = "";
-  let topics = [];
-  let preferredTime = "상관없음";
-  let memo = "";
-
-  for (const part of parts) {
-    if (part.startsWith("선택 조건:")) {
-      planSummary = part.slice("선택 조건:".length).trim();
-    } else if (part.startsWith("문의 항목:")) {
-      const tStr = part.slice("문의 항목:".length).trim();
-      topics = tStr ? tStr.split(",").map((t) => t.trim()).filter(Boolean) : [];
-    } else if (part.startsWith("희망 연락시간:")) {
-      preferredTime = part.slice("희망 연락시간:".length).trim() || "상관없음";
-    } else if (part.startsWith("고객 메모:")) {
-      memo = part.slice("고객 메모:".length).trim();
+  const extractSegment = (label, nextLabels) => {
+    const startToken = `${label}:`;
+    const startIdx = raw.indexOf(startToken);
+    if (startIdx === -1) return "";
+    const valueStart = startIdx + startToken.length;
+    let endIdx = raw.length;
+    for (const next of nextLabels) {
+      const idx = raw.indexOf(` · ${next}:`, valueStart);
+      if (idx !== -1 && idx < endIdx) endIdx = idx;
     }
-  }
+    return raw.slice(valueStart, endIdx).trim();
+  };
+
+  const planSummary = extractSegment("선택 조건", ["문의 항목", "희망 연락시간", "고객 메모"]);
+  const tStr = extractSegment("문의 항목", ["희망 연락시간", "고객 메모"]);
+  const topics = tStr ? tStr.split(",").map((t) => t.trim()).filter(Boolean) : [];
+  const preferredTime = extractSegment("희망 연락시간", ["고객 메모"]) || "상관없음";
+  const memo = extractSegment("고객 메모", []);
 
   return {
     id: doc?._id ? String(doc._id) : `${doc?.projectId || 0}-${doc?.createdAt || ""}`,
@@ -68,4 +68,62 @@ export function parseQuoteInquiry(doc) {
     createdAtText: formatShortKst(doc?.createdAt || ""),
     rawContent: raw,
   };
+}
+
+export const RENTAL_STATUS_LABELS = {
+  received: "접수 완료",
+  review: "서류 확인 중",
+  reviewing: "서류 확인 중",
+  needs_info: "보완 요청",
+  supplement: "보완 요청",
+  screening: "심사 중",
+  confirmed: "계약 확정",
+  approved: "계약 확정",
+  rejected: "진행 불가",
+  cancelled: "취소",
+};
+
+const KR_TO_RENTAL_CODE = {
+  "신규 접수": "received",
+  "접수 완료": "received",
+  "접수완료": "received",
+  "서류 확인 중": "review",
+  "서류검토": "review",
+  "보완 요청": "needs_info",
+  "보완요청": "needs_info",
+  "서류보완": "needs_info",
+  "심사 중": "screening",
+  "심사중": "screening",
+  "계약 확정": "confirmed",
+  "심사승인": "confirmed",
+  "약정완료": "confirmed",
+  "진행 불가": "rejected",
+  "심사반려": "rejected",
+  "반려": "rejected",
+  "취소": "cancelled",
+  "부결": "cancelled",
+};
+
+export function normalizeRentalStatusCode(input) {
+  const s = String(input || "").trim();
+  if (!s) return "received";
+  if (s === "reviewing") return "review";
+  if (s === "supplement") return "needs_info";
+  if (s === "approved") return "confirmed";
+  if (RENTAL_STATUS_LABELS[s]) return s;
+  return KR_TO_RENTAL_CODE[s] || "received";
+}
+
+export function getRentalStatusLabel(input) {
+  const code = normalizeRentalStatusCode(input);
+  return RENTAL_STATUS_LABELS[code] || String(input || "접수 완료");
+}
+
+export function maskBirthDate(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (digits.length >= 6) {
+    const yy = digits.length === 8 ? digits.slice(0, 4) : digits.slice(0, 2);
+    return `${yy}-**-**`;
+  }
+  return "****-**-**";
 }

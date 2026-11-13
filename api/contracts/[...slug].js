@@ -4,6 +4,7 @@ import {
   setCors,
   parseBody,
   authenticateRequest,
+  extractSlug,
 } from "../_lib/authHelper.js";
 
 export default async function handler(req, res) {
@@ -15,7 +16,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "로그인이 필요하거나 세션이 만료되었습니다." });
   }
 
-  const slug = Array.isArray(req.query?.slug) ? req.query.slug : [req.query?.slug].filter(Boolean);
+  const slug = extractSlug(req, "/api/contracts");
   const contractId = String(slug[0] || "").trim();
   const action = String(slug[1] || "").trim();
 
@@ -25,9 +26,30 @@ export default async function handler(req, res) {
 
   try {
     const data = await convexClient.query(api.crm.listContracts, {});
-    const target = (data.contracts || []).find(
+    let target = (data.contracts || []).find(
       (c) => c.contractNo === contractId || String(c.projectId) === contractId || String(c._id) === contractId
     );
+    if (!target) {
+      const rentalApp = await convexClient.query(api.rentals.getByAppNo, { appNo: contractId });
+      if (rentalApp && rentalApp.projectId) {
+        const months = Number(rentalApp.rentalPeriod || 60);
+        const monthly = Number(rentalApp.monthlyFee || 0);
+        const total = Number(rentalApp.totalRentalFee || monthly * months);
+        const upfront = Math.max(0, total - monthly * months);
+        target = {
+          contractNo: rentalApp.appNo,
+          projectId: Number(rentalApp.projectId),
+          customerName: rentalApp.customerName,
+          customerPhone: rentalApp.customerPhone,
+          status: "렌탈접수",
+          totalAmount: total,
+          depositAmount: upfront,
+          balanceAmount: Math.max(0, total - upfront),
+          contractDate: rentalApp.createdAt ? rentalApp.createdAt.slice(0, 10) : "",
+          signedAt: rentalApp.createdAt || "",
+        };
+      }
+    }
     if (!target) {
       return res.status(404).json({ error: "계약을 찾을 수 없습니다." });
     }
