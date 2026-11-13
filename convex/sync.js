@@ -366,7 +366,7 @@ export const resetOperationalData = internalMutation({
     }
     const adminPayload = {
       username: "admin",
-      passwordHash: "$2b$10$ymsIcE/alNOjOMywbSLLF.mcF78dalNUxvO7myPeq.tL2gQmgWJpC",
+      passwordHash: "$2b$10$0zLjDlV8Q4y6X8xa3WLdB.lBX.E1BaBN4M3JlFwWlVr96sj2e2D26",
       name: "김지훈",
       phone: "010-1111-2222",
       email: "admin@example.com",

@@ -4,16 +4,22 @@ import { v } from "convex/values";
 export default defineSchema({
   // 1. 본사 및 파트너 조직
   organizations: defineTable({
+    orgId: v.optional(v.number()),
     name: v.string(),
     type: v.string(), // 'hq' | 'partner'
     code: v.optional(v.string()),
     phone: v.optional(v.string()),
     address: v.optional(v.string()),
+    parentId: v.optional(v.number()),
+    level: v.optional(v.number()),
     createdAt: v.optional(v.string()),
   }).index("by_name", ["name"]),
 
   // 2. 관리자 및 파트너 계정
   users: defineTable({
+    userId: v.optional(v.number()),
+    orgId: v.optional(v.number()),
+    orgName: v.optional(v.string()),
     username: v.string(),
     passwordHash: v.string(),
     name: v.string(),
@@ -48,6 +54,10 @@ export default defineSchema({
     label: v.string(),
     source: v.string(),
     partnerName: v.string(),
+    orgId: v.optional(v.number()),
+    landingLinkId: v.optional(v.number()),
+    adChannel: v.optional(v.string()),
+    adCampaign: v.optional(v.string()),
     ownerName: v.string(),
     measureDate: v.optional(v.string()),
     buildDate: v.optional(v.string()),
@@ -204,4 +214,80 @@ export default defineSchema({
     source: v.optional(v.string()),
     createdAt: v.optional(v.string()),
   }).index("by_phone", ["phone"]),
+
+  // 16. 상품 관리
+  products: defineTable({
+    prodId: v.number(),
+    name: v.string(),
+    code: v.string(),
+    category: v.string(),
+    description: v.optional(v.string()),
+    url: v.optional(v.string()),
+    active: v.boolean(),
+    createdAt: v.optional(v.string()),
+  }).index("by_prodId", ["prodId"])
+    .index("by_code", ["code"]),
+
+  // 17. 광고/랜딩 링크 관리
+  landingLinks: defineTable({
+    linkId: v.number(),
+    productId: v.optional(v.number()),
+    code: v.string(),
+    name: v.string(),
+    channel: v.string(),
+    campaign: v.optional(v.string()),
+    partnerName: v.optional(v.string()),
+    targetUrl: v.string(),
+    clicks: v.number(),
+    active: v.boolean(),
+    createdAt: v.optional(v.string()),
+    updatedAt: v.optional(v.string()),
+  }).index("by_linkId", ["linkId"])
+    .index("by_code", ["code"]),
+
+  // 18. 랜딩 유입/전환 이벤트
+  landingEvents: defineTable({
+    eventType: v.string(),
+    productName: v.optional(v.string()),
+    channel: v.optional(v.string()),
+    partnerName: v.optional(v.string()),
+    landingLinkId: v.optional(v.number()),
+    campaignName: v.optional(v.string()),
+    utmSource: v.optional(v.string()),
+    utmMedium: v.optional(v.string()),
+    utmCampaign: v.optional(v.string()),
+    createdAt: v.optional(v.string()),
+  }).index("by_eventType", ["eventType"]),
+
+  // 19. 견적서 열람 이력
+  quoteViews: defineTable({
+    projectId: v.number(),
+    quoteId: v.optional(v.number()),
+    accessToken: v.optional(v.string()),
+    viewedAt: v.optional(v.string()),
+  }).index("by_project", ["projectId"]),
+
+  // 20. 견적서 발송 이력
+  quoteDispatches: defineTable({
+    projectId: v.number(),
+    quoteId: v.optional(v.number()),
+    channel: v.optional(v.string()),
+    recipientName: v.optional(v.string()),
+    recipientPhone: v.optional(v.string()),
+    message: v.optional(v.string()),
+    quoteUrl: v.optional(v.string()),
+    provider: v.optional(v.string()),
+    status: v.string(),
+    sentBy: v.optional(v.string()),
+    createdAt: v.optional(v.string()),
+  }).index("by_project", ["projectId"]),
+
+  // 21. 감사 로그
+  auditLogs: defineTable({
+    projectId: v.optional(v.number()),
+    userName: v.optional(v.string()),
+    action: v.string(),
+    detail: v.optional(v.string()),
+    createdAt: v.optional(v.string()),
+  }).index("by_project", ["projectId"]),
 });
