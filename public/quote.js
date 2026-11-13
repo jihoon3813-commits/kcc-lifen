@@ -29,6 +29,7 @@ function setPreviewDevice(mode) {
 
 let currentQuote = null;
 let configuredConsultPhone = '';
+let configuredManagerName = '';
 let viewerToken = '';
 let csrfToken = '';
 let selectedPlan = 'cash';
@@ -541,8 +542,9 @@ function renderQuote(q) {
   document.getElementById('aside-window-count').textContent = `자재 ${displayMainItems.length} · 기타 ${extraItems.length}`;
 
   document.getElementById('footer-partner-name').textContent = q.partner_name || '(주)라이프앤조이';
+  const effectiveManager = configuredManagerName || q.manager_name || '전담 상담사';
   const effectivePhone = configuredConsultPhone || q.manager_phone || '1588-0000';
-  document.getElementById('footer-manager-info').textContent = `${q.manager_name || '전담 상담사'} · ${effectivePhone}`;
+  document.getElementById('footer-manager-info').textContent = `${effectiveManager} · ${effectivePhone}`;
   document.getElementById('dialog-sub').textContent = `${customerName} 고객님의 견적을 기준으로 안내해드립니다.`;
   document.getElementById('dialog-masked-phone').textContent = q.customer_phone || '본인확인 완료';
 
@@ -676,20 +678,22 @@ document.getElementById('phone-btn').addEventListener('click', () => {
   window.location.href = `tel:${tel}`;
 });
 
-// Load admin-configured consult phone so it applies across preview & live quotes
+// Load admin-configured consult phone & manager name so it applies across preview & live quotes
 (async function loadConfiguredConsultPhone() {
   try {
     const res = await fetch('/api/settings/quote-phone', { credentials: 'same-origin' });
     if (!res.ok) return;
     const data = await res.json();
     const phone = String(data?.phone || '').trim();
-    if (phone) {
-      configuredConsultPhone = phone;
-      if (currentQuote) {
-        const footerInfo = document.getElementById('footer-manager-info');
-        if (footerInfo) {
-          footerInfo.textContent = `${currentQuote.manager_name || '전담 상담사'} · ${configuredConsultPhone}`;
-        }
+    const managerName = String(data?.managerName || '').trim();
+    if (phone) configuredConsultPhone = phone;
+    if (managerName) configuredManagerName = managerName;
+    if ((phone || managerName) && currentQuote) {
+      const footerInfo = document.getElementById('footer-manager-info');
+      if (footerInfo) {
+        const effectiveManager = configuredManagerName || currentQuote.manager_name || '전담 상담사';
+        const effectivePhone = configuredConsultPhone || currentQuote.manager_phone || '1588-0000';
+        footerInfo.textContent = `${effectiveManager} · ${effectivePhone}`;
       }
     }
   } catch {}

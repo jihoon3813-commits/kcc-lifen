@@ -635,20 +635,25 @@ router.post('/reset', requireAuth, requireRole('hq_admin'), (req, res) => {
   res.json({ message: '데이터가 초기화되었습니다.' });
 });
 
-// Get Customer Mobile Quote Consult Phone (Public GET so quote.html can read it)
+// Get Customer Mobile Quote Consult Phone & Manager Name (Public GET so quote.html can read it)
 router.get('/quote-phone', (req, res) => {
   try {
     const row = db.prepare("SELECT config_json, updated_at FROM integration_configs WHERE key = 'quote_consult_phone'").get();
     const parsed = row?.config_json ? JSON.parse(row.config_json) : {};
-    res.json({ phone: parsed.phone || '', updatedAt: row?.updated_at || null });
+    res.json({
+      phone: parsed.phone || '',
+      managerName: parsed.managerName || '',
+      updatedAt: row?.updated_at || null
+    });
   } catch {
-    res.json({ phone: '', updatedAt: null });
+    res.json({ phone: '', managerName: '', updatedAt: null });
   }
 });
 
-// Update Customer Mobile Quote Consult Phone
+// Update Customer Mobile Quote Consult Phone & Manager Name
 const handleSaveQuotePhone = (req, res) => {
   const rawPhone = String(req.body?.phone ?? '').trim();
+  const rawManager = String(req.body?.managerName ?? '').trim().slice(0, 40);
   if (rawPhone && !/^[\d\-+\s()]{4,25}$/.test(rawPhone)) {
     return res.status(400).json({ error: '올바른 전화번호 형식을 입력해 주세요. (예: 02-2015-8500, 1588-0000)' });
   }
@@ -660,8 +665,8 @@ const handleSaveQuotePhone = (req, res) => {
       config_json = excluded.config_json,
       updated_by = excluded.updated_by,
       updated_at = excluded.updated_at
-  `).run(JSON.stringify({ phone: rawPhone }), req.user?.name || '관리자', now);
-  res.json({ success: true, phone: rawPhone, updatedAt: now });
+  `).run(JSON.stringify({ phone: rawPhone, managerName: rawManager }), req.user?.name || '관리자', now);
+  res.json({ success: true, phone: rawPhone, managerName: rawManager, updatedAt: now });
 };
 router.put('/quote-phone', requireAuth, requireMenu('settings'), handleSaveQuotePhone);
 router.post('/quote-phone', requireAuth, requireMenu('settings'), handleSaveQuotePhone);

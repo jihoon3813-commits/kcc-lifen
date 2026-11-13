@@ -6,7 +6,8 @@ import {
   authenticateRequest,
 } from "../_lib/authHelper.js";
 
-const SETTING_KEY = "quote_consult_phone";
+const PHONE_KEY = "quote_consult_phone";
+const MANAGER_KEY = "quote_consult_manager_name";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -14,16 +15,18 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     try {
-      const row = await convexClient.query(api.settings.getSetting, {
-        key: SETTING_KEY,
-      });
+      const [phoneRow, managerRow] = await Promise.all([
+        convexClient.query(api.settings.getSetting, { key: PHONE_KEY }),
+        convexClient.query(api.settings.getSetting, { key: MANAGER_KEY }),
+      ]);
       return res.status(200).json({
-        phone: row?.value || "",
-        updatedAt: row?.updatedAt || null,
+        phone: phoneRow?.value || "",
+        managerName: managerRow?.value || "",
+        updatedAt: phoneRow?.updatedAt || managerRow?.updatedAt || null,
       });
     } catch (err) {
       console.error("Vercel quote-phone GET error:", err);
-      return res.status(500).json({ error: "전화상담 번호를 불러오지 못했습니다." });
+      return res.status(500).json({ error: "견적 상담 설정을 불러오지 못했습니다." });
     }
   }
 
@@ -43,23 +46,31 @@ export default async function handler(req, res) {
     }
 
     const rawPhone = String(body.phone ?? "").trim();
+    const rawManager = String(body.managerName ?? "").trim().slice(0, 40);
     if (rawPhone && !/^[\d\-+\s()]{4,25}$/.test(rawPhone)) {
       return res.status(400).json({ error: "올바른 전화번호 형식을 입력해 주세요. (예: 02-2015-8500, 1588-0000)" });
     }
 
     try {
-      const saved = await convexClient.mutation(api.settings.setSetting, {
-        key: SETTING_KEY,
-        value: rawPhone,
-      });
+      const [savedPhone, savedManager] = await Promise.all([
+        convexClient.mutation(api.settings.setSetting, {
+          key: PHONE_KEY,
+          value: rawPhone,
+        }),
+        convexClient.mutation(api.settings.setSetting, {
+          key: MANAGER_KEY,
+          value: rawManager,
+        }),
+      ]);
       return res.status(200).json({
         success: true,
-        phone: saved.value,
-        updatedAt: saved.updatedAt,
+        phone: savedPhone.value,
+        managerName: savedManager.value,
+        updatedAt: savedPhone.updatedAt || savedManager.updatedAt,
       });
     } catch (err) {
       console.error("Vercel quote-phone PUT error:", err);
-      return res.status(500).json({ error: "전화상담 번호 저장에 실패했습니다." });
+      return res.status(500).json({ error: "견적 상담 설정 저장에 실패했습니다." });
     }
   }
 

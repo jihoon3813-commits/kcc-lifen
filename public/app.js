@@ -645,7 +645,11 @@ async function syncFromServer() {
     if (qpRes && qpRes.ok) {
       const qpData = await qpRes.json();
       quoteConsultPhone = String(qpData?.phone || '').trim();
-      try { localStorage.setItem('kcc_quote_consult_phone', quoteConsultPhone); } catch {}
+      quoteConsultManagerName = String(qpData?.managerName || '').trim();
+      try {
+        localStorage.setItem('kcc_quote_consult_phone', quoteConsultPhone);
+        localStorage.setItem('kcc_quote_consult_manager', quoteConsultManagerName);
+      } catch {}
     }
     save();
     render();
@@ -916,7 +920,7 @@ function buildDraftMobileQuote(c, ed, totals) {
       lowmonthly: { ...plan111Obj, key: 'lowmonthly' },
       lowupfront: { ...plan222Obj, key: 'lowupfront' }
     },
-    manager_name: safeMeta?.supplier_manager || (c.owner && c.owner !== '미배정' ? c.owner : '전담 상담사'),
+    manager_name: quoteConsultManagerName || safeMeta?.supplier_manager || (c.owner && c.owner !== '미배정' ? c.owner : '전담 상담사'),
     manager_phone: quoteConsultPhone || safeMeta?.supplier_phone || '1588-0000',
     partner_name: safeMeta?.supplier_name || (c.partner === '직영' ? '(주)라이프앤조이' : c.partner),
     published_at: safeMeta?.quote_date || new Date().toISOString().slice(0, 10),
@@ -1202,6 +1206,7 @@ async function openMessagingIntegrationDialog() {
 
 let page='customers', customerTab='all', contractTab='all', settingsTab='labels', role='본사 관리자', query='', stageFilter='', productFilter='', partnerFilter='', sourceFilter='', linkFilter='', periodFilter='all', sortOrder='new', productLinkCatFilter='all', productLinkQuery='', selected=new Set(), detailId=null, detailTab='notes', editor=null, statsPeriod='30', restoreFocus=null, quotePreviewId=null;
 let quoteConsultPhone = (()=>{try{return localStorage.getItem('kcc_quote_consult_phone')||'';}catch{return '';}})();
+let quoteConsultManagerName = (()=>{try{return localStorage.getItem('kcc_quote_consult_manager')||'';}catch{return '';}})();
 const menus=[['customers','고객관리','users'],['quotes','견적관리','file'],['contracts','계약관리','contract'],['products','상품관리','box'],['partners','파트너관리','building'],['stats','통계관리','chart'],['settings','설정','settings']];
 const stages=['신규접수','상담중','가견적요청','견적안내','실측예정','최종견적','계약진행','시공완료','보류'];
 function getContractStatuses() {
@@ -1443,7 +1448,19 @@ function customersPage(){
   const linkFilterBanner = linkFilter ? `<div class="active-link-filter-bar"><div>${icon('link')}<span>선택된 광고링크 유입 고객만 보는 중:</span> <span class="ch-pill ${channelTone(activeLinkObj?.channel || sourceFilter)}">${esc(activeLinkObj?.channel || sourceFilter || '광고링크')}</span> <b>${esc(activeLinkObj?.name || ('링크 #' + linkFilter))}</b></div><button type="button" class="btn sm" data-action="clear-link-filter">${icon('close')}필터 해제 (전체 보기)</button></div>` : '';
   return pageHead('고객관리','고객의 첫 문의부터 계약까지, 한눈에 관리하세요.',btn('새로고침','refresh-data','refresh','secondary')+btn('일정 보기','calendar','calendar','secondary')+btn('고객 등록','new-customer','plus','primary'),'CUSTOMER MANAGEMENT')+`<div class="metrics">${metric('전체 고객',c.length,'건','현재 등록된 전체 공사건','users','','filter-all')}${metric('견적 요청 대기',c.filter(x=>x.status==='가견적요청').length,'건','<span class="accent">원본 견적 수령</span>이 필요해요','file','orange','filter-stage','data-value="가견적요청"')}${metric('실측 예정',c.filter(x=>x.status==='실측예정').length,'건','담당팀과 방문 일정을 확인하세요','calendar','purple','filter-stage','data-value="실측예정"')}${metric('계약 진행',c.filter(x=>x.status==='계약진행').length,'건','서류 검토와 수납 상태 확인','contract','green','filter-stage','data-value="계약진행"')}</div><section class="panel"><div class="tabs">${[['all','전체 고객'],['mine','내 담당 고객'],['unassigned','미배정'],['unread','견적 미열람']].map(([v,l])=>`<button class="tab ${customerTab===v?'active':''}" data-action="customer-tab" data-value="${v}">${l}${v==='all'?`<span class="count">${c.length}</span>`:''}</button>`).join('')}</div><div class="filters"><div class="search-field">${icon('search')}<input class="input" id="customer-search" value="${esc(query)}" placeholder="고객명, 연락처, 주소, 광고채널 검색" aria-label="고객 검색"></div><select class="select" id="filter-period" aria-label="등록 기간"><option value="all" ${periodFilter==='all'?'selected':''}>등록 기간 전체</option><option value="today" ${periodFilter==='today'?'selected':''}>오늘</option><option value="7" ${periodFilter==='7'?'selected':''}>최근 7일</option></select><select class="select" id="filter-product" aria-label="상품군">${options(['창호','주방','욕실'],productFilter,'상품군 전체')}</select><select class="select" id="filter-stage" aria-label="진행구분">${options(stages,stageFilter,'진행구분 전체')}</select><select class="select" id="filter-source" aria-label="유입채널">${options(channelOptions,sourceFilter,'유입채널 전체')}</select>${role==='본사 관리자'?`<select class="select" id="filter-partner" aria-label="소속 파트너">${options(['직영',...db.partners.map(p=>p.name)],partnerFilter,'파트너 전체')}</select>`:''}<button class="icon-btn" data-action="reset-filters" title="필터 초기화" aria-label="필터 초기화">${icon('refresh')}</button></div>${linkFilterBanner}<div class="toolbar"><span id="list-count">검색 결과 <strong>${filteredCustomers().length}</strong>건 ${selected.size?`· <button data-action="assign" style="color:var(--blue)">${selected.size}명 담당자 배정</button>`:''}</span><div class="actions">${btn('엑셀용 CSV','export','download','sm')}<select class="sort" id="sort-order" aria-label="정렬 순서"><option value="new" ${sortOrder==='new'?'selected':''}>최근 등록순</option><option value="old" ${sortOrder==='old'?'selected':''}>고객번호 낮은순</option></select></div></div><div class="customers" id="customer-rows">${customerRows()}</div><div class="pagination"><span>전체 결과를 한 페이지에 표시합니다.</span><div class="pages"><button class="active" aria-label="현재 1페이지">1</button></div></div></section>`;
 }
-function quotesPage(){const cs=visibleCustomers(), ready=cs.filter(c=>c.status==='가견적요청'), published=cs.filter(c=>c.quote>0);const rows=[...new Map([...ready,...published].map(c=>[c.id,c])).values()];return pageHead('견적관리','원본 견적을 고객에게 전달할 최적의 제안으로 완성하세요.',btn('견적 만들기','new-quote','plus','primary'),'ESTIMATE WORKSPACE')+`<div class="metrics">${metric('원본 수령 대기',ready.length,'건','KCC 영업지원팀 요청 건','clock','orange')}${metric('발행된 견적',published.length,'건','고객별 최신 견적 기준','file')}${metric('고객 열람',published.filter(c=>c.viewed).length,'건','발행 이후 열람한 고객','eye','green')}${metric('견적 미열람',published.filter(c=>!c.viewed).length,'건','안내 링크를 확인해 주세요','send','purple')}</div><div class="banner">${icon('info')}<div><b>원본 엑셀 → 판매가 설정 → 고객견적 발행</b><br>공급원가와 내부 마진은 고객용 견적서에 표시되지 않습니다.</div></div><section class="panel"><div class="panel-head"><div><h3>견적 요청 및 발행 현황</h3><p>고객·공사건에 연결된 견적을 관리합니다.</p></div>${badge('실운영 데이터','blue')}</div><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>고객 / 견적번호</th><th>상품</th><th>진행 상태</th><th>고객 견적금액</th><th>고객 열람</th><th>담당자</th><th>관리</th></tr></thead><tbody>${rows.length?rows.map(c=>`<tr><td class="card-primary"><b class="quote-customer-name">${esc(c.name)}</b><small>${c.quote?'Q':'REQ'}-${c.id} · ${esc(c.address)}</small></td><td data-label="상품">${badge(c.product,'gray')}</td><td data-label="진행 상태">${badge(c.quote?'발행완료':'원본대기',c.quote?'green':'orange')}</td><td data-label="고객 견적금액" class="money"><b>${c.quote?won(c.quote):'—'}</b></td><td data-label="고객 열람">${c.quote?badge(c.viewed?'열람완료':'미열람',c.viewed?'green':'gray'):'—'}</td><td data-label="담당자">${esc(c.owner)}</td><td class="card-actions"><div class="actions">${btn(c.quote?'수정본 작성':'엑셀 등록','new-quote',c.quote?'edit':'upload','sm',`data-id="${c.id}"`)}${c.quote?btn('가견적 보기','preview','eye','sm soft',`data-id="${c.id}" data-type="가견적"`)+btn('최종견적 보기','preview','eye','sm soft',`data-id="${c.id}" data-type="최종견적"`)+btn('문자·카톡 발송','send-quote','send','sm primary',`data-id="${c.id}"`):''}</div></td></tr>`).join(''):`<tr><td colspan="7"><div class="empty">${icon('file')}<strong>아직 견적 요청 또는 발행된 견적이 없습니다.</strong>고객을 등록한 뒤 원본 엑셀로 견적서를 발행해 보세요.</div></td></tr>`}</tbody></table></div></section>`}
+function renderQuotePreviewButtons(c, sizeCls = 'sm soft') {
+  if (!c || !c.quote) return '';
+  const hasRough = Boolean(c.roughQuote);
+  const hasFinal = Boolean(c.finalQuote);
+  if (hasRough || hasFinal) {
+    return (hasRough ? btn('가견적 보기', 'preview', 'eye', sizeCls, `data-id="${c.id}" data-type="가견적"`) : '') +
+           (hasFinal ? btn('최종견적 보기', 'preview', 'eye', sizeCls, `data-id="${c.id}" data-type="최종견적"`) : '');
+  }
+  const fallbackType = c.quoteType === '최종견적' ? '최종견적' : '가견적';
+  return btn(`${fallbackType} 보기`, 'preview', 'eye', sizeCls, `data-id="${c.id}" data-type="${fallbackType}"`);
+}
+
+function quotesPage(){const cs=visibleCustomers(), ready=cs.filter(c=>c.status==='가견적요청'), published=cs.filter(c=>c.quote>0);const rows=[...new Map([...ready,...published].map(c=>[c.id,c])).values()];return pageHead('견적관리','원본 견적을 고객에게 전달할 최적의 제안으로 완성하세요.',btn('견적 만들기','new-quote','plus','primary'),'ESTIMATE WORKSPACE')+`<div class="metrics">${metric('원본 수령 대기',ready.length,'건','KCC 영업지원팀 요청 건','clock','orange')}${metric('발행된 견적',published.length,'건','고객별 최신 견적 기준','file')}${metric('고객 열람',published.filter(c=>c.viewed).length,'건','발행 이후 열람한 고객','eye','green')}${metric('견적 미열람',published.filter(c=>!c.viewed).length,'건','안내 링크를 확인해 주세요','send','purple')}</div><div class="banner">${icon('info')}<div><b>원본 엑셀 → 판매가 설정 → 고객견적 발행</b><br>공급원가와 내부 마진은 고객용 견적서에 표시되지 않습니다.</div></div><section class="panel"><div class="panel-head"><div><h3>견적 요청 및 발행 현황</h3><p>고객·공사건에 연결된 견적을 관리합니다.</p></div>${badge('실운영 데이터','blue')}</div><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>고객 / 견적번호</th><th>상품</th><th>진행 상태</th><th>고객 견적금액</th><th>고객 열람</th><th>담당자</th><th>관리</th></tr></thead><tbody>${rows.length?rows.map(c=>`<tr><td class="card-primary"><b class="quote-customer-name">${esc(c.name)}</b><small>${c.quote?'Q':'REQ'}-${c.id} · ${esc(c.address)}</small></td><td data-label="상품">${badge(c.product,'gray')}</td><td data-label="진행 상태">${badge(c.quote?'발행완료':'원본대기',c.quote?'green':'orange')}</td><td data-label="고객 견적금액" class="money"><b>${c.quote?won(c.quote):'—'}</b></td><td data-label="고객 열람">${c.quote?badge(c.viewed?'열람완료':'미열람',c.viewed?'green':'gray'):'—'}</td><td data-label="담당자">${esc(c.owner)}</td><td class="card-actions"><div class="actions">${btn(c.quote?'수정본 작성':'엑셀 등록','new-quote',c.quote?'edit':'upload','sm',`data-id="${c.id}"`)}${c.quote?renderQuotePreviewButtons(c,'sm soft')+btn('문자·카톡 발송','send-quote','send','sm primary',`data-id="${c.id}"`):''}</div></td></tr>`).join(''):`<tr><td colspan="7"><div class="empty">${icon('file')}<strong>아직 견적 요청 또는 발행된 견적이 없습니다.</strong>고객을 등록한 뒤 원본 엑셀로 견적서를 발행해 보세요.</div></td></tr>`}</tbody></table></div></section>`}
 function contractsPage(){
   const cs = visibleCustomers();
   const items = db.contracts.filter(k => cs.some(c => c.id === k.cid));
@@ -3854,17 +3871,21 @@ function initFormPreviewEvents(formIdx, applicants, fields, pdfDoc, totalPages) 
 }
 
 function renderQuotePhoneSettingsPanel(){
-  return `<div class="panel-head"><div><h3>모바일 견적서 전화상담 번호</h3><p>고객 모바일 견적서 하단의 <b>전화 상담</b> 버튼과 푸터 연락처에 표시되는 대표 전화번호를 설정합니다.</p></div></div>
+  return `<div class="panel-head"><div><h3>모바일 견적서 담당자 · 전화상담 설정</h3><p>고객 모바일 견적서 하단의 <b>담당 상담사 이름</b>과 <b>전화 상담</b> 연결 번호를 설정합니다.</p></div></div>
   <div class="panel-pad">
     <form data-submit="quote-phone" style="max-width:460px;display:flex;flex-direction:column;gap:14px">
+      <div class="field">
+        <label for="quote-consult-manager-input">담당 상담사 이름</label>
+        <input class="input" id="quote-consult-manager-input" name="managerName" type="text" value="${esc(quoteConsultManagerName)}" placeholder="예: 김지훈 팀장 또는 라이프앤조이 전담팀" maxlength="40">
+      </div>
       <div class="field">
         <label for="quote-consult-phone-input">전화상담 연결 번호</label>
         <input class="input" id="quote-consult-phone-input" name="phone" type="tel" value="${esc(quoteConsultPhone)}" placeholder="예: 02-2015-8500 또는 1588-0000" maxlength="25">
       </div>
-      <div class="notice-text">한 번 저장하면 모든 고객 모바일 견적서 및 실시간 미리보기에 계속 유지되며, 언제든 수정할 수 있습니다. 번호를 비우고 저장하면 견적 원본/담당자 기본 번호가 표시됩니다.</div>
+      <div class="notice-text">한 번 저장하면 모든 고객 모바일 견적서 및 실시간 미리보기에 계속 유지되며, 언제든 수정할 수 있습니다. 비우고 저장하면 견적 원본/담당자 기본값이 표시됩니다.</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button type="submit" class="btn primary">${icon('check')}전화번호 저장</button>
-        ${quoteConsultPhone ? btn('기본값으로 초기화', 'clear-quote-phone', 'refresh', 'soft') : ''}
+        <button type="submit" class="btn primary">${icon('check')}상담 정보 저장</button>
+        ${(quoteConsultPhone || quoteConsultManagerName) ? btn('기본값으로 초기화', 'clear-quote-phone', 'refresh', 'soft') : ''}
       </div>
     </form>
   </div>`;
@@ -3877,7 +3898,7 @@ function settingsPage(){
     ['contract-statuses','계약·수납상태','contract'],
     ['forms','양식관리','file'],
     ['users','계정·사용자관리','users'],
-    ['quote-phone','견적 전화상담','phone'],
+    ['quote-phone','견적 상담 설정','phone'],
     ['integrations','외부 연동','link'],
     ['reset','초기화 설정','refresh']
   ];
@@ -4788,7 +4809,7 @@ function openContract(id, forceCashModal = false){
     </div>
   </div>`;
 
-  const footer = `${btn('고객 보기', 'customer', 'users', '', `data-id="${c.id}"`)}${c.quote ? btn('가견적 보기', 'preview', 'eye', 'soft', `data-id="${c.id}" data-type="가견적"`) + btn('최종견적 보기', 'preview', 'eye', 'soft', `data-id="${c.id}" data-type="최종견적"`) : ''}${!isRental ? btn('수납 등록', 'receipt', 'credit', 'primary', `data-id="${k.id}"`) : (rApp ? btn('렌탈 심사·서류 검토', 'application', 'file', 'primary', `data-id="${rApp.id}"`) : btn('렌탈 신청 확인', 'find-application', 'file', 'primary', `data-id="${c.id}"`))}`;
+  const footer = `${btn('고객 보기', 'customer', 'users', '', `data-id="${c.id}"`)}${renderQuotePreviewButtons(c, 'soft')}${!isRental ? btn('수납 등록', 'receipt', 'credit', 'primary', `data-id="${k.id}"`) : (rApp ? btn('렌탈 심사·서류 검토', 'application', 'file', 'primary', `data-id="${rApp.id}"`) : btn('렌탈 신청 확인', 'find-application', 'file', 'primary', `data-id="${c.id}"`))}`;
 
   openDialog('계약 상세', body, footer, '', `${esc(c.name)} 고객의 ${isRental ? '렌탈 계약·약정' : '계약·결제'} 현황`);
 }
@@ -5013,8 +5034,7 @@ async function openApplication(id, contractId = null) {
 
     const footerButtons = [
       c ? btn('고객 보기', 'customer', 'users', '', `data-id="${c.id}"`) : '',
-      c && c.quote ? btn('가견적 보기', 'preview', 'eye', 'soft', `data-id="${c.id}" data-type="가견적"`) : '',
-      c && c.quote ? btn('최종견적 보기', 'preview', 'eye', 'soft', `data-id="${c.id}" data-type="최종견적"`) : '',
+      renderQuotePreviewButtons(c, 'soft'),
       btn('(렌탈) 동의서 양식 출력', 'open-form-preview-by-app', 'file', 'primary', `data-app-id="${esc(app.id)}"`),
       contract ? btn('계약 원장 보기', 'cash-contract', 'contract', 'soft', `data-id="${contract.id}"`) : '',
       btn('닫기', 'close', '', 'secondary')
@@ -5198,13 +5218,17 @@ switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':se
 case'clear-quote-phone':{
   (async()=>{
     try{
-      const res = await apiFetch('/api/settings/quote-phone', { method: 'PUT', body: { phone: '' } });
+      const res = await apiFetch('/api/settings/quote-phone', { method: 'PUT', body: { phone: '', managerName: '' } });
       const resData = await res.json();
       if(!res.ok) throw new Error(resData.error || '초기화 실패');
       quoteConsultPhone = '';
-      try{ localStorage.setItem('kcc_quote_consult_phone', ''); }catch{}
+      quoteConsultManagerName = '';
+      try{
+        localStorage.setItem('kcc_quote_consult_phone', '');
+        localStorage.setItem('kcc_quote_consult_manager', '');
+      }catch{}
       render();
-      toast('모바일 견적서 전화상담 번호를 기본값으로 초기화했습니다.');
+      toast('모바일 견적서 담당자 및 전화상담 번호를 기본값으로 초기화했습니다.');
     }catch(err){
       toast(err.message || '초기화에 실패했습니다.');
     }
@@ -7053,21 +7077,26 @@ case'messaging-config':{
   }
   case'quote-phone':{
     const phone = String(d.phone || '').trim();
+    const managerName = String(d.managerName || '').trim();
     try {
       const res = await apiFetch('/api/settings/quote-phone', {
         method: 'PUT',
-        body: { phone }
+        body: { phone, managerName }
       });
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error || '저장에 실패했습니다.');
       quoteConsultPhone = String(resData.phone || '').trim();
-      try { localStorage.setItem('kcc_quote_consult_phone', quoteConsultPhone); } catch {}
+      quoteConsultManagerName = String(resData.managerName || '').trim();
+      try {
+        localStorage.setItem('kcc_quote_consult_phone', quoteConsultPhone);
+        localStorage.setItem('kcc_quote_consult_manager', quoteConsultManagerName);
+      } catch {}
       render();
-      toast(quoteConsultPhone
-        ? `모바일 견적서 전화상담 번호가 [${quoteConsultPhone}](으)로 저장되었습니다.`
-        : '모바일 견적서 전화상담 번호가 기본값으로 초기화되었습니다.');
+      toast((quoteConsultPhone || quoteConsultManagerName)
+        ? '모바일 견적서 담당자 · 전화상담 설정이 저장되었습니다.'
+        : '모바일 견적서 상담 설정이 기본값으로 초기화되었습니다.');
     } catch (err) {
-      toast(err.message || '전화상담 번호 저장에 실패했습니다.');
+      toast(err.message || '상담 설정 저장에 실패했습니다.');
     }
     break;
   }

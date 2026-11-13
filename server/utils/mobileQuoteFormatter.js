@@ -358,7 +358,7 @@ export function formatCustomerSafeQuote(quote, rawItems = []) {
     split_balance: splitBalance,
     plans: buildRentalPlans(cashPrice, discountAmount, originalPrice),
     meta: safeMeta,
-    manager_name: quote.owner_name && quote.owner_name !== '미배정' ? quote.owner_name : '전담 상담사',
+    manager_name: quote.consult_manager_name || (quote.owner_name && quote.owner_name !== '미배정' ? quote.owner_name : '전담 상담사'),
     manager_phone: quote.consult_phone || quote.manager_phone || quote.org_phone || '1588-0000',
     partner_name: quote.partner_name || '(주)라이프앤조이',
     published_at: quote.published_at || new Date().toISOString(),
