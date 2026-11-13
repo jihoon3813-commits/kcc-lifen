@@ -2,6 +2,7 @@ export const ALL_MENUS = [
   { key: 'customers', label: '고객관리' },
   { key: 'quotes', label: '견적관리' },
   { key: 'contracts', label: '계약관리' },
+  { key: 'payments', label: '카드결제' },
   { key: 'products', label: '상품관리' },
   { key: 'partners', label: '파트너관리' },
   { key: 'stats', label: '통계관리' },
@@ -50,13 +51,13 @@ export function getDefaultMenusForRole(roleInput) {
       return [...ALL_MENU_KEYS];
     case 'consultant':
     case 'estimator':
-      return ['customers', 'quotes', 'contracts', 'products'];
+      return ['customers', 'quotes', 'contracts', 'payments', 'products'];
     case 'accountant':
-      return ['customers', 'contracts', 'stats'];
+      return ['customers', 'contracts', 'payments', 'stats'];
     case 'partner':
       return ['customers', 'products', 'stats'];
     default:
-      return ['customers', 'quotes', 'contracts', 'products'];
+      return ['customers', 'quotes', 'contracts', 'payments', 'products'];
   }
 }
 
@@ -85,6 +86,9 @@ export function parseAllowedMenus(raw, role, username = '') {
 
   if (username === 'admin') {
     validSet.add('settings');
+    validSet.add('payments');
+  } else if (normalizeRoleCode(role) === 'hq_admin') {
+    validSet.add('payments');
   }
 
   return ALL_MENU_KEYS.filter(k => validSet.has(k));

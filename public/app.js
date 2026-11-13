@@ -24,9 +24,10 @@ const DEFAULT_CONTRACT_STATUSES = [
   { id: 4, name: '선금완료', color: 'blue', sort_order: 4 },
   { id: 5, name: '잔금대기', color: 'orange', sort_order: 5 },
   { id: 6, name: '수납완료', color: 'green', sort_order: 6 },
-  { id: 7, name: '정산완료', color: 'green', sort_order: 7 },
-  { id: 8, name: '계약보류', color: 'gray', sort_order: 8 },
-  { id: 9, name: '계약취소', color: 'red', sort_order: 9 }
+  { id: 7, name: '초기납입완료', color: 'green', sort_order: 7 },
+  { id: 8, name: '정산완료', color: 'green', sort_order: 8 },
+  { id: 9, name: '계약보류', color: 'gray', sort_order: 9 },
+  { id: 10, name: '계약취소', color: 'red', sort_order: 10 }
 ];
 
 const BADGE_COLOR_OPTIONS = [
@@ -39,11 +40,12 @@ const BADGE_COLOR_OPTIONS = [
   ['dark', '진회색', '#1e293b']
 ];
 
-const ALL_MENU_KEYS = ['customers', 'quotes', 'contracts', 'products', 'partners', 'stats', 'settings'];
+const ALL_MENU_KEYS = ['customers', 'quotes', 'contracts', 'payments', 'products', 'partners', 'stats', 'settings'];
 const MENU_META = {
   customers: { label: '고객관리', icon: 'users', desc: '고객 상담·진행구분·일정 통합 관리' },
   quotes: { label: '견적관리', icon: 'file', desc: '원본 견적 분석 및 모바일 견적 발행' },
-  contracts: { label: '계약관리', icon: 'contract', desc: '일시불·렌탈 계약 및 수납 상태 관리' },
+  contracts: { label: '계약관리', icon: 'contract', desc: '현금·카드·렌탈 계약 및 수납 상태 관리' },
+  payments: { label: '카드결제', icon: 'credit', desc: '카드 결제링크 발송·자동 수납확인·취소 관리' },
   products: { label: '상품관리', icon: 'box', desc: '상품별 랜딩페이지 및 파트너 전용 링크' },
   partners: { label: '파트너관리', icon: 'building', desc: '영업파트너 조직 및 귀속 성과 관리' },
   stats: { label: '통계관리', icon: 'chart', desc: '유입·전환율 및 채널별 성과 분석' },
@@ -71,9 +73,9 @@ function normalizeRoleCodeClient(roleInput) {
 function getDefaultMenusByRole(roleInput) {
   const r = normalizeRoleCodeClient(roleInput);
   if (r === 'hq_admin') return [...ALL_MENU_KEYS];
-  if (r === 'accountant') return ['customers', 'contracts', 'stats'];
+  if (r === 'accountant') return ['customers', 'contracts', 'payments', 'stats'];
   if (r === 'partner') return ['customers', 'products', 'stats'];
-  return ['customers', 'quotes', 'contracts', 'products'];
+  return ['customers', 'quotes', 'contracts', 'payments', 'products'];
 }
 
 function normalizeUserRecord(raw, idx = 0) {
@@ -106,7 +108,11 @@ function normalizeUserRecord(raw, idx = 0) {
     }
   }
 
-  const finalMenus = ALL_MENU_KEYS.filter(k => validMenus.includes(k) || (username === 'admin' && k === 'settings'));
+  const finalMenus = ALL_MENU_KEYS.filter(k =>
+    validMenus.includes(k) ||
+    (username === 'admin' && (k === 'settings' || k === 'payments')) ||
+    (roleCode === 'hq_admin' && k === 'payments')
+  );
   return {
     id: raw.id ?? (idx + 1),
     username,
@@ -641,7 +647,7 @@ async function syncFromServer() {
         return;
       }
     }
-    const [cRes, pRes, kRes, aRes, prRes, lRes, csRes, uRes, rRes, fRes, anRes, qpRes] = await Promise.all([
+    const [cRes, pRes, kRes, aRes, prRes, lRes, csRes, uRes, rRes, fRes, anRes, qpRes, payRes] = await Promise.all([
       apiFetch('/api/customers'),
       apiFetch('/api/partners'),
       apiFetch('/api/contracts'),
@@ -653,7 +659,8 @@ async function syncFromServer() {
       apiFetch('/api/auth/roster'),
       apiFetch('/api/settings/forms'),
       apiFetch('/api/analytics/overview?period=' + encodeURIComponent(typeof statsPeriod !== 'undefined' ? statsPeriod : '30')),
-      apiFetch('/api/settings/quote-phone')
+      apiFetch('/api/settings/quote-phone'),
+      apiFetch('/api/payments').catch(() => ({ ok: false }))
     ]);
 
     if (cRes.ok) {
@@ -667,6 +674,11 @@ async function syncFromServer() {
     if (kRes.ok) {
       const data = await kRes.json();
       db.contracts = data.contracts;
+    }
+    if (payRes && payRes.ok) {
+      const payData = await payRes.json().catch(() => ({}));
+      db.paymentOrders = Array.isArray(payData.orders) ? payData.orders : [];
+      db.pgConfig = payData.pgConfig || { liveReady: false };
     }
     if (aRes.ok) {
       const data = await aRes.json();
@@ -769,6 +781,41 @@ async function syncCustomersRealtime() {
             pendingRealtimeRender = false;
             render();
           }
+        }
+      }
+    }
+    if (page === 'contracts' || page === 'payments') {
+      const [kRes, payRes] = await Promise.all([
+        apiFetch('/api/contracts').catch(() => ({ ok: false })),
+        apiFetch('/api/payments').catch(() => ({ ok: false }))
+      ]);
+      let changed = false;
+      if (kRes.ok) {
+        const kData = await kRes.json().catch(() => ({}));
+        if (Array.isArray(kData.contracts)) {
+          if (JSON.stringify(db.contracts || []) !== JSON.stringify(kData.contracts)) {
+            db.contracts = kData.contracts;
+            changed = true;
+          }
+        }
+      }
+      if (payRes.ok) {
+        const pData = await payRes.json().catch(() => ({}));
+        if (Array.isArray(pData.orders)) {
+          if (JSON.stringify(db.paymentOrders || []) !== JSON.stringify(pData.orders)) {
+            db.paymentOrders = pData.orders;
+            db.pgConfig = pData.pgConfig || db.pgConfig;
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
+        save();
+        if (isUserInteractingWithForm()) {
+          pendingRealtimeRender = true;
+        } else {
+          pendingRealtimeRender = false;
+          render();
         }
       }
     }
@@ -1275,10 +1322,10 @@ async function openMessagingIntegrationDialog() {
   );
 }
 
-let page='customers', customerTab='all', quoteTab='all', contractTab='all', settingsTab='labels', role='본사 관리자', query='', stageFilter='', productFilter='', partnerFilter='', sourceFilter='', linkFilter='', periodFilter='all', sortOrder='new', productLinkCatFilter='all', productLinkQuery='', selected=new Set(), expandedQuoteInquiries=new Set(), detailId=null, detailTab='notes', editor=null, statsPeriod='30', restoreFocus=null, quotePreviewId=null;
+let page='customers', customerTab='all', quoteTab='all', contractTab='all', paymentTab='all', paymentQuery='', settingsTab='labels', role='본사 관리자', query='', stageFilter='', productFilter='', partnerFilter='', sourceFilter='', linkFilter='', periodFilter='all', sortOrder='new', productLinkCatFilter='all', productLinkQuery='', selected=new Set(), expandedQuoteInquiries=new Set(), detailId=null, detailTab='notes', editor=null, statsPeriod='30', restoreFocus=null, quotePreviewId=null;
 let quoteConsultPhone = (()=>{try{return localStorage.getItem('kcc_quote_consult_phone')||'';}catch{return '';}})();
 let quoteConsultManagerName = (()=>{try{return localStorage.getItem('kcc_quote_consult_manager')||'';}catch{return '';}})();
-const menus=[['customers','고객관리','users'],['quotes','견적관리','file'],['contracts','계약관리','contract'],['products','상품관리','box'],['partners','파트너관리','building'],['stats','통계관리','chart'],['settings','설정','settings']];
+const menus=[['customers','고객관리','users'],['quotes','견적관리','file'],['contracts','계약관리','contract'],['payments','카드결제','credit'],['products','상품관리','box'],['partners','파트너관리','building'],['stats','통계관리','chart'],['settings','설정','settings']];
 const stages=['신규접수','상담중','가견적요청','견적안내','실측예정','최종견적','계약진행','시공완료','보류'];
 function getContractStatuses() {
   if (Array.isArray(db.contractStatuses) && db.contractStatuses.length) {
@@ -1292,7 +1339,7 @@ function getContractStatusNames() {
 const stageColor = s => {
   const custom = getContractStatuses().find(st => st.name === s);
   if (custom) return custom.color === 'blue' ? '' : (custom.color || '');
-  return ({'신규접수':'','상담중':'purple','가견적요청':'orange','견적안내':'','실측예정':'green','최종견적':'purple','계약진행':'green','계약완료':'green','시공완료':'gray','보류':'gray','접수완료':'','서류검토':'orange','서류보완':'red','보완요청':'red','심사중':'purple','승인':'green','약정완료':'green','반려':'gray','부결':'red','약정대기':'orange','선금완료':'','수납완료':'green'}[s]||'');
+  return ({'신규접수':'','상담중':'purple','가견적요청':'orange','견적안내':'','실측예정':'green','최종견적':'purple','계약진행':'green','계약완료':'green','시공완료':'gray','보류':'gray','접수완료':'','서류검토':'orange','서류보완':'red','보완요청':'red','심사중':'purple','승인':'green','약정완료':'green','반려':'gray','부결':'red','약정대기':'orange','선금완료':'','수납완료':'green','초기납입완료':'green','결제완료':'green','결제대기':'orange','취소됨':'gray'}[s]||'');
 };
 const badge=(text,color=stageColor(text))=>`<span class="badge ${color}">${esc(text)}</span>`;
 const btn=(label,action,ic='',kind='',data='')=>`<button class="btn ${kind}" data-action="${action}" ${data}>${ic?icon(ic):''}${label}</button>`;
@@ -1471,9 +1518,10 @@ function render(){
     const quickTabs=allowedMenus.slice(0,3);
     const isSecondaryPage=!quickTabs.some(t=>t[0]===page);
     const newSummary=getNewContractSummary();
+    const pendingPayCount=(db.paymentOrders||[]).filter(o=>o.status==='pending').length;
     const isHqAdmin=activeU.role==='hq_admin';
     const rosterList=(userRoster.length?userRoster:(db.users||[]).map((u,i)=>normalizeUserRecord(u,i))).filter(u=>u.active!==false);
-    $('#app').innerHTML=`<div class="app"><div class="sidebar-backdrop ${mobileNavOpen?'open':''}" data-action="close-nav" aria-hidden="true"></div><aside class="sidebar ${mobileNavOpen?'open':''}" id="app-sidebar" aria-label="전체 좌측 메뉴"><div class="brand"><div class="brand-top"><div class="brand-logo-card" style="background:#ffffff;padding:5px 9px;border-radius:6px;display:inline-flex;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,0.18)"><img src="${ADMIN_LOGO_URL}" alt="KCC 홈씨씨" style="height:22px;width:auto;display:block;object-fit:contain"></div><button type="button" class="sidebar-close-btn" data-action="close-nav" aria-label="메뉴 닫기">${icon('close')}</button></div><small style="margin-left:0;margin-top:7px;display:block">CRM WORKSPACE</small></div><div class="workspace"><span>운영 파트너</span><strong>${esc(activeU.org==='라이프앤조이'?'(주)라이프앤조이':activeU.org)}</strong></div><div class="nav-label">WORKSPACE</div><nav>${allowedMenus.map(m=>`<button class="nav-btn ${page===m[0]?'active':''}" data-action="nav" data-page="${m[0]}" title="${m[1]}" aria-label="${m[1]}" ${page===m[0]?'aria-current="page"':''}>${icon(m[2])}<span>${m[1]}</span>${m[0]==='customers'?`<em>${visibleCustomers().length}</em>`:''}${m[0]==='contracts'&&newSummary.totalNew>0?`<em class="nav-red-count" title="24시간 이내 일시불·렌탈 신규신청 ${newSummary.totalNew}건">${newSummary.totalNew}</em>`:''}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-mobile-user" data-action="my-profile" style="cursor:pointer" title="내 정보 / 비밀번호 수정"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)} · ${esc(activeU.org)}</small></div></div><div class="sidebar-note"><b><span class="dot"></span>운영 시스템</b>실시간 DB 및 권한 연동 중</div><div class="version"><span>KCC HOMECC</span><span>Ver. 3.0</span></div></div></aside><div class="shell"><header class="topbar"><div class="topbar-left"><button type="button" class="mobile-more-btn ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}" aria-label="좌측 메뉴 더보기">${icon('menu')}<span>더보기</span></button><div class="breadcrumb"><span>${esc(activeU.org)}</span>${icon('chevron')}<b>${current[1]}</b></div></div><div class="top-actions">${isHqAdmin?`<select class="role-select" id="role-switch" aria-label="사용자 화면 전환">${rosterList.map(u=>`<option value="${esc(u.username)}" ${u.username===activeU.username?'selected':''}>${esc(u.name)} (${esc(u.role_label)})</option>`).join('')}</select>`:`<div class="header-partner-pill" title="현재 소속 파트너 계정">${icon('building','sm')}<strong>${esc(activeU.org)}</strong><small>(${esc(activeU.role_label)})</small></div>`}<button class="bell" data-action="notifications" aria-label="업무 알림">${icon('bell')}</button><button type="button" class="btn sm soft" data-action="refresh-data" title="최신 데이터 새로고침" style="padding:6px 10px;font-size:12px;gap:4px">${icon('refresh','sm')}<span>새로고침</span></button><button type="button" class="btn sm soft" data-action="my-profile" title="내 정보 / 비밀번호 수정" style="padding:6px 10px;font-size:12px;gap:4px">${icon('edit','sm')}<span>내 정보</span></button><div class="user" data-action="my-profile" style="cursor:pointer" title="클릭하여 내 정보/비밀번호 수정"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)}</small></div></div><button type="button" class="btn sm" data-action="logout" title="로그아웃" style="padding:6px 10px;font-size:12px">로그아웃</button></div></header><main id="main">${({customers:customersPage,quotes:quotesPage,contracts:contractsPage,products:productsPage,partners:partnersPage,stats:statsPage,settings:settingsPage}[page])()}<div class="page-footer"><span>© LIFE & JOY · KCC HOMECC CRM 3.0</span><span>실운영 데이터 연동 시스템</span></div></main><nav class="mobile-bottom-nav" aria-label="모바일 빠른 메뉴" style="grid-template-columns:repeat(${quickTabs.length+1},1fr)">${quickTabs.map(t=>`<button type="button" class="m-tab ${!mobileNavOpen&&page===t[0]?'active':''}" data-action="nav" data-page="${t[0]}" ${page===t[0]?'aria-current="page"':''}>${icon(t[2])}<span>${t[1]}</span>${t[0]==='contracts'&&newSummary.totalNew>0?`<span class="m-red-count">${newSummary.totalNew}</span>`:''}</button>`).join('')}<button type="button" class="m-tab more-trigger ${mobileNavOpen||isSecondaryPage?'active':''} ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}">${icon('grid')}<span>더보기</span></button></nav></div></div>`}
+    $('#app').innerHTML=`<div class="app"><div class="sidebar-backdrop ${mobileNavOpen?'open':''}" data-action="close-nav" aria-hidden="true"></div><aside class="sidebar ${mobileNavOpen?'open':''}" id="app-sidebar" aria-label="전체 좌측 메뉴"><div class="brand"><div class="brand-top"><div class="brand-logo-card" style="background:#ffffff;padding:5px 9px;border-radius:6px;display:inline-flex;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,0.18)"><img src="${ADMIN_LOGO_URL}" alt="KCC 홈씨씨" style="height:22px;width:auto;display:block;object-fit:contain"></div><button type="button" class="sidebar-close-btn" data-action="close-nav" aria-label="메뉴 닫기">${icon('close')}</button></div><small style="margin-left:0;margin-top:7px;display:block">CRM WORKSPACE</small></div><div class="workspace"><span>운영 파트너</span><strong>${esc(activeU.org==='라이프앤조이'?'(주)라이프앤조이':activeU.org)}</strong></div><div class="nav-label">WORKSPACE</div><nav>${allowedMenus.map(m=>`<button class="nav-btn ${page===m[0]?'active':''}" data-action="nav" data-page="${m[0]}" title="${m[1]}" aria-label="${m[1]}" ${page===m[0]?'aria-current="page"':''}>${icon(m[2])}<span>${m[1]}</span>${m[0]==='customers'?`<em>${visibleCustomers().length}</em>`:''}${m[0]==='contracts'&&newSummary.totalNew>0?`<em class="nav-red-count" title="24시간 이내 신규신청 ${newSummary.totalNew}건">${newSummary.totalNew}</em>`:''}${m[0]==='payments'&&pendingPayCount>0?`<em title="결제대기 ${pendingPayCount}건">${pendingPayCount}</em>`:''}</button>`).join('')}</nav><div class="sidebar-bottom"><a class="nav-btn sidebar-home-link" href="/" target="_blank" rel="noopener noreferrer" title="메인페이지 바로가기 (새 창)" aria-label="메인페이지 바로가기">${icon('home')}<span>메인페이지 바로가기</span><em class="sidebar-ext-tag" aria-hidden="true">↗</em></a><div class="sidebar-mobile-user" data-action="my-profile" style="cursor:pointer" title="내 정보 / 비밀번호 수정"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)} · ${esc(activeU.org)}</small></div></div><div class="sidebar-note"><b><span class="dot"></span>운영 시스템</b>실시간 DB 및 권한 연동 중</div><div class="version"><span>KCC HOMECC</span><span>Ver. 3.0</span></div></div></aside><div class="shell"><header class="topbar"><div class="topbar-left"><button type="button" class="mobile-more-btn ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}" aria-label="좌측 메뉴 더보기">${icon('menu')}<span>더보기</span></button><div class="breadcrumb"><span>${esc(activeU.org)}</span>${icon('chevron')}<b>${current[1]}</b></div></div><div class="top-actions">${isHqAdmin?`<select class="role-select" id="role-switch" aria-label="사용자 화면 전환">${rosterList.map(u=>`<option value="${esc(u.username)}" ${u.username===activeU.username?'selected':''}>${esc(u.name)} (${esc(u.role_label)})</option>`).join('')}</select>`:`<div class="header-partner-pill" title="현재 소속 파트너 계정">${icon('building','sm')}<strong>${esc(activeU.org)}</strong><small>(${esc(activeU.role_label)})</small></div>`}<button class="bell" data-action="notifications" aria-label="업무 알림">${icon('bell')}</button><a class="btn sm soft topbar-home-link" href="/" target="_blank" rel="noopener noreferrer" title="메인페이지 새 창에서 열기" style="padding:6px 10px;font-size:12px;gap:4px">${icon('home','sm')}<span>메인페이지</span></a><button type="button" class="btn sm soft" data-action="refresh-data" title="최신 데이터 새로고침" style="padding:6px 10px;font-size:12px;gap:4px">${icon('refresh','sm')}<span>새로고침</span></button><button type="button" class="btn sm soft" data-action="my-profile" title="내 정보 / 비밀번호 수정" style="padding:6px 10px;font-size:12px;gap:4px">${icon('edit','sm')}<span>내 정보</span></button><div class="user" data-action="my-profile" style="cursor:pointer" title="클릭하여 내 정보/비밀번호 수정"><div class="avatar">${esc((activeU.name||'관리').slice(-2))}</div><div><strong>${esc(activeU.name)}</strong><small>${esc(activeU.role_label)}</small></div></div><button type="button" class="btn sm" data-action="logout" title="로그아웃" style="padding:6px 10px;font-size:12px">로그아웃</button></div></header><main id="main">${({customers:customersPage,quotes:quotesPage,contracts:contractsPage,payments:paymentsPage,products:productsPage,partners:partnersPage,stats:statsPage,settings:settingsPage}[page])()}<div class="page-footer"><span>© LIFE & JOY · KCC HOMECC CRM 3.0</span><span>실운영 데이터 연동 시스템</span></div></main><nav class="mobile-bottom-nav" aria-label="모바일 빠른 메뉴" style="grid-template-columns:repeat(${quickTabs.length+1},1fr)">${quickTabs.map(t=>`<button type="button" class="m-tab ${!mobileNavOpen&&page===t[0]?'active':''}" data-action="nav" data-page="${t[0]}" ${page===t[0]?'aria-current="page"':''}>${icon(t[2])}<span>${t[1]}</span>${t[0]==='contracts'&&newSummary.totalNew>0?`<span class="m-red-count">${newSummary.totalNew}</span>`:''}</button>`).join('')}<button type="button" class="m-tab more-trigger ${mobileNavOpen||isSecondaryPage?'active':''} ${mobileNavOpen?'active-open':''}" data-action="toggle-nav" aria-controls="app-sidebar" aria-expanded="${mobileNavOpen}">${icon('grid')}<span>더보기</span></button></nav></div></div>`}
 function pageHead(title,sub,actions='',eyebrow='WORKSPACE'){const todayLabel=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',weekday:'long',timeZone:'Asia/Seoul'});return `<div class="page-head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${sub}</p></div><div class="head-actions"><span class="date-label">${todayLabel}</span>${actions}</div></div>`}
 function metric(label,value,unit,foot,ic,color='',action='',data=''){return `<${action?'button':'div'} class="metric ${color}" ${action?`data-action="${action}" ${data}`:''}><span class="metric-label">${label}</span><span class="metric-icon">${icon(ic)}</span><strong>${value}<small>${unit}</small></strong><span class="metric-foot">${foot}</span></${action?'button':'div'}>`}
 function getChannelFilterOptions() {
@@ -1664,6 +1712,57 @@ function quotesPage() {
       return `<tr class="${strip.cls.trim()}"><td><input type="checkbox" data-select="${c.id}" ${selected.has(c.id) ? 'checked' : ''} aria-label="${esc(c.name)} 선택"></td><td class="card-primary"><div class="quote-cust-name-row">${quoteStripBadge}<button type="button" class="quote-customer-name" data-action="customer" data-id="${c.id}" title="고객 상세 보기" style="background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--navy);cursor:pointer;text-align:left">${esc(c.name)}</button>${inqToggleHtml}</div><small>${c.quote ? 'Q' : 'REQ'}-${c.id} · ${esc(c.address)}</small>${inqPreviewHtml}</td><td data-label="상품">${badge(c.product, 'gray')}</td><td data-label="진행 상태">${badge(c.quote ? '발행완료' : '원본대기', c.quote ? 'green' : 'orange')}</td><td data-label="고객 견적금액" class="money"><b>${c.quote ? won(c.quote) : '—'}</b></td><td data-label="고객 열람">${c.quote ? badge(c.viewed ? '열람완료' : '미열람', c.viewed ? 'green' : 'gray') : '—'}</td><td data-label="담당자">${esc(c.owner)}</td><td class="card-actions"><div class="actions">${btn(c.quote ? '수정본 작성' : '엑셀 등록', 'new-quote', c.quote ? 'edit' : 'upload', 'sm', `data-id="${c.id}"`)}${c.quote ? renderQuotePreviewButtons(c, 'sm soft') + btn('문자·카톡 발송', 'send-quote', 'send', 'sm primary', `data-id="${c.id}"`) : ''}</div></td></tr>` + (isExpanded ? renderQuoteInquiryDetailRow(c) : '');
     }).join('') : `<tr><td colspan="8"><div class="empty">${icon('file')}<strong>${quoteTab === 'inquiries' ? '접수된 견적 문의가 없습니다.' : '아직 견적 요청 또는 발행된 견적이 없습니다.'}</strong>${quoteTab === 'inquiries' ? '고객이 모바일 견적서에서 문의를 남기면 이곳에 표시됩니다.' : '고객을 등록한 뒤 원본 엑셀로 견적서를 발행해 보세요.'}</div></td></tr>`}</tbody></table></div></section>`;
 }
+function getContractSchedules(k, isRental = false, fallbackUpfront = 0) {
+  if (Array.isArray(k?.schedules) && k.schedules.length) return k.schedules;
+  if (isRental) {
+    return fallbackUpfront > 0
+      ? [{ id: 'upfront', label: '초기납입금', method: k?.rentalUpfrontMethod || 'cash', installmentMonths: k?.rentalUpfrontInstallmentMonths || 0, amount: fallbackUpfront, paid: Number(k?.paid || 0) >= fallbackUpfront }]
+      : [];
+  }
+  const amt = Number(k?.amount || 0);
+  const paidAmt = Number(k?.paid || 0);
+  return [{
+    id: 'full',
+    label: '일시납',
+    method: (k?.payCategory === 'card' || k?.type === '카드') ? 'card' : 'cash',
+    installmentMonths: Number(k?.installmentMonths || 0),
+    amount: amt,
+    paid: amt > 0 && paidAmt >= amt,
+    paidDate: paidAmt >= amt ? (k?.date || '') : ''
+  }];
+}
+
+function findScheduleCardOrder(k, sch) {
+  const allOrders = [...(k?.cardOrders || []), ...(db.paymentOrders || [])];
+  if (sch?.paymentOrderId) {
+    const byId = allOrders.find(o => o.orderId === sch.paymentOrderId);
+    if (byId) return byId;
+  }
+  return allOrders.find(o => o.contractNo === k?.id && o.scheduleId === sch?.id && o.status !== 'cancelled') || null;
+}
+
+function renderScheduleActionChips(k, schedules) {
+  if (!schedules || !schedules.length) return '';
+  return `<div class="sch-chip-list">${schedules.map(s => {
+    const isCard = s.method === 'card';
+    const ord = isCard ? findScheduleCardOrder(k, s) : null;
+    const isPaid = Boolean(s.paid || ord?.status === 'paid');
+    if (isCard) {
+      const quotaTag = Number(s.installmentMonths || ord?.installmentMonths || 0) >= 2
+        ? `(${s.installmentMonths || ord.installmentMonths}개월)`
+        : '(일시불)';
+      if (isPaid) {
+        return `<button type="button" class="sch-chip is-paid" data-action="contract-card-link" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}" title="카드 결제완료 상세 보기">✓ ${esc(s.label)} 결제완료 · ${esc(ord?.approvedAtText || s.paidDate || '자동반영')}</button>`;
+      }
+      return `<button type="button" class="sch-chip is-card-pending" data-action="contract-card-link" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}" title="클릭하여 결제링크 복사·발송">💳 ${esc(s.label)}${esc(quotaTag)} · 결제링크 발송</button>`;
+    }
+    if (isPaid) {
+      return `<button type="button" class="sch-chip is-paid" data-action="open-cash-check" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}" title="클릭하여 입금일 확인·수정">✓ ${esc(s.label)} 입금완료 (${esc(s.paidDate || '확인됨')})</button>`;
+    }
+    return `<button type="button" class="sch-chip is-unpaid" data-action="open-cash-check" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}" title="클릭하여 현금 입금완료 및 입금일 체크">□ ${esc(s.label)} ${won(s.amount)} · 입금체크</button>`;
+  }).join('')}</div>`;
+}
+
 function contractsPage(){
   const cs = visibleCustomers();
   const items = db.contracts.filter(k => cs.some(c => c.id === k.cid));
@@ -1674,14 +1773,16 @@ function contractsPage(){
   );
   const ns = getNewContractSummary();
   const canEditSettings = getUserAllowedMenuKeys(getActiveUser()).includes('settings');
+  const canViewPayments = getUserAllowedMenuKeys(getActiveUser()).includes('payments');
   const shownContracts = sortByActivityState(
     items.filter(k => contractTab === 'all' || isCashContract(k)),
     getActivityState,
     (a, b) => String(b.createdAt || b.date || '').localeCompare(String(a.createdAt || a.date || ''))
   );
-  const rentalNewCount = Math.max(ns.rentalAppNew, ns.rentalUniqueNew);
 
-  const headBtns = (canEditSettings ? btn('계약·수납상태 설정', 'go-contract-settings', 'settings', 'secondary') : '') +
+  const headBtns =
+    (canViewPayments ? btn('카드결제 관리', 'go-payments-page', 'credit', 'soft') : '') +
+    (canEditSettings ? btn('계약·수납상태 설정', 'go-contract-settings', 'settings', 'secondary') : '') +
     btn('계약 등록', 'new-contract', 'plus', 'primary');
 
   const newBanner = ns.totalNew > 0
@@ -1696,18 +1797,18 @@ function contractsPage(){
 
   const tabMeta = [
     ['all', '전체 계약', ns.allContractNew],
-    ['cash', '일시불·수납', ns.cashNew],
+    ['cash', '현금·카드 수납', ns.cashNew],
     ['rental', '렌탈 신청', ns.rentalAppNew]
   ];
   const contractRowCids = [...new Set((contractTab === 'rental' ? apps : shownContracts).map(x => Number(x.cid)).filter(Boolean))];
   const allContractsSelected = contractRowCids.length > 0 && contractRowCids.every(cid => selected.has(cid));
 
-  return pageHead('계약관리', '공사계약, 모바일 렌탈 접수·심사, 수납 현황을 함께 확인하세요.', headBtns, 'CONTRACT & PAYMENT') +
+  return pageHead('계약관리', '현금 입금체크·입금일 기록, 카드 결제링크 발송·자동반영, 렌탈 60개월 약정을 통합 관리하세요.', headBtns, 'CONTRACT & PAYMENT') +
     `<div class="metrics">
       ${metric('전체 계약', items.length, '건', ns.allContractNew > 0 ? `공사건별 계약 현황 <span class="metric-red-num">신규 <b>${ns.allContractNew}</b></span>` : '공사건별 계약 현황', 'contract', '', 'contract-tab', 'data-value="all"')}
-      ${metric('렌탈 신청', apps.length, '건', ns.rentalAppNew > 0 ? `신청 접수와 약정 단계 <span class="metric-red-num">신규 <b>${ns.rentalAppNew}</b></span>` : '신청 접수와 약정은 별도 단계', 'file', 'purple', 'contract-tab', 'data-value="rental"')}
-      ${metric('실제 수납액', num(Math.round(items.reduce((s, k) => s + k.paid, 0) / 10000)), '만원', '현금·카드 누적 수납 합계', 'credit', 'green')}
-      ${metric('일시불 미수금', num(Math.round(items.filter(k => isCashContract(k)).reduce((s, k) => s + k.amount - k.paid, 0) / 10000)), '만원', ns.cashNew > 0 ? `렌탈 제외 <span class="metric-red-num">일시불 신규 <b>${ns.cashNew}</b></span>` : '렌탈사 정산 예정액 제외', 'clock', 'orange', 'contract-tab', 'data-value="cash"')}
+      ${metric('렌탈 신청', apps.length, '건', ns.rentalAppNew > 0 ? `신청 접수와 약정 단계 <span class="metric-red-num">신규 <b>${ns.rentalAppNew}</b></span>` : '60개월 렌탈 약정 현황', 'file', 'purple', 'contract-tab', 'data-value="rental"')}
+      ${metric('실제 수납액', num(Math.round(items.reduce((s, k) => s + k.paid, 0) / 10000)), '만원', '입금확인된 현금·카드 합계', 'credit', 'green')}
+      ${metric('현금·카드 미수금', num(Math.round(items.filter(k => isCashContract(k)).reduce((s, k) => s + Math.max(0, k.amount - k.paid), 0) / 10000)), '만원', ns.cashNew > 0 ? `렌탈 제외 <span class="metric-red-num">신규 <b>${ns.cashNew}</b></span>` : '렌탈사 정산 예정액 제외', 'clock', 'orange', 'contract-tab', 'data-value="cash"')}
     </div>` +
     newBanner +
     `<section class="panel">
@@ -1717,7 +1818,7 @@ function contractsPage(){
         <table class="mobile-card-table contract-master-table">
           <thead><tr><th style="width:36px"><input type="checkbox" data-select-all="contracts" ${allContractsSelected ? 'checked' : ''} aria-label="계약 고객 전체 선택"></th>${contractTab === 'rental' 
             ? '<th style="width:26%">고객 / 신청번호</th><th style="width:18%">렌탈 조건</th><th style="width:20%">월 납부금</th><th style="width:14%">심사 상태</th><th style="width:10%">접수일시</th><th style="width:12%">관리</th>' 
-            : '<th style="width:24%">고객 / 공사건</th><th style="width:12%">결제방식</th><th style="width:20%">계약금액 / 조건</th><th style="width:18%">수납 / 선납 현황</th><th style="width:13%">진행 상태</th><th style="width:13%">관리</th>'
+            : '<th style="width:22%">고객 / 공사건</th><th style="width:13%">결제방식</th><th style="width:18%">계약금액 / 조건</th><th style="width:22%">수납 / 입금·결제링크</th><th style="width:12%">진행 상태</th><th style="width:13%">관리</th>'
           }</tr></thead>
           <tbody>${contractTab === 'rental'
             ? apps.map(a => {
@@ -1751,7 +1852,7 @@ function contractsPage(){
                         <span class="rental-tag">월 납부</span>
                         <b class="rental-price-val">${won(a.monthly)}</b>
                       </div>
-                      ${a.upfront ? `<div class="contract-price-sub">초회납입 ${won(a.upfront)}</div>` : ''}
+                      ${a.upfront ? `<div class="contract-price-sub">초기납입 ${won(a.upfront)}</div>` : ''}
                     </div>
                   </td>
                   <td data-label="심사 상태">
@@ -1767,14 +1868,16 @@ function contractsPage(){
             : shownContracts.map(k => {
                 const c = findC(k.cid) || { id: k.cid, name: k.customerName || '고객', product: k.product || '창호' };
                 const cid = Number(c.id || k.cid);
-                const isRental = k.type === '렌탈';
+                const isRental = k.payCategory === 'rental' || k.type === '렌탈';
+                const isCard = !isRental && (k.payCategory === 'card' || k.type === '카드');
                 const rApp = (k.rentalAppId ? db.applications.find(a => a.id === k.rentalAppId) : null) ||
                              db.applications.find(a => a.id === k.id || Number(a.cid) === Number(k.cid));
                 const months = k.rentalPeriodMonths || rApp?.months || 60;
                 const monthly = k.rentalMonthlyFee || rApp?.monthly || (k.amount ? Math.round((k.amount * 1.2) / months / 1000) * 1000 : 0);
                 const total = k.rentalTotalFee || rApp?.total || (monthly * months) || k.amount;
-                const upfront = k.rentalUpfrontFee || rApp?.upfront || 0;
+                const upfront = k.rentalUpfrontFee !== undefined ? Number(k.rentalUpfrontFee) : Number(rApp?.upfront || 0);
                 const rAppId = k.rentalAppId || rApp?.id || (isRental && String(k.id || '').startsWith('R-') ? k.id : null);
+                const schedules = getContractSchedules(k, isRental, upfront);
 
                 const strip = activityStripInfo(getActivityState(k), '최근 24시간 이내 신규 계약');
                 const custCellHtml = `
@@ -1793,11 +1896,16 @@ function contractsPage(){
                 const payTypeHtml = isRental
                   ? `<div class="pay-type-cell">
                       <span class="badge purple">렌탈</span>
-                      <small class="pay-type-sub">${months}개월 분납</small>
+                      <small class="pay-type-sub">${esc(k.payMethod || (months + '개월 분납'))}</small>
+                    </div>`
+                  : isCard
+                  ? `<div class="pay-type-cell">
+                      <span class="badge blue">카드</span>
+                      <small class="pay-type-sub">${esc(k.payMethod || '일시납 · 일시불')}</small>
                     </div>`
                   : `<div class="pay-type-cell">
-                      <span class="badge dark">일시불</span>
-                      <small class="pay-type-sub">${esc(k.payMethod || '현금·계좌이체')}</small>
+                      <span class="badge dark">현금</span>
+                      <small class="pay-type-sub">${esc(k.payMethod || '일시납')}</small>
                     </div>`;
 
                 const priceHtml = isRental
@@ -1806,29 +1914,24 @@ function contractsPage(){
                         <span class="rental-tag">월 납부</span>
                         <b class="rental-price-val">${won(monthly)}</b>
                       </div>
-                      <div class="contract-price-sub">총 분납 ${won(total)} (${months}개월)</div>
+                      <div class="contract-price-sub">${months}개월 약정${upfront > 0 ? ` · 초기납입 ${won(upfront)}` : ' · 초기납입 없음'}</div>
                     </div>`
                   : `<div class="contract-price-cell">
                       <b class="cash-price-val">${won(k.amount)}</b>
-                      <div class="contract-price-sub">부가세(VAT) 포함</div>
+                      <div class="contract-price-sub">${schedules.length > 1 ? schedules.map(s => `${s.label} ${won(s.amount)}`).join(' / ') : '부가세(VAT) 포함'}</div>
                     </div>`;
 
                 const paidHtml = isRental
                   ? `<div class="contract-paid-cell">
-                      ${upfront > 0 
-                        ? `<div class="upfront-highlight"><span class="upfront-dot"></span>선납 <b>${won(upfront)}</b> 수납</div>`
-                        : `<div class="upfront-zero">선납금 없음</div>`
+                      ${upfront > 0
+                        ? renderScheduleActionChips(k, schedules)
+                        : `<div class="upfront-zero">초기납입금 없음 (전액 렌탈)</div>`
                       }
-                      <div class="rental-billing-note">렌탈료 익월부터 청구</div>
+                      <div class="rental-billing-note">월 렌탈료 익월부터 자동 청구</div>
                     </div>`
                   : `<div class="contract-paid-cell">
-                      <div class="paid-amount-line">수납 <b>${won(k.paid)}</b></div>
-                      <div class="paid-balance-line">
-                        ${k.paid >= k.amount 
-                          ? '<span class="status-done-text">전액 완납</span>' 
-                          : `미수금 <span class="unpaid-val">${won(k.amount - k.paid)}</span>`
-                        }
-                      </div>
+                      <div class="paid-amount-line">입금확인 <b>${won(k.paid)}</b> ${k.paid >= k.amount && k.amount > 0 ? '<span class="status-done-text">· 완납</span>' : `<small style="color:#b45309">(미수 ${won(Math.max(0, k.amount - k.paid))})</small>`}</div>
+                      ${renderScheduleActionChips(k, schedules)}
                     </div>`;
 
                 const rawRentalSt = k.rentalStatus || rApp?.status || '접수완료';
@@ -1857,7 +1960,320 @@ function contractsPage(){
       </div>
       ${!(contractTab === 'rental' ? apps.length : shownContracts.length) ? '<div class="empty">조건에 해당하는 계약/신청 내역이 없습니다.</div>' : ''}
     </section>
-    <div class="panel-caption">계약·수납 상태값은 [설정 &gt; 계약·수납상태]에서 추가·이름 변경·색상 수정·순서 조정할 수 있습니다.</div>`;
+    <div class="panel-caption">현금 건은 [입금체크]에서 입금완료 여부와 입금일자를 기록할 수 있으며, 카드 건은 [결제링크 발송] 후 고객 결제 시 자동으로 입금완료 반영됩니다.</div>`;
+}
+
+function paymentsPage() {
+  const activeU = getActiveUser();
+  const isHqAdmin = activeU.role === 'hq_admin' || activeU.username === 'admin';
+  const allOrders = Array.isArray(db.paymentOrders) ? db.paymentOrders : [];
+  const pendingOrders = allOrders.filter(o => o.status === 'pending');
+  const paidOrders = allOrders.filter(o => o.status === 'paid');
+  const cancelledOrders = allOrders.filter(o => o.status === 'cancelled');
+  const paidSum = paidOrders.reduce((s, o) => s + Number(o.amount || 0), 0);
+  const pendingSum = pendingOrders.reduce((s, o) => s + Number(o.amount || 0), 0);
+  const pgCfg = db.pgConfig || { liveReady: false };
+
+  const q = paymentQuery.trim().toLowerCase();
+  const tabFiltered = allOrders.filter(o => {
+    if (paymentTab === 'pending') return o.status === 'pending';
+    if (paymentTab === 'paid') return o.status === 'paid';
+    if (paymentTab === 'cancelled') return o.status === 'cancelled';
+    return true;
+  });
+  const rows = tabFiltered.filter(o => {
+    if (!q) return true;
+    return [o.customerName, o.customerPhone, o.contractNo, o.orderId, o.phaseLabel, o.product]
+      .some(v => String(v || '').toLowerCase().includes(q));
+  });
+
+  const headBtns =
+    (isHqAdmin ? btn('PG 연동 설정', 'open-pg-config', 'settings', 'secondary') : '') +
+    btn('카드결제 링크 생성', 'new-pay-link', 'plus', 'primary');
+
+  const tabMeta = [
+    ['all', '전체 내역', allOrders.length, false],
+    ['pending', '결제 대기', pendingOrders.length, pendingOrders.length > 0],
+    ['paid', '결제 완료', paidOrders.length, false],
+    ['cancelled', '취소됨', cancelledOrders.length, false]
+  ];
+
+  return pageHead('카드결제', '고객에게 카드 결제링크를 발송하고 승인·입금완료 자동 반영 내역을 통합 관리합니다.', headBtns, 'CARD PAYMENT CENTER') +
+    `<div class="metrics">
+      ${metric('전체 결제요청', allOrders.length, '건', '누적 생성된 카드 결제링크', 'credit', '', 'payment-tab', 'data-value="all"')}
+      ${metric('결제 대기', pendingOrders.length, '건', pendingSum > 0 ? `미결제 ${num(Math.round(pendingSum / 10000))}만원 대기 중` : '대기 중인 결제 건 없음', 'clock', 'orange', 'payment-tab', 'data-value="pending"')}
+      ${metric('카드 승인 합계', num(Math.round(paidSum / 10000)), '만원', `승인 완료 ${paidOrders.length}건 · 계약관리 자동반영`, 'check', 'green', 'payment-tab', 'data-value="paid"')}
+      ${metric('PG 연동 상태', pgCfg.liveReady ? (pgCfg.isTestKey ? '테스트키 연동' : '실결제 가동') : '테스트 모드', '', pgCfg.liveReady ? esc(pgCfg.merchantName || '토스페이먼츠 연동됨') : '클릭하여 가맹점 API 키 등록', 'shield', pgCfg.liveReady ? 'green' : 'purple', isHqAdmin ? 'open-pg-config' : '', '')}
+    </div>` +
+    `<div class="banner">${icon('info')}<div><b>결제링크 발송 → 고객 카드결제 → 계약관리 자동 입금완료 반영</b><br>고객관리·계약관리에서 카드(일시납·할부·선금·잔금) 또는 렌탈 초기납입(카드)으로 계약을 등록하면 결제링크가 자동 생성됩니다. 고객이 결제를 마치면 이곳과 <b>[계약관리]</b> 수납 내역에 즉시 자동 반영됩니다.</div></div>` +
+    `<section class="panel">
+      <div class="tabs">${tabMeta.map(([v, l, cnt, isAlert]) => `<button class="tab ${paymentTab === v ? 'active' : ''}" data-action="payment-tab" data-value="${v}">${l}${cnt > 0 ? `<span class="count${isAlert ? ' count-red' : ''}">${cnt}</span>` : ''}</button>`).join('')}</div>
+      <div class="toolbar">
+        <div class="search-field" style="min-width:260px;max-width:380px;flex:1">
+          ${icon('search')}
+          <input class="input" id="payment-search-input" type="search" value="${esc(paymentQuery)}" placeholder="고객명, 연락처, 계약번호, 주문번호 검색...">
+        </div>
+        <div class="actions">
+          <span style="font-size:12.5px;color:#64748b">조회 <b>${rows.length}</b>건</span>
+          ${btn('새로고침', 'refresh-data', 'refresh', 'sm soft')}
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="mobile-card-table">
+          <thead>
+            <tr>
+              <th>고객 / 계약·주문번호</th>
+              <th>결제 구분 · 할부조건</th>
+              <th>결제 요청금액</th>
+              <th>결제 상태 · 승인정보</th>
+              <th>링크 발송</th>
+              <th>관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.length ? rows.map(o => {
+              const quotaLabel = Number(o.installmentMonths || 0) >= 2 ? `${o.installmentMonths}개월 할부` : '일시불';
+              const statusBadge = o.status === 'paid'
+                ? badge('결제완료', 'green')
+                : o.status === 'cancelled'
+                ? badge('취소됨', 'gray')
+                : badge('결제대기', 'orange');
+              const fullPayUrl = location.origin + (o.paymentUrl || (`/pay.html?token=${encodeURIComponent(o.token)}`));
+              return `<tr>
+                <td class="card-primary">
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    ${o.projectId ? `<button type="button" class="quote-customer-name" data-action="customer" data-id="${o.projectId}" style="background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--navy);cursor:pointer">${esc(o.customerName)}</button>` : `<b>${esc(o.customerName)}</b>`}
+                    <span class="contract-product-tag">${esc(o.product || '창호')}</span>
+                  </div>
+                  <small style="display:block;margin-top:3px;color:#64748b">
+                    ${o.contractNo ? `<button type="button" data-action="contract" data-id="${esc(o.contractNo)}" style="background:none;border:0;padding:0;color:#2563eb;font-size:11.5px;font-weight:700;cursor:pointer;text-decoration:underline">${esc(o.contractNo)}</button> · ` : ''}
+                    ${esc(o.orderId)} · ${esc(o.createdAtText || '')}
+                  </small>
+                </td>
+                <td data-label="결제 구분 · 할부">
+                  <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                    <b>${esc(o.phaseLabel || '일시납')}</b>
+                    <span class="badge ${Number(o.installmentMonths || 0) >= 2 ? 'purple' : 'blue'}">${esc(quotaLabel)}</span>
+                  </div>
+                </td>
+                <td data-label="결제 요청금액" class="money"><b>${won(o.amount)}</b></td>
+                <td data-label="결제 상태 · 승인정보">
+                  <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                    ${statusBadge}
+                    ${o.status === 'paid'
+                      ? `<small style="color:#059669;font-weight:600">${esc(o.cardCompany || '카드')} · ${esc(o.approvedAtText || '')}${o.pgApprovalNo ? ` (${esc(o.pgApprovalNo)})` : ''}</small>`
+                      : o.status === 'cancelled'
+                      ? `<small style="color:#94a3b8">취소 처리됨</small>`
+                      : `<small style="color:#b45309">고객 결제 대기 중</small>`}
+                  </div>
+                </td>
+                <td data-label="링크 발송">
+                  ${o.sentCount > 0
+                    ? `<span class="badge blue">발송 ${o.sentCount}회</span>`
+                    : `<span class="badge gray">미발송</span>`}
+                </td>
+                <td class="card-actions">
+                  <div class="actions">
+                    ${o.status === 'pending' ? `
+                      ${btn('결제링크 발송', 'open-pay-send', 'send', 'sm primary', `data-id="${esc(o.orderId)}"`)}
+                      ${btn('링크복사', 'copy-pay-link', 'copy', 'sm soft', `data-id="${esc(o.orderId)}" data-url="${esc(fullPayUrl)}"`)}
+                      <a class="btn sm soft" href="${esc(fullPayUrl)}" target="_blank" rel="noopener noreferrer">${icon('external')}결제창</a>
+                      ${btn('수동승인', 'manual-approve-pay', 'check', 'sm', `data-id="${esc(o.orderId)}"`)}
+                      ${btn('취소', 'cancel-pay-order', 'close', 'sm danger', `data-id="${esc(o.orderId)}"`)}
+                    ` : o.status === 'paid' ? `
+                      ${btn('결제정보·링크', 'open-pay-send', 'eye', 'sm soft', `data-id="${esc(o.orderId)}"`)}
+                      <a class="btn sm soft" href="${esc(o.receiptUrl || fullPayUrl)}" target="_blank" rel="noopener noreferrer">${icon('external')}${o.receiptUrl ? '매출전표' : '결제확인창'}</a>
+                      ${btn('승인취소', 'cancel-pay-order', 'close', 'sm danger', `data-id="${esc(o.orderId)}"`)}
+                    ` : `
+                      <span style="font-size:12px;color:#94a3b8">처리완료</span>
+                    `}
+                  </div>
+                </td>
+              </tr>`;
+            }).join('') : `<tr><td colspan="6"><div class="empty">${icon('credit')}<strong>조회된 카드결제 내역이 없습니다.</strong>상단 <b>[카드결제 링크 생성]</b> 또는 <b>[고객관리 &gt; 계약 등록]</b>에서 카드 결제를 등록해 보세요.</div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
+function openCashCheckDialog(contractId, scheduleId = '') {
+  const k = db.contracts.find(x => x.id === contractId);
+  if (!k) { toast('계약 정보를 찾을 수 없습니다.'); return; }
+  const isRental = k.payCategory === 'rental' || k.type === '렌탈';
+  const upfront = Number(k.rentalUpfrontFee || 0);
+  const schedules = getContractSchedules(k, isRental, upfront);
+  const sch = (scheduleId && schedules.find(s => s.id === scheduleId)) || schedules[0];
+  if (!sch) { toast('확인할 현금 입금 항목이 없습니다.'); return; }
+  const todayKst = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+  const initDate = sch.paidDate || todayKst;
+
+  const body = `<form id="edit-form" data-submit="cash-check" data-id="${esc(k.id)}">
+    <input type="hidden" name="scheduleId" value="${esc(sch.id)}">
+    <div class="dialog-body">
+      <div class="file-card" style="margin:0 0 16px;background:#f8fafc">
+        ${icon('contract')}
+        <div style="flex:1">
+          <b>${esc(k.customerName || '고객')} · ${esc(sch.label)}</b>
+          <small>계약번호 ${esc(k.id)} · 대상 금액 <b>${won(sch.amount)}</b></small>
+        </div>
+        ${badge(sch.paid ? '입금완료' : '미입금', sch.paid ? 'green' : 'orange')}
+      </div>
+      <label class="checkline" style="padding:12px 14px;border:1px solid #cbd5e1;border-radius:10px;background:#f0fdf4;margin-bottom:14px;cursor:pointer">
+        <input type="checkbox" name="paid" id="cash-check-paid" ${sch.paid ? 'checked' : 'checked'}>
+        <b style="color:#065f46;font-size:14px">${esc(sch.label)} 현금 입금완료 확인</b>
+      </label>
+      <div class="field-grid">
+        <div class="field">
+          <label for="cash-check-date">입금 완료일 (언제 입금되었는지) <span>*</span></label>
+          <input class="input" type="date" id="cash-check-date" name="paidDate" value="${esc(initDate)}" required>
+        </div>
+        ${field('입금 확인 금액 (원)', 'amount', sch.amount, 'money', true)}
+      </div>
+      <div class="notice-text">입금완료 체크 및 입금일자를 저장하면 <b>계약관리 실제 수납액</b>과 수납 상태에 즉시 반영됩니다. 입금 확인을 취소하려면 체크박스를 해제한 뒤 저장하세요.</div>
+    </div>
+    <div class="dialog-footer">
+      ${btn('닫기', 'close')}
+      <button type="submit" class="btn primary">${icon('check')}입금 확인 저장</button>
+    </div>
+  </form>`;
+
+  openDialog('현금 입금완료 확인 · 입금일 기록', body, '', '', `${esc(k.customerName || '고객')} 고객 현금 수납 체크`);
+}
+
+function openSendPaymentLinkDialog(orderId) {
+  const order = (db.paymentOrders || []).find(o => o.orderId === orderId || o.token === orderId);
+  if (!order) {
+    toast('카드결제 링크 정보를 찾을 수 없습니다.');
+    return;
+  }
+  const fullUrl = location.origin + (order.paymentUrl || (`/pay.html?token=${encodeURIComponent(order.token)}`));
+  const quotaText = Number(order.installmentMonths || 0) >= 2 ? `${order.installmentMonths}개월 할부` : '일시불';
+  const msgText = `[KCC 홈씨씨 × (주)라이프앤조이 안전결제 안내]\n안녕하세요, ${order.customerName} 고객님.\n계약하신 ${order.product || '창호'} 시공 건의 카드결제 링크를 안내해 드립니다.\n\n■ 결제 구분: ${order.phaseLabel || '일시납'} (${quotaText})\n■ 결제 금액: ${won(order.amount)}\n■ 안전 결제링크:\n${fullUrl}\n\n위 링크를 눌러 결제를 완료하시면 계약 수납 내역에 자동 반영됩니다. 감사합니다.`;
+
+  const body = `<div class="dialog-body">
+    <div class="file-card" style="margin:0 0 14px;background:#eff6ff;border-color:#bfdbfe">
+      ${icon('credit')}
+      <div style="flex:1">
+        <b>${esc(order.customerName)} 고객 · ${esc(order.phaseLabel || '카드결제')} (${esc(quotaText)})</b>
+        <small>결제 요청금액 <b style="color:#1d4ed8">${won(order.amount)}</b> · ${order.contractNo ? '계약 ' + esc(order.contractNo) : esc(order.orderId)}</small>
+      </div>
+      ${badge(order.status === 'paid' ? '결제완료' : '결제대기', order.status === 'paid' ? 'green' : 'orange')}
+    </div>
+    <div class="field">
+      <label>전용 카드결제 URL</label>
+      <div style="display:flex;gap:8px">
+        <input class="input" type="text" id="pay-link-url-input" value="${esc(fullUrl)}" readonly style="background:#f8fafc;font-weight:600">
+        <button type="button" class="btn soft" data-action="copy-pay-link" data-id="${esc(order.orderId)}" data-url="${esc(fullUrl)}" style="white-space:nowrap">${icon('copy')}링크 복사</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="pay-link-msg-box">문자(LMS) · 카카오톡 발송용 안내 문구</label>
+      <textarea class="input" id="pay-link-msg-box" style="min-height:165px;line-height:1.55">${esc(msgText)}</textarea>
+    </div>
+    <div class="notice-text">고객이 위 결제링크에서 카드결제를 완료하면 <b>[카드결제]</b> 및 <b>[계약관리]</b>의 수납 상태가 자동으로 <b>[결제완료]</b>로 업데이트됩니다.</div>
+  </div>
+  <div class="dialog-footer">
+    ${btn('닫기', 'close')}
+    <a class="btn soft" href="${esc(fullUrl)}" target="_blank" rel="noopener noreferrer">${icon('external')}고객 결제창 열기</a>
+    <button type="button" class="btn primary" data-action="copy-pay-msg-and-mark" data-id="${esc(order.orderId)}">${icon('send')}안내문구+링크 복사 (발송기록)</button>
+  </div>`;
+
+  openDialog('카드 결제링크 발송 안내', body, '', '', `${esc(order.customerName)} 고객 (${esc(order.customerPhone || '연락처 미등록')})`);
+}
+
+function openNewPaymentLinkDialog() {
+  const cs = visibleCustomers();
+  const preferredC = cs[0] || null;
+  const initAmt = preferredC ? (preferredC.finalQuote?.totalPrice || preferredC.roughQuote?.totalPrice || preferredC.quote || 0) : 0;
+
+  const body = `<form id="edit-form" data-submit="create-pay-link">
+    <div class="dialog-body">
+      <div class="field">
+        <label for="pay-link-cid">고객 선택 (선택 시 이름·연락처·견적액 자동 입력)</label>
+        <select class="input" id="pay-link-cid" name="projectId">
+          <option value="">직접 입력 (비회원·단건 결제)</option>
+          ${cs.map(c => `<option value="${c.id}" ${preferredC && c.id === preferredC.id ? 'selected' : ''}>${esc(c.name)} (No.${c.id} · ${esc(c.phone)}) ${c.quote > 0 ? '· 견적 ' + won(c.quote) : ''}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field-grid">
+        ${field('고객명', 'customerName', preferredC?.name || '', 'text', true)}
+        ${field('연락처', 'customerPhone', preferredC?.phone || '', 'tel', false)}
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="pay-link-phase">결제 구분</label>
+          <select class="input" id="pay-link-phase" name="phaseLabel">
+            <option value="일시납">일시납</option>
+            <option value="선금">선금</option>
+            <option value="잔금">잔금</option>
+            <option value="렌탈 초기납입금">렌탈 초기납입금</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="pay-link-quota">할부 설정</label>
+          <select class="input" id="pay-link-quota" name="installmentMonths">
+            <option value="0">일시불</option>
+            <option value="2">2개월 할부</option>
+            <option value="3">3개월 할부</option>
+            <option value="4">4개월 할부</option>
+            <option value="5">5개월 할부</option>
+            <option value="6">6개월 할부</option>
+            <option value="10">10개월 할부</option>
+            <option value="12">12개월 할부</option>
+            <option value="18">18개월 할부</option>
+            <option value="24">24개월 할부</option>
+          </select>
+        </div>
+      </div>
+      ${field('결제 요청금액 (원)', 'amount', initAmt, 'money', true)}
+      ${field('안내 메모 (선택)', 'memo', '')}
+    </div>
+    <div class="dialog-footer">
+      ${btn('취소', 'close')}
+      <button type="submit" class="btn primary">${icon('link')}결제링크 생성하기</button>
+    </div>
+  </form>`;
+
+  openDialog('카드결제 링크 생성', body, '', '', '개별 카드 결제링크를 생성하여 고객에게 발송합니다.');
+}
+
+function openPgConfigDialog() {
+  const cfg = db.pgConfig || {};
+  const webhookUrl = location.origin + '/api/payments/webhook';
+  const body = `<form id="edit-form" data-submit="save-pg-config">
+    <div class="dialog-body">
+      <div class="notice-text" style="margin-bottom:16px">
+        <b>토스페이먼츠(Toss Payments) 전자결제(PG) 연동 설정</b><br>
+        가맹점 심사 완료 후 발급받은 <b>클라이언트 키(Client Key)</b>와 <b>시크릿 키(Secret Key)</b>를 등록하면 고객 결제링크에서 실제 신용·체크카드 및 할부 결제가 즉시 활성화됩니다. 미등록 시에는 안전한 <b>테스트 결제 모드</b>로 동작합니다.
+      </div>
+      <div class="field-grid">
+        ${field('결제창 표시 가맹점명', 'merchantName', cfg.merchantName || '(주)라이프앤조이 · KCC홈씨씨', 'text', true)}
+        <div class="field">
+          <label>연동 PG사</label>
+          <select class="input" name="provider">
+            <option value="tosspayments" selected>토스페이먼츠 (Toss Payments)</option>
+          </select>
+        </div>
+      </div>
+      ${field('API 클라이언트 키 (Client Key — test_ck_... 또는 live_ck_...)', 'clientKey', cfg.clientKey || '')}
+      ${field('API 시크릿 키 (Secret Key — test_sk_... 또는 live_sk_...)', 'secretKey', cfg.secretKeyMasked || '', 'password')}
+      ${field('웹훅 검증 시크릿 (선택)', 'webhookSecret', cfg.webhookSecretMasked || '', 'password')}
+      <div class="field">
+        <label>PG사 개발자센터에 등록할 자동 입금반영 웹훅(Webhook) URL</label>
+        <div style="display:flex;gap:8px">
+          <input class="input" type="text" value="${esc(webhookUrl)}" readonly style="background:#f8fafc;font-family:monospace;font-size:12.5px">
+          <button type="button" class="btn soft" data-action="copy-text" data-text="${esc(webhookUrl)}" style="white-space:nowrap">${icon('copy')}복사</button>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      ${btn('닫기', 'close')}
+      <button type="submit" class="btn primary">${icon('check')}PG 연동 설정 저장</button>
+    </div>
+  </form>`;
+
+  openDialog('카드결제 PG 연동 설정', body, '', '', '실결제 API 키 및 자동 수납반영 웹훅 관리');
 }
 function renderLandingLinksRows(links) {
   if (!links.length) {
@@ -5165,6 +5581,151 @@ function openPreview(id, q = null, viewMode = 'quote', preferredType = '', quote
     });
   }
 }
+function calcRentalAutoUpfrontClient(quoteTotal, monthlyFee) {
+  const total = Math.max(0, Number(quoteTotal) || 0);
+  const mo = Math.max(0, Number(monthlyFee) || 111000);
+  if (mo === 111000) return Math.max(0, total - 5000000);
+  if (mo === 222000) return Math.max(0, total - 10000000);
+  if (mo === 333000) return Math.max(0, total - 15000000);
+  return Math.max(0, total - Math.round((mo / 111000) * 5000000));
+}
+
+function syncContractFormUI(recalcAmounts = false, sourceField = '') {
+  const form = $('#edit-form[data-submit="contract"]');
+  if (!form) return;
+  const cat = ($('#contract-pay-category', form)?.value || 'cash').toLowerCase();
+  $$('[data-action="select-contract-pay-cat"]', form).forEach(b => {
+    b.classList.toggle('is-active', b.dataset.value === cat);
+  });
+
+  const secCash = $('#pay-sec-cash', form);
+  const secCard = $('#pay-sec-card', form);
+  const secRental = $('#pay-sec-rental', form);
+  if (secCash) secCash.hidden = cat !== 'cash';
+  if (secCard) secCard.hidden = cat !== 'card';
+  if (secRental) secRental.hidden = cat !== 'rental';
+
+  const quoteTotal = Math.max(0, parseNum($('#contract-quote-total', form)?.value || 0));
+  const halfAmt = Math.round(quoteTotal / 2);
+  const remHalf = Math.max(0, quoteTotal - halfAmt);
+
+  // 현금 섹션 동기화
+  const cashOpt = $('input[name="cashOption"]:checked', form)?.value || 'full';
+  const cashFullWrap = $('#cash-full-wrap', form);
+  const cashSplitWrap = $('#cash-split-wrap', form);
+  const cashPriorWrap = $('#cash-prior-wrap', form);
+  if (cashFullWrap) cashFullWrap.hidden = cashOpt !== 'full';
+  if (cashSplitWrap) cashSplitWrap.hidden = cashOpt === 'full';
+  if (cashPriorWrap) cashPriorWrap.hidden = cashOpt !== 'balance';
+
+  if (recalcAmounts) {
+    const cfEl = $('#cash-full-amount', form);
+    const cdEl = $('#cash-deposit-amount', form);
+    const cbEl = $('#cash-balance-amount', form);
+    if (cfEl) cfEl.value = num(quoteTotal);
+    if (sourceField === 'cash-deposit' && cdEl && cbEl) {
+      const dVal = Math.min(quoteTotal, Math.max(0, parseNum(cdEl.value)));
+      cbEl.value = num(Math.max(0, quoteTotal - dVal));
+    } else if (sourceField !== 'cash-balance') {
+      if (cdEl) cdEl.value = num(halfAmt);
+      if (cbEl) cbEl.value = num(remHalf);
+    }
+  }
+  const cashPaidChk = $('#cash-paid-now', form);
+  const cashDateWrap = $('#cash-paid-date-wrap', form);
+  if (cashDateWrap && cashPaidChk) cashDateWrap.hidden = !cashPaidChk.checked;
+
+  // 카드 섹션 동기화
+  const cardOpt = $('input[name="cardOption"]:checked', form)?.value || 'full';
+  const cardFullWrap = $('#card-full-wrap', form);
+  const cardSplitWrap = $('#card-split-wrap', form);
+  const cardQuotaWrap = $('#card-quota-wrap', form);
+  const cardPriorWrap = $('#card-prior-wrap', form);
+  const cardQuotaSel = $('#card-installment-months', form);
+
+  if (cardFullWrap) cardFullWrap.hidden = !(cardOpt === 'full' || cardOpt === 'installment');
+  if (cardSplitWrap) cardSplitWrap.hidden = !(cardOpt === 'deposit' || cardOpt === 'balance');
+  if (cardPriorWrap) cardPriorWrap.hidden = cardOpt !== 'balance';
+  if (cardQuotaWrap) cardQuotaWrap.hidden = cardOpt === 'full';
+
+  if (cardQuotaSel && sourceField === 'card-option') {
+    if (cardOpt === 'installment' && Number(cardQuotaSel.value) < 2) {
+      cardQuotaSel.value = '6';
+    } else if (cardOpt === 'full') {
+      cardQuotaSel.value = '0';
+    }
+  }
+
+  if (recalcAmounts) {
+    const kfEl = $('#card-full-amount', form);
+    const kdEl = $('#card-deposit-amount', form);
+    const kbEl = $('#card-balance-amount', form);
+    if (kfEl) kfEl.value = num(quoteTotal);
+    if (sourceField === 'card-deposit' && kdEl && kbEl) {
+      const dVal = Math.min(quoteTotal, Math.max(0, parseNum(kdEl.value)));
+      kbEl.value = num(Math.max(0, quoteTotal - dVal));
+    } else if (sourceField !== 'card-balance') {
+      if (kdEl) kdEl.value = num(halfAmt);
+      if (kbEl) kbEl.value = num(remHalf);
+    }
+  }
+
+  const cardSummaryEl = $('#card-target-summary', form);
+  if (cardSummaryEl) {
+    const targetCardAmt = (cardOpt === 'full' || cardOpt === 'installment')
+      ? parseNum($('#card-full-amount', form)?.value || quoteTotal)
+      : cardOpt === 'deposit'
+      ? parseNum($('#card-deposit-amount', form)?.value || halfAmt)
+      : parseNum($('#card-balance-amount', form)?.value || remHalf);
+    const qMonths = cardOpt === 'full' ? 0 : Number(cardQuotaSel?.value || 0);
+    const qLabel = qMonths >= 2 ? `${qMonths}개월 할부` : '일시불';
+    const phaseMap = { full: '일시납', installment: '일시납(할부)', deposit: '선금', balance: '잔금' };
+    cardSummaryEl.innerHTML = `등록 즉시 <b>[${phaseMap[cardOpt] || '카드결제'} · ${qLabel} · ${won(targetCardAmt)}]</b> 전용 카드결제 링크가 자동 생성됩니다.`;
+  }
+
+  // 렌탈 섹션 동기화 (60개월 자동 선택)
+  const presetEl = $('#rental-monthly-preset', form);
+  const customMonthlyWrap = $('#rental-custom-monthly-wrap', form);
+  const customMonthlyEl = $('#rental-monthly-custom', form);
+  const upfrontEl = $('#rental-upfront-amount', form);
+  const upfrontMethod = $('input[name="rentalUpfrontMethod"]:checked', form)?.value || 'cash';
+  const rentalCardQuotaWrap = $('#rental-upfront-card-quota-wrap', form);
+  const rentalCashCheckWrap = $('#rental-upfront-cash-check-wrap', form);
+  const rentalNoUpfrontNotice = $('#rental-no-upfront-notice', form);
+
+  const presetVal = presetEl?.value || '111000';
+  if (customMonthlyWrap) customMonthlyWrap.hidden = presetVal !== 'custom';
+  const monthlyFee = presetVal === 'custom'
+    ? Math.max(0, parseNum(customMonthlyEl?.value || 111000))
+    : Number(presetVal || 111000);
+
+  if (recalcAmounts && upfrontEl && sourceField !== 'rental-upfront') {
+    upfrontEl.value = num(calcRentalAutoUpfrontClient(quoteTotal, monthlyFee));
+  }
+  const curUpfront = Math.max(0, parseNum(upfrontEl?.value || 0));
+  const hasUpfront = curUpfront > 0;
+  const methodBox = $('#rental-upfront-method-box', form);
+  if (methodBox) methodBox.style.opacity = hasUpfront ? '1' : '0.55';
+  if (rentalNoUpfrontNotice) rentalNoUpfrontNotice.hidden = hasUpfront;
+  if (rentalCardQuotaWrap) rentalCardQuotaWrap.hidden = !(hasUpfront && upfrontMethod === 'card');
+  if (rentalCashCheckWrap) rentalCashCheckWrap.hidden = !(hasUpfront && upfrontMethod === 'cash');
+
+  const rentalCashPaidChk = $('#rental-cash-paid-now', form);
+  const rentalCashDateWrap = $('#rental-cash-date-wrap', form);
+  if (rentalCashDateWrap && rentalCashPaidChk) rentalCashDateWrap.hidden = !rentalCashPaidChk.checked;
+
+  // 상태 셀렉트 기본 추천값 동기화
+  if (sourceField === 'pay-cat') {
+    const stSel = $('#contract-form-status', form);
+    if (stSel) {
+      const names = getContractStatusNames();
+      if (cat === 'rental' && names.includes('약정대기')) stSel.value = '약정대기';
+      else if (cat !== 'rental' && names.includes('미수납')) stSel.value = '미수납';
+      else if (cat !== 'rental' && names.includes('계약체결')) stSel.value = '계약체결';
+    }
+  }
+}
+
 function openNewContractDialog(id = null, fromCustomerModal = false) {
   const cs = visibleCustomers();
   if (!cs.length) {
@@ -5174,9 +5735,19 @@ function openNewContractDialog(id = null, fromCustomerModal = false) {
   const targetC = id ? accessibleC(id) : null;
   const preferredC = targetC || cs.find(x => !db.contracts.some(k => k.cid === x.id) && x.quote > 0) || cs.find(x => !db.contracts.some(k => k.cid === x.id)) || cs[0];
   const defaultAmount = preferredC ? (preferredC.finalQuote?.totalPrice || preferredC.roughQuote?.totalPrice || preferredC.quote || 0) : 0;
+  const halfAmount = Math.round(defaultAmount / 2);
+  const remAmount = Math.max(0, defaultAmount - halfAmount);
+  const initRentalMonthly = defaultAmount > 10000000 ? 222000 : 111000;
+  const initRentalUpfront = calcRentalAutoUpfrontClient(defaultAmount, initRentalMonthly);
+  const todayKst = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
   const statusNames = getContractStatusNames();
-  const defaultStatus = statusNames.includes('계약체결') ? '계약체결' : (statusNames[0] || '계약체결');
+  const defaultStatus = statusNames.includes('미수납') ? '미수납' : (statusNames.includes('계약체결') ? '계약체결' : (statusNames[0] || '계약체결'));
   const returnTab = detailTab || 'notes';
+
+  const quotaSelectOptions = [
+    [2, '2개월 할부'], [3, '3개월 할부'], [4, '4개월 할부'], [5, '5개월 할부'],
+    [6, '6개월 할부'], [10, '10개월 할부'], [12, '12개월 할부'], [18, '18개월 할부'], [24, '24개월 할부']
+  ].map(([m, lbl]) => `<option value="${m}" ${m === 6 ? 'selected' : ''}>${lbl}</option>`).join('');
 
   const customerFieldHtml = (fromCustomerModal && targetC)
     ? `<div class="field">
@@ -5186,7 +5757,7 @@ function openNewContractDialog(id = null, fromCustomerModal = false) {
           ${icon('users')}
           <div style="flex:1">
             <b>${esc(targetC.name)} <span class="row-code">No.${targetC.id}</span> · ${esc(targetC.product)}</b>
-            <small>${esc(targetC.phone)} · ${esc(targetC.address)}</small>
+            <small>${esc(targetC.phone)} · ${esc(targetC.address)}${defaultAmount > 0 ? ` · 견적 <b>${won(defaultAmount)}</b>` : ''}</small>
           </div>
           ${badge(targetC.status)}
         </div>
@@ -5194,7 +5765,10 @@ function openNewContractDialog(id = null, fromCustomerModal = false) {
     : `<div class="field">
         <label for="contract-form-cid">고객 · 공사건 선택 <span>*</span></label>
         <select class="input" name="cid" id="contract-form-cid">
-          ${cs.map(c => `<option value="${c.id}" ${c.id === preferredC?.id ? 'selected' : ''}>${esc(c.name)} (No.${c.id} · ${esc(c.product)}) ${c.quote > 0 ? '· 견적 ' + won(c.quote) : '· 견적 미발행'}${db.contracts.some(k => k.cid === c.id) ? ' [기등록]' : ''}</option>`).join('')}
+          ${cs.map(c => {
+            const qAmt = c.finalQuote?.totalPrice || c.roughQuote?.totalPrice || c.quote || 0;
+            return `<option value="${c.id}" ${c.id === preferredC?.id ? 'selected' : ''}>${esc(c.name)} (No.${c.id} · ${esc(c.product)}) ${qAmt > 0 ? '· 견적 ' + won(qAmt) : '· 견적 미발행'}${db.contracts.some(k => k.cid === c.id) ? ' [기등록]' : ''}</option>`;
+          }).join('')}
         </select>
       </div>`;
 
@@ -5203,30 +5777,168 @@ function openNewContractDialog(id = null, fromCustomerModal = false) {
     : btn('취소', 'close');
 
   const body = `<form id="edit-form" data-submit="contract" ${fromCustomerModal && targetC ? `data-from-customer="${targetC.id}" data-return-tab="${esc(returnTab)}"` : ''}>
+    <input type="hidden" name="payCategory" id="contract-pay-category" value="cash">
     <div class="dialog-body">
       ${customerFieldHtml}
+
       <div class="field-grid">
         <div class="field">
-          <label for="contract-form-type">결제방식 <span>*</span></label>
-          <select class="input" id="contract-form-type" name="type">
-            <option value="일시불(현금)">일시불(현금)</option>
-            <option value="카드할부">카드할부 (일시불·수납)</option>
-            <option value="렌탈">렌탈 (60개월)</option>
-          </select>
+          <label for="contract-quote-total">기준 견적 · 계약 총액 (원) <span>*</span></label>
+          <input class="input money" id="contract-quote-total" name="quoteTotal" type="text" inputmode="numeric" data-money="1" value="${esc(num(defaultAmount))}" required>
         </div>
         <div class="field">
-          <label for="contract-form-status">계약·수납 상태 <span>*</span></label>
+          <label for="contract-form-status">초기 계약·수납 상태</label>
           <select class="input" id="contract-form-status" name="status">
             ${options(statusNames, defaultStatus)}
           </select>
         </div>
       </div>
-      ${field('계약금액 (원)', 'amount', defaultAmount, 'money', true)}
+
       <div class="field">
-        <label for="contract-form-note">계약 비고 / 특이사항</label>
-        <textarea class="input" id="contract-form-note" name="note" style="min-height:74px" placeholder="수납 일정, 렌탈 희망 조건 등 특이사항을 입력하세요."></textarea>
+        <label>결제방식 구분 <span>*</span></label>
+        <div class="pay-cat-tabs">
+          <button type="button" class="pay-cat-btn is-active" data-action="select-contract-pay-cat" data-value="cash">
+            <b>현금</b><small>일시납 · 선금 · 잔금</small>
+          </button>
+          <button type="button" class="pay-cat-btn" data-action="select-contract-pay-cat" data-value="card">
+            <b>카드</b><small>일시납 · 할부 · 선금 · 잔금</small>
+          </button>
+          <button type="button" class="pay-cat-btn" data-action="select-contract-pay-cat" data-value="rental">
+            <b>렌탈 (60개월)</b><small>월 납입금 · 초기납입금</small>
+          </button>
+        </div>
       </div>
-      <div class="notice-text">계약 등록 즉시 <b>계약관리</b>(일시불·수납 또는 렌탈 신청)에 자동 등록되며, 해당 고객의 상태값(진행구분)은 <b>[계약진행]</b>으로 자동 변경됩니다. 신규 등록 건은 24시간 동안 빨간 숫자 및 <b>NEW</b> 라벨로 표시됩니다.</div>
+
+      <!-- 1. 현금 결제 설정 -->
+      <div id="pay-sec-cash" class="pay-detail-box">
+        <div class="pay-sub-head">현금 납부 조건 선택 <small>(기준 금액 기준 자동 세팅)</small></div>
+        <div class="pay-radio-pills">
+          <label class="pay-pill"><input type="radio" name="cashOption" value="full" checked><span>일시납 (100%)</span></label>
+          <label class="pay-pill"><input type="radio" name="cashOption" value="deposit"><span>선금 (50% 자동)</span></label>
+          <label class="pay-pill"><input type="radio" name="cashOption" value="balance"><span>잔금 (50% 자동)</span></label>
+        </div>
+        <div id="cash-full-wrap" class="field" style="margin-top:10px">
+          <label for="cash-full-amount">현금 일시납 금액 (자동 세팅)</label>
+          <input class="input money" id="cash-full-amount" name="cashFullAmount" type="text" inputmode="numeric" data-money="1" value="${esc(num(defaultAmount))}">
+        </div>
+        <div id="cash-split-wrap" class="field-grid" style="margin-top:10px" hidden>
+          <div class="field">
+            <label for="cash-deposit-amount">선금 금액 (자동 세팅)</label>
+            <input class="input money" id="cash-deposit-amount" name="cashDepositAmount" type="text" inputmode="numeric" data-money="1" value="${esc(num(halfAmount))}">
+          </div>
+          <div class="field">
+            <label for="cash-balance-amount">잔금 금액 (자동 세팅)</label>
+            <input class="input money" id="cash-balance-amount" name="cashBalanceAmount" type="text" inputmode="numeric" data-money="1" value="${esc(num(remAmount))}">
+          </div>
+        </div>
+        <div id="cash-prior-wrap" style="margin-top:6px" hidden>
+          <label class="checkline"><input type="checkbox" name="priorDepositPaid" checked> <span>이전 <b>선금</b>은 이미 입금 완료됨</span></label>
+        </div>
+        <div class="cash-check-inline-box">
+          <label class="checkline"><input type="checkbox" name="cashPaid" id="cash-paid-now"> <b>이미 현금 입금이 완료된 경우 즉시 체크</b> <small>(미체크 시 계약관리에서 추후 체크 가능)</small></label>
+          <div id="cash-paid-date-wrap" style="margin-top:8px" hidden>
+            <label for="cash-paid-date" style="font-size:12px;font-weight:700;color:#065f46;display:block;margin-bottom:4px">입금 완료일</label>
+            <input class="input" type="date" id="cash-paid-date" name="cashPaidDate" value="${esc(todayKst)}" style="max-width:200px">
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 카드 결제 설정 -->
+      <div id="pay-sec-card" class="pay-detail-box" hidden>
+        <div class="pay-sub-head">카드 결제 조건 선택 <small>(금액 자동 세팅 · 결제링크 자동 생성)</small></div>
+        <div class="pay-radio-pills">
+          <label class="pay-pill"><input type="radio" name="cardOption" value="full" checked><span>일시납</span></label>
+          <label class="pay-pill"><input type="radio" name="cardOption" value="installment"><span>일시납(할부)</span></label>
+          <label class="pay-pill"><input type="radio" name="cardOption" value="deposit"><span>선금</span></label>
+          <label class="pay-pill"><input type="radio" name="cardOption" value="balance"><span>잔금</span></label>
+        </div>
+        <div id="card-quota-wrap" class="field" style="margin-top:10px" hidden>
+          <label for="card-installment-months">카드 할부 개월수 선택 <span>*</span></label>
+          <select class="input" id="card-installment-months" name="cardInstallmentMonths">
+            <option value="0">일시불</option>
+            ${quotaSelectOptions}
+          </select>
+        </div>
+        <div id="card-full-wrap" class="field" style="margin-top:10px">
+          <label for="card-full-amount">카드 일시납 결제금액 (자동 세팅)</label>
+          <input class="input money" id="card-full-amount" name="cardFullAmount" type="text" inputmode="numeric" data-money="1" value="${esc(num(defaultAmount))}">
+        </div>
+        <div id="card-split-wrap" class="field-grid" style="margin-top:10px" hidden>
+          <div class="field">
+            <label for="card-deposit-amount">선금 결제금액 (자동 세팅)</label>
+            <input class="input money" id="card-deposit-amount" name="cardDepositAmount" type="text" inputmode="numeric" data-money="1" value="${esc(num(halfAmount))}">
+          </div>
+          <div class="field">
+            <label for="card-balance-amount">잔금 결제금액 (자동 세팅)</label>
+            <input class="input money" id="card-balance-amount" name="cardBalanceAmount" type="text" inputmode="numeric" data-money="1" value="${esc(num(remAmount))}">
+          </div>
+        </div>
+        <div id="card-prior-wrap" style="margin-top:6px" hidden>
+          <label class="checkline"><input type="checkbox" name="cardPriorDepositPaid" checked> <span>이전 <b>선금</b>은 이미 수납 완료됨</span></label>
+        </div>
+        <div class="pay-auto-summary" id="card-target-summary">
+          등록 즉시 <b>[일시납 · 일시불 · ${won(defaultAmount)}]</b> 전용 카드결제 링크가 자동 생성됩니다.
+        </div>
+      </div>
+
+      <!-- 3. 렌탈 (60개월 자동 선택) 설정 -->
+      <div id="pay-sec-rental" class="pay-detail-box" hidden>
+        <div class="pay-sub-head">렌탈 약정 조건 <small>(약정기간 60개월 자동 세팅 · 초기 납입금 자동 계산)</small></div>
+        <div class="field-grid">
+          <div class="field">
+            <label for="rental-months-fixed">렌탈 약정 기간</label>
+            <select class="input" id="rental-months-fixed" name="rentalMonths" style="background:#f5f3ff;color:#4c1d95;font-weight:700">
+              <option value="60" selected>60개월 약정 (자동 선택)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="rental-monthly-preset">월 납입금 선택 <span>*</span></label>
+            <select class="input" id="rental-monthly-preset" name="rentalMonthlyPreset">
+              <option value="111000" ${initRentalMonthly === 111000 ? 'selected' : ''}>월 111,000원 (렌탈한도 500만원 기준)</option>
+              <option value="222000" ${initRentalMonthly === 222000 ? 'selected' : ''}>월 222,000원 (렌탈한도 1,000만원 기준)</option>
+              <option value="333000" ${initRentalMonthly === 333000 ? 'selected' : ''}>월 333,000원 (렌탈한도 1,500만원 기준)</option>
+              <option value="custom">직접 입력</option>
+            </select>
+          </div>
+        </div>
+        <div id="rental-custom-monthly-wrap" class="field" hidden>
+          <label for="rental-monthly-custom">월 납입금 직접 입력 (원)</label>
+          <input class="input money" id="rental-monthly-custom" name="rentalMonthlyCustom" type="text" inputmode="numeric" data-money="1" value="111,000">
+        </div>
+        <div class="field">
+          <label for="rental-upfront-amount">초기 납입금 (선납금 · 자동 세팅)</label>
+          <input class="input money" id="rental-upfront-amount" name="rentalUpfront" type="text" inputmode="numeric" data-money="1" value="${esc(num(initRentalUpfront))}">
+        </div>
+        <div id="rental-no-upfront-notice" class="notice-text" style="margin-bottom:10px" ${initRentalUpfront > 0 ? 'hidden' : ''}>
+          현재 선택한 월 납입금 한도 내에서 전액 렌탈 진행되어 별도 초기 납입금이 <b>0원</b>입니다. (초기 납입금이 있는 경우 위 금액을 입력하면 아래 수단 선택이 활성화됩니다.)
+        </div>
+        <div id="rental-upfront-method-box" style="${initRentalUpfront > 0 ? '' : 'opacity:0.55'}">
+          <label style="display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px">초기 납입금 결제방식 선택</label>
+          <div class="pay-radio-pills">
+            <label class="pay-pill"><input type="radio" name="rentalUpfrontMethod" value="cash" checked><span>현금 납부</span></label>
+            <label class="pay-pill"><input type="radio" name="rentalUpfrontMethod" value="card"><span>카드 / 카드할부 결제</span></label>
+          </div>
+          <div id="rental-upfront-card-quota-wrap" class="field" style="margin-top:10px" hidden>
+            <label for="rental-upfront-card-quota">초기 납입금 카드 할부 개월수</label>
+            <select class="input" id="rental-upfront-card-quota" name="rentalUpfrontInstallmentMonths">
+              <option value="0">일시불</option>
+              ${quotaSelectOptions}
+            </select>
+          </div>
+          <div id="rental-upfront-cash-check-wrap" class="cash-check-inline-box" ${initRentalUpfront > 0 ? '' : 'hidden'}>
+            <label class="checkline"><input type="checkbox" name="rentalCashPaid" id="rental-cash-paid-now"> <b>초기 납입금 현금 입금완료 즉시 체크</b></label>
+            <div id="rental-cash-date-wrap" style="margin-top:8px" hidden>
+              <input class="input" type="date" name="rentalCashPaidDate" value="${esc(todayKst)}" style="max-width:200px">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:12px">
+        <label for="contract-form-note">계약 비고 / 특이사항</label>
+        <textarea class="input" id="contract-form-note" name="note" style="min-height:66px" placeholder="수납 일정, 카드 할부 협의, 렌탈 특이사항 등을 입력하세요."></textarea>
+      </div>
+      <div class="notice-text">등록한 결제방식과 금액 조건은 <b>[계약관리]</b>에 자동 반영되며 고객 진행구분은 <b>[계약진행]</b>으로 전환됩니다. 카드 선택 시 발송용 결제링크가 즉시 생성됩니다.</div>
     </div>
     <div class="dialog-footer">
       ${cancelBtnHtml}
@@ -5239,8 +5951,9 @@ function openNewContractDialog(id = null, fromCustomerModal = false) {
     body,
     '',
     '',
-    targetC ? `${esc(targetC.name)} 고객 계약원장 등록 · 고객상태 자동 [계약진행] 전환` : '신규 일시불·렌탈 계약을 계약관리 원장에 등록합니다.'
+    targetC ? `${esc(targetC.name)} 고객 · 현금 / 카드 / 렌탈(60개월) 조건 설정` : '신규 계약을 결제방식별 자동 세팅으로 등록합니다.'
   );
+  syncContractFormUI(false);
 }
 
 window.openImageLightbox = function(src, title = '이미지 미리보기', downloadName = '') {
@@ -5277,37 +5990,87 @@ function openContract(id, forceCashModal = false){
   const k = db.contracts.find(k => k.id === id);
   if (!k || !accessibleC(k.cid)) return;
   const c = findC(k.cid) || { id: k.cid, name: k.customerName || '고객', product: k.product || '창호' };
-  const isRental = k.type === '렌탈' || !isCashContract(k);
+  const isRental = k.payCategory === 'rental' || k.type === '렌탈';
+  const isCard = !isRental && (k.payCategory === 'card' || k.type === '카드');
 
   const rApp = (k.rentalAppId ? db.applications.find(a => a.id === k.rentalAppId) : null) ||
                db.applications.find(a => a.id === k.id || Number(a.cid) === Number(k.cid));
   const months = k.rentalPeriodMonths || rApp?.months || 60;
   const monthly = k.rentalMonthlyFee || rApp?.monthly || (k.amount ? Math.round((k.amount * 1.2) / months / 1000) * 1000 : 0);
   const total = k.rentalTotalFee || rApp?.total || (monthly * months) || k.amount;
-  const upfront = k.rentalUpfrontFee || rApp?.upfront || 0;
+  const upfront = k.rentalUpfrontFee !== undefined ? Number(k.rentalUpfrontFee) : Number(rApp?.upfront || 0);
   const rawRentalSt = k.rentalStatus || rApp?.status || '접수완료';
   const rentalStText = RENTAL_STATUS_MAP[rawRentalSt] || rawRentalSt;
+  const schedules = getContractSchedules(k, isRental, upfront);
+  const todayKst = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 
   const statusList = [...new Set([...getContractStatusNames(), k.status].filter(Boolean))];
   const canEditSettings = getUserAllowedMenuKeys(getActiveUser()).includes('settings');
 
+  const scheduleRowsHtml = schedules.length
+    ? `<div class="contract-schedule-panel">
+        <div class="contract-schedule-head">
+          <b>수납 일정 · 현금 입금체크 · 카드 결제링크</b>
+          <small>체크/결제 완료 시 실제 수납액 자동 반영</small>
+        </div>
+        ${schedules.map(s => {
+          const isSchCard = s.method === 'card';
+          const ord = isSchCard ? findScheduleCardOrder(k, s) : null;
+          const isSchPaid = Boolean(s.paid || ord?.status === 'paid');
+          if (isSchCard) {
+            const quotaLabel = Number(s.installmentMonths || ord?.installmentMonths || 0) >= 2
+              ? `${s.installmentMonths || ord.installmentMonths}개월 할부`
+              : '일시불';
+            const fullUrl = ord ? (location.origin + (ord.paymentUrl || (`/pay.html?token=${encodeURIComponent(ord.token)}`))) : '';
+            return `<div class="contract-schedule-row">
+              <div class="cs-left">
+                <div><b>${esc(s.label)}</b> <span class="badge blue">카드 · ${esc(quotaLabel)}</span></div>
+                <div class="cs-amt">${won(s.amount)}</div>
+                ${isSchPaid ? `<small style="color:#059669;font-weight:700">✓ 자동 결제완료 (${esc(ord?.cardCompany || '카드')} · ${esc(ord?.approvedAtText || s.paidDate || '')})</small>` : `<small style="color:#b45309">결제링크 발송 후 고객 결제 대기</small>`}
+              </div>
+              <div class="cs-right">
+                ${isSchPaid
+                  ? `${badge('결제완료', 'green')}${fullUrl ? `<a class="btn sm soft" href="${esc(fullUrl)}" target="_blank" rel="noopener noreferrer">${icon('external')}확인</a>` : ''}`
+                  : `${btn('결제링크 발송', 'contract-card-link', 'send', 'sm primary', `data-id="${esc(k.id)}" data-schedule="${esc(s.id)}"`)}${fullUrl ? btn('링크복사', 'copy-pay-link', 'copy', 'sm soft', `data-id="${esc(ord.orderId)}" data-url="${esc(fullUrl)}"`) : ''}`
+                }
+              </div>
+            </div>`;
+          }
+          return `<div class="contract-schedule-row">
+            <div class="cs-left">
+              <div><b>${esc(s.label)}</b> <span class="badge dark">현금</span></div>
+              <div class="cs-amt">${won(s.amount)}</div>
+              ${isSchPaid ? `<small style="color:#059669;font-weight:700">✓ 입금완료일: ${esc(s.paidDate || '-')}</small>` : `<small style="color:#64748b">입금 확인 시 우측 체크 후 저장하세요.</small>`}
+            </div>
+            <div class="cs-right cs-cash-controls">
+              <label class="checkline" style="margin:0;white-space:nowrap">
+                <input type="checkbox" id="inline-cash-chk-${esc(s.id)}" ${isSchPaid ? 'checked' : ''}>
+                <span>입금완료</span>
+              </label>
+              <input type="date" class="input" id="inline-cash-date-${esc(s.id)}" value="${esc(s.paidDate || todayKst)}" style="height:32px;padding:0 8px;width:136px;font-size:12px">
+              <button type="button" class="btn sm ${isSchPaid ? 'soft' : 'primary'}" data-action="save-inline-cash-check" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}">저장</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`
+    : '';
+
   const amountSection = isRental ? `
     <div class="mini-stat"><span>월 렌탈료</span><b style="color:#3730a3;font-size:15px">월 ${won(monthly)} <small style="font-size:11px;color:#6366f1;font-weight:600">(${months}개월 약정)</small></b></div>
-    <div class="mini-stat"><span>총 렌탈료 (약정 총액)</span><b style="color:var(--navy)">${won(total)}</b></div>
-    ${upfront > 0 ? `<div class="mini-stat"><span>초기 선납금</span><b>${won(upfront)}</b></div>` : ''}
-    <div class="mini-stat"><span>결제 방식</span><b style="color:var(--purple)">렌탈 분납약정 (자동이체/CMS)</b></div>
+    <div class="mini-stat"><span>초기 납입금 (선납금)</span><b>${upfront > 0 ? `${won(upfront)} (${k.rentalUpfrontMethod === 'card' ? (k.rentalUpfrontInstallmentMonths >= 2 ? `카드 ${k.rentalUpfrontInstallmentMonths}개월 할부` : '카드 일시불') : '현금'})` : '없음 (0원)'}</b></div>
+    <div class="mini-stat"><span>입금확인 수납액</span><b style="color:var(--green)">${won(k.paid)}</b></div>
     <div class="mini-stat"><span>렌탈 심사 상태</span><b>${badge(rentalStText, 'purple')}</b></div>
   ` : `
-    <div class="mini-stat"><span>계약금액</span><b>${won(k.amount)}</b></div>
-    <div class="mini-stat"><span>수납액</span><b style="color:var(--green)">${won(k.paid)}</b></div>
-    <div class="mini-stat"><span>남은 수납액</span><b style="color:var(--blue)">${won(k.amount - k.paid)}</b></div>
+    <div class="mini-stat"><span>계약 총액</span><b>${won(k.amount)}</b></div>
+    <div class="mini-stat"><span>입금·결제 확인액</span><b style="color:var(--green)">${won(k.paid)}</b></div>
+    <div class="mini-stat"><span>남은 미수금</span><b style="color:var(--blue)">${won(Math.max(0, k.amount - k.paid))}</b></div>
   `;
 
   const body = `<div class="dialog-body">
     <div class="info-grid">
       <div><label>고객</label><b class="contract-name-line">${newLabelHtml(k)}${esc(c.name)} · ${esc(c.product)}</b></div>
       <div><label>계약번호 / 등록일시</label><b>${esc(k.id)}${k.createdAtText ? ` <small style="font-weight:500;color:#68778d">(${esc(k.createdAtText)})</small>` : ''}</b></div>
-      <div><label>결제방식</label>${badge(k.type, isRental ? 'purple' : '')}</div>
+      <div><label>결제방식 · 세부조건</label><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${badge(isRental ? '렌탈' : isCard ? '카드' : '현금', isRental ? 'purple' : isCard ? 'blue' : 'dark')}<small style="font-weight:700;color:#334155">${esc(k.payMethod || '')}</small></div></div>
       <div><label>현재 계약·수납 상태</label>${badge(k.status)}</div>
     </div>
     <div class="contract-status-edit-box">
@@ -5320,7 +6083,8 @@ function openContract(id, forceCashModal = false){
     </div>
     <div class="divider"></div>
     ${amountSection}
-    ${k.note ? `<div class="mini-stat"><span>계약 비고</span><b>${esc(k.note)}</b></div>` : ''}
+    ${scheduleRowsHtml}
+    ${k.note ? `<div class="mini-stat" style="margin-top:8px"><span>계약 비고</span><b>${esc(k.note)}</b></div>` : ''}
     <div class="divider"></div>
     <div class="info-grid">
       <div><label>실측일</label><b>${c.measure || '미정'}</b></div>
@@ -5329,9 +6093,9 @@ function openContract(id, forceCashModal = false){
   </div>`;
 
   const rAppId = k.rentalAppId || rApp?.id || (isRental && String(k.id || '').startsWith('R-') ? k.id : null);
-  const footer = `${btn('고객 보기', 'customer', 'users', '', `data-id="${c.id}"`)}${renderQuotePreviewButtons(c, 'soft')}${!isRental ? btn('수납 등록', 'receipt', 'credit', 'primary', `data-id="${k.id}"`) : (rAppId ? btn('렌탈 심사·서류 검토', 'application', 'file', 'primary', `data-id="${rAppId}"`) : btn('렌탈 신청 확인', 'find-application', 'file', 'primary', `data-id="${c.id}"`))}`;
+  const footer = `${btn('고객 보기', 'customer', 'users', '', `data-id="${c.id}"`)}${renderQuotePreviewButtons(c, 'soft')}${isRental ? (rAppId ? btn('렌탈 심사·서류 검토', 'application', 'file', 'primary', `data-id="${rAppId}"`) : btn('렌탈 신청 확인', 'find-application', 'file', 'primary', `data-id="${c.id}"`)) : ''}${btn('닫기', 'close')}`;
 
-  openDialog('계약 상세', body, footer, '', `${esc(c.name)} 고객의 ${isRental ? '렌탈 계약·약정' : '계약·결제'} 현황`);
+  openDialog('계약 상세', body, footer, '', `${esc(c.name)} 고객의 ${isRental ? '렌탈(60개월) 계약·약정' : isCard ? '카드 결제·수납' : '현금 수납'} 현황`);
 }
 
 const SUPPLEMENT_PRESETS = {
@@ -6246,6 +7010,150 @@ case'new-contract':{
     openNewContractDialog(id || null, fromCust);
     break;
   }
+case'select-contract-pay-cat':{
+    const catInp = $('#contract-pay-category');
+    if (catInp && v) {
+      catInp.value = v;
+      syncContractFormUI(true, 'pay-cat');
+    }
+    break;
+  }
+case'payment-tab':{
+    paymentTab = v || 'all';
+    render();
+    break;
+  }
+case'go-payments-page':{
+    closeDialog();
+    page = 'payments';
+    paymentTab = 'all';
+    render();
+    window.scrollTo(0, 0);
+    break;
+  }
+case'open-pg-config':{
+    openPgConfigDialog();
+    break;
+  }
+case'new-pay-link':{
+    openNewPaymentLinkDialog();
+    break;
+  }
+case'open-pay-send':{
+    openSendPaymentLinkDialog(id);
+    break;
+  }
+case'copy-pay-link':{
+    const linkUrl = el.dataset.url || $('#pay-link-url-input')?.value || '';
+    if (linkUrl) {
+      copy(linkUrl);
+      toast('전용 카드결제 링크가 클립보드에 복사되었습니다.');
+    }
+    break;
+  }
+case'copy-pay-msg-and-mark':{
+    const msgVal = ($('#pay-link-msg-box')?.value || '').trim();
+    if (msgVal) copy(msgVal);
+    try {
+      await apiFetch('/api/payments', { method: 'POST', body: { action: 'mark-sent', orderId: id } });
+      await syncFromServer();
+    } catch {}
+    closeDialog();
+    render();
+    toast('안내 문구와 카드결제 링크가 복사되었으며 발송 이력이 기록되었습니다.');
+    break;
+  }
+case'open-cash-check':{
+    openCashCheckDialog(id, el.dataset.schedule || '');
+    break;
+  }
+case'save-inline-cash-check':{
+    const schId = el.dataset.schedule || '';
+    const chkEl = document.getElementById('inline-cash-chk-' + schId);
+    const dateEl = document.getElementById('inline-cash-date-' + schId);
+    const paid = Boolean(chkEl?.checked);
+    const paidDate = dateEl?.value || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+    el.disabled = true;
+    try {
+      const res = await apiFetch('/api/contracts/' + encodeURIComponent(id) + '/cash-check', {
+        method: 'POST',
+        body: { scheduleId: schId, paid, paidDate }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resData.error || '입금 상태 저장 실패');
+      await syncFromServer();
+      openContract(id);
+      toast(resData.message || '현금 입금 확인 상태가 반영되었습니다.');
+    } catch (err) {
+      el.disabled = false;
+      toast(err.message || '입금 확인 저장 중 오류가 발생했습니다.');
+    }
+    break;
+  }
+case'contract-card-link':{
+    const schId = el.dataset.schedule || '';
+    const k = db.contracts.find(x => x.id === id);
+    if (k) {
+      const isRental = k.payCategory === 'rental' || k.type === '렌탈';
+      const schedules = getContractSchedules(k, isRental, Number(k.rentalUpfrontFee || 0));
+      const sch = (schId && schedules.find(s => s.id === schId)) || schedules[0];
+      const existingOrd = sch ? findScheduleCardOrder(k, sch) : null;
+      if (existingOrd) {
+        openSendPaymentLinkDialog(existingOrd.orderId);
+        break;
+      }
+    }
+    el.disabled = true;
+    try {
+      const res = await apiFetch('/api/contracts/' + encodeURIComponent(id) + '/card-link', {
+        method: 'POST',
+        body: { scheduleId: schId }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok || !resData.order) throw new Error(resData.error || '결제링크 생성 실패');
+      await syncFromServer();
+      openSendPaymentLinkDialog(resData.order.orderId);
+    } catch (err) {
+      toast(err.message || '카드 결제링크 생성 중 오류가 발생했습니다.');
+    } finally {
+      el.disabled = false;
+    }
+    break;
+  }
+case'manual-approve-pay':{
+    if (!confirm('해당 카드결제 건을 관리자 수동 승인(결제완료) 처리하시겠습니까?\n계약관리 수납액에도 즉시 자동 반영됩니다.')) break;
+    try {
+      const res = await apiFetch('/api/payments', {
+        method: 'POST',
+        body: { action: 'manual-approve', orderId: id }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resData.error || '승인 처리 실패');
+      await syncFromServer();
+      render();
+      toast(resData.message || '결제완료 처리 및 계약관리 수납 반영이 완료되었습니다.');
+    } catch (err) {
+      toast(err.message || '결제 승인 처리 중 오류가 발생했습니다.');
+    }
+    break;
+  }
+case'cancel-pay-order':{
+    if (!confirm('해당 카드결제 요청/승인 건을 취소하시겠습니까?\n기승인 건인 경우 PG 결제취소 및 계약관리 수납액 차감이 함께 반영됩니다.')) break;
+    try {
+      const res = await apiFetch('/api/payments', {
+        method: 'POST',
+        body: { action: 'cancel', orderId: id, cancelReason: '관리자 취소' }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resData.error || '취소 처리 실패');
+      await syncFromServer();
+      render();
+      toast(resData.message || '결제 건이 취소되었습니다.');
+    } catch (err) {
+      toast(err.message || '취소 처리 중 오류가 발생했습니다.');
+    }
+    break;
+  }
 case'go-contract-settings':{
     closeDialog();
     page = 'settings';
@@ -6893,10 +7801,22 @@ document.addEventListener('input',e=>{
   }
   if(e.target.id==='send-message'&&sendState){sendState.message=e.target.value;if(sendState.previewTab==='message')renderSendRightPreview();}
   if(e.target.id==='send-phone'&&sendState){sendState.recipientPhone=e.target.value;if(sendState.previewTab==='message'&&sendState.channel==='sms')renderSendRightPreview();}
+  if(e.target.id==='payment-search-input'){
+    paymentQuery = e.target.value;
+    render();
+    const sInp = $('#payment-search-input');
+    if (sInp) { sInp.focus(); try { sInp.setSelectionRange(paymentQuery.length, paymentQuery.length); } catch {} }
+  }
+  if(e.target.id==='contract-quote-total') syncContractFormUI(true, 'quote-total');
+  if(e.target.id==='cash-deposit-amount') syncContractFormUI(true, 'cash-deposit');
+  if(e.target.id==='card-deposit-amount') syncContractFormUI(true, 'card-deposit');
+  if(e.target.id==='card-balance-amount' || e.target.id==='card-full-amount') syncContractFormUI(false, 'card-balance');
+  if(e.target.id==='rental-monthly-custom') syncContractFormUI(true, 'rental-custom');
+  if(e.target.id==='rental-upfront-amount') syncContractFormUI(false, 'rental-upfront');
 });
 document.addEventListener('focusout',e=>{if(e.target.dataset?.money&&!e.target.value.trim())e.target.value='0'});
 function parseCSV(text){const rows=[];let row=[],cell='',inside=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(inside&&text[i+1]==='"'){cell+='"';i++}else inside=!inside}else if(c===','&&!inside){row.push(cell);cell=''}else if((c==='\n'||c==='\r')&&!inside){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(v=>v.trim()))rows.push(row);row=[];cell=''}else cell+=c}row.push(cell);if(row.some(v=>v.trim()))rows.push(row);return rows}
-document.addEventListener('change',async e=>{const el=e.target,id=el.id;if(el.name==='color'&&el.closest('#contract-status-color-picker')){$$('#contract-status-color-picker .badge-color-opt').forEach(lbl=>{lbl.classList.toggle('is-selected',Boolean($('input[name="color"]',lbl)?.checked))});return}if(id==='contract-form-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const amtEl=$('#amount');if(selC&&amtEl){const nextAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;amtEl.value=num(nextAmt);}return}if(id==='contract-form-type'){const stSel=$('#contract-form-status');if(stSel){const names=getContractStatusNames();if(el.value==='렌탈'&&names.includes('약정대기'))stSel.value='약정대기';else if(el.value!=='렌탈'&&names.includes('계약체결'))stSel.value='계약체결';}return}if(el.name==='allowed_menu'){syncDialogMenuCards();return}if(id==='user-role-select'){const form=el.closest('#user-perm-form');if(form&&form.dataset.mode==='create'){const def=getDefaultMenusByRole(el.value);$$('input[name="allowed_menu"][type="checkbox"]',form).forEach(inp=>{inp.checked=inp.dataset.locked==='1'?true:def.includes(inp.value)});syncDialogMenuCards()}return}if(el.dataset.selectAll){
+document.addEventListener('change',async e=>{const el=e.target,id=el.id;if(el.name==='color'&&el.closest('#contract-status-color-picker')){$$('#contract-status-color-picker .badge-color-opt').forEach(lbl=>{lbl.classList.toggle('is-selected',Boolean($('input[name="color"]',lbl)?.checked))});return}if(id==='contract-form-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const qEl=$('#contract-quote-total');if(selC&&qEl){const nextAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;qEl.value=num(nextAmt);const presetEl=$('#rental-monthly-preset');if(presetEl)presetEl.value=nextAmt>10000000?'222000':'111000';syncContractFormUI(true,'customer');}return}if(el.closest('#edit-form[data-submit="contract"]')){if(el.name==='cardOption'){syncContractFormUI(true,'card-option');return}if(el.name==='cashOption'||el.id==='rental-monthly-preset'){syncContractFormUI(true,el.name||el.id);return}if(['cashPaid','cardInstallmentMonths','rentalUpfrontMethod','rentalCashPaid'].includes(el.name)){syncContractFormUI(false,el.name);return}}if(id==='pay-link-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const f=el.closest('form');if(selC&&f){const nInp=$('input[name="customerName"]',f);const pInp=$('input[name="customerPhone"]',f);const aInp=$('input[name="amount"]',f);if(nInp)nInp.value=selC.name||'';if(pInp)pInp.value=selC.phone||'';if(aInp){const qAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;aInp.value=num(qAmt);}}return}if(el.name==='allowed_menu'){syncDialogMenuCards();return}if(id==='user-role-select'){const form=el.closest('#user-perm-form');if(form&&form.dataset.mode==='create'){const def=getDefaultMenusByRole(el.value);$$('input[name="allowed_menu"][type="checkbox"]',form).forEach(inp=>{inp.checked=inp.dataset.locked==='1'?true:def.includes(inp.value)});syncDialogMenuCards()}return}if(el.dataset.selectAll){
   const scope=el.dataset.selectAll;
   const cs=visibleCustomers();
   let targetIds=[];
@@ -7085,40 +8005,101 @@ case'contract':{
       toast('계약 대상 고객을 찾을 수 없습니다.');
       return;
     }
-    const amt = Math.max(0, parseNum(d.amount ?? c.quote ?? 0));
-    const contractType = (d.type || '일시불(현금)').trim();
-    const contractStatus = (d.status || (contractType === '렌탈' ? '약정대기' : '계약체결')).trim();
-    const contractNote = (d.note || '').trim();
+    const payCategory = String(d.payCategory || 'cash').toLowerCase();
+    const quoteTotal = Math.max(0, parseNum(d.quoteTotal ?? d.amount ?? c.quote ?? 0));
+    const contractNote = String(d.note || '').trim();
     const fromCustomerId = f.dataset.fromCustomer ? Number(f.dataset.fromCustomer) : null;
     const returnTab = f.dataset.returnTab || 'notes';
     const prevCustStatus = c.status;
+    const todayKst = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+
+    let payload = {
+      projectId: c.id,
+      payCategory,
+      quoteTotal,
+      status: String(d.status || '').trim(),
+      note: contractNote
+    };
+
+    if (payCategory === 'cash') {
+      const cashOpt = d.cashOption || 'full';
+      const fullAmt = parseNum(d.cashFullAmount ?? quoteTotal);
+      const depAmt = parseNum(d.cashDepositAmount ?? Math.round(quoteTotal / 2));
+      const balAmt = parseNum(d.cashBalanceAmount ?? Math.max(0, quoteTotal - depAmt));
+      payload = {
+        ...payload,
+        type: '현금',
+        payOption: cashOpt,
+        quoteTotal: cashOpt === 'full' ? fullAmt : (depAmt + balAmt),
+        depositAmount: depAmt,
+        balanceAmount: balAmt,
+        cashPaid: Boolean(d.cashPaid),
+        cashPaidDate: d.cashPaidDate || todayKst,
+        priorDepositPaid: Boolean(d.priorDepositPaid)
+      };
+    } else if (payCategory === 'card') {
+      const cardOpt = d.cardOption || 'full';
+      const fullAmt = parseNum(d.cardFullAmount ?? quoteTotal);
+      const depAmt = parseNum(d.cardDepositAmount ?? Math.round(quoteTotal / 2));
+      const balAmt = parseNum(d.cardBalanceAmount ?? Math.max(0, quoteTotal - depAmt));
+      const instMonths = cardOpt === 'full' ? 0 : Number(d.cardInstallmentMonths || 0);
+      payload = {
+        ...payload,
+        type: '카드',
+        payOption: cardOpt,
+        installmentMonths: instMonths,
+        quoteTotal: (cardOpt === 'full' || cardOpt === 'installment') ? fullAmt : (depAmt + balAmt),
+        depositAmount: depAmt,
+        balanceAmount: balAmt,
+        priorDepositPaid: Boolean(d.cardPriorDepositPaid)
+      };
+    } else {
+      const preset = d.rentalMonthlyPreset || '111000';
+      const rentalMonthly = preset === 'custom'
+        ? Math.max(0, parseNum(d.rentalMonthlyCustom || 111000))
+        : Number(preset || 111000);
+      const rentalUpfront = Math.max(0, parseNum(d.rentalUpfront || 0));
+      const upfrontMethod = d.rentalUpfrontMethod === 'card' ? 'card' : 'cash';
+      const upfrontInst = upfrontMethod === 'card' ? Number(d.rentalUpfrontInstallmentMonths || 0) : 0;
+      payload = {
+        ...payload,
+        type: '렌탈',
+        payOption: 'rental60',
+        rentalMonths: 60,
+        rentalMonthly,
+        rentalUpfront,
+        rentalUpfrontMethod: upfrontMethod,
+        rentalUpfrontInstallmentMonths: upfrontInst,
+        cashPaid: upfrontMethod === 'cash' ? Boolean(d.rentalCashPaid) : false,
+        cashPaidDate: d.rentalCashPaidDate || todayKst
+      };
+    }
 
     try {
       const res = await apiFetch('/api/contracts', {
         method: 'POST',
-        body: {
-          projectId: c.id,
-          type: contractType,
-          amount: amt,
-          depositAmount: contractType === '렌탈' ? 0 : Math.round(amt * 0.3),
-          balanceAmount: contractType === '렌탈' ? amt : (amt - Math.round(amt * 0.3)),
-          status: contractStatus,
-          note: contractNote
-        }
+        body: payload
       });
       const cData = await res.json().catch(() => ({}));
       if (res.ok) {
         await syncFromServer();
         const refreshedC = accessibleC(c.id) || c;
         refreshedC.status = '계약진행';
+        const catKo = payCategory === 'rental' ? '렌탈(60개월)' : payCategory === 'card' ? '카드' : '현금';
         audit(
           c.id,
-          `계약 등록 (${cData.contractId || contractType} · ${won(amt)}) · 고객 상태 자동 변경: ${prevCustStatus} → 계약진행`
+          `${catKo} 계약 등록 (${cData.contractId || ''} · ${won(payload.quoteTotal)}) · 고객 상태 자동 변경: ${prevCustStatus} → 계약진행`
         );
-        if (fromCustomerId) {
+        if (cData.paymentOrder && cData.paymentOrder.orderId) {
+          page = 'contracts';
+          contractTab = 'all';
+          render();
+          openSendPaymentLinkDialog(cData.paymentOrder.orderId);
+          toast(`${c.name} 고객 계약 등록 및 전용 카드결제 링크가 생성되었습니다!`);
+        } else if (fromCustomerId) {
           render();
           openCustomer(c.id, returnTab);
-          toast(`${c.name} 고객이 계약관리에 자동 등록되었으며, 고객 상태값이 [계약진행]으로 변경되었습니다.`);
+          toast(`${c.name} 고객 계약이 계약관리에 자동 반영되었으며 상태가 [계약진행]으로 변경되었습니다.`);
         } else {
           closeDialog();
           page = 'contracts';
@@ -7131,51 +8112,83 @@ case'contract':{
         toast(cData.error || '계약 등록에 실패했습니다.');
         return;
       }
-    } catch {}
-
-    const newIso = new Date().toISOString();
-    const newId = 'C-' + Date.now().toString().slice(-8);
-    db.contracts.unshift({
-      id: newId,
-      cid: c.id,
-      customerName: c.name,
-      product: c.product,
-      type: contractType,
-      amount: amt,
-      paid: 0,
-      status: contractStatus,
-      note: contractNote,
-      date: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }),
-      createdAt: newIso,
-      createdAtText: now()
-    });
-    if (contractType === '렌탈' && !db.applications.some(a => a.cid === c.id)) {
-      db.applications.unshift({
-        id: 'R-' + Date.now().toString().slice(-8),
-        cid: c.id,
-        customerName: c.name,
-        product: c.product,
-        plan: '60개월',
-        monthly: Math.max(1000, Math.round((amt * 0.0222) / 1000) * 1000),
-        status: '접수완료',
-        date: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }),
-        createdAt: newIso,
-        createdAtText: now()
-      });
+    } catch (err) {
+      toast('서버 연결 중 오류가 발생했습니다: ' + (err?.message || ''));
+      return;
     }
-    c.status = '계약진행';
-    audit(c.id, `${contractType} 계약 등록 (${newId} · ${won(amt)}) · 고객 상태 자동 변경: ${prevCustStatus} → 계약진행`);
-    save();
-    if (fromCustomerId) {
-      render();
-      openCustomer(c.id, returnTab);
-      toast(`${c.name} 고객이 계약관리에 자동 등록되었으며, 고객 상태값이 [계약진행]으로 변경되었습니다.`);
-    } else {
+  }
+case'cash-check':{
+    const paid = Boolean(d.paid);
+    const paidDate = d.paidDate || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+    const amount = parseNum(d.amount);
+    try {
+      const res = await apiFetch('/api/contracts/' + encodeURIComponent(id) + '/cash-check', {
+        method: 'POST',
+        body: { scheduleId: d.scheduleId || '', paid, paidDate, amount }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resData.error || '입금 확인 저장에 실패했습니다.');
+      await syncFromServer();
       closeDialog();
-      page = 'contracts';
-      contractTab = 'all';
       render();
-      toast('계약관리에 등록되었으며 고객 상태가 [계약진행]으로 변경되었습니다.');
+      toast(resData.message || '현금 입금 상태가 저장되었습니다.');
+    } catch (err) {
+      toast(err.message || '입금 확인 처리 중 오류가 발생했습니다.');
+    }
+    break;
+  }
+case'create-pay-link':{
+    const amount = parseNum(d.amount);
+    if (amount <= 0) {
+      toast('결제 요청 금액을 입력해 주세요.');
+      return;
+    }
+    try {
+      const res = await apiFetch('/api/payments', {
+        method: 'POST',
+        body: {
+          action: 'create',
+          projectId: Number(d.projectId || 0),
+          customerName: (d.customerName || '').trim(),
+          customerPhone: (d.customerPhone || '').trim(),
+          phaseLabel: d.phaseLabel || '일시납',
+          installmentMonths: Number(d.installmentMonths || 0),
+          amount,
+          memo: (d.memo || '').trim()
+        }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok || !resData.order) throw new Error(resData.error || '결제링크 생성 실패');
+      await syncFromServer();
+      render();
+      openSendPaymentLinkDialog(resData.order.orderId);
+      toast('전용 카드결제 링크가 생성되었습니다.');
+    } catch (err) {
+      toast(err.message || '결제링크 생성 중 오류가 발생했습니다.');
+    }
+    break;
+  }
+case'save-pg-config':{
+    try {
+      const res = await apiFetch('/api/payments', {
+        method: 'POST',
+        body: {
+          action: 'save-pg-config',
+          provider: d.provider || 'tosspayments',
+          merchantName: (d.merchantName || '').trim(),
+          clientKey: (d.clientKey || '').trim(),
+          secretKey: (d.secretKey || '').trim(),
+          webhookSecret: (d.webhookSecret || '').trim()
+        }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resData.error || 'PG 설정 저장 실패');
+      await syncFromServer();
+      closeDialog();
+      render();
+      toast(resData.message || 'PG 연동 설정이 저장되었습니다.');
+    } catch (err) {
+      toast(err.message || 'PG 설정 저장 중 오류가 발생했습니다.');
     }
     break;
   }

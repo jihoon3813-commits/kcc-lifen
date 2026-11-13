@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>안전 카드결제 | KCC 홈씨씨 × (주)라이프앤조이</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <script src="https://js.tosspayments.com/v1/payment"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f1f5f9;
+      color: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 16px 48px;
+    }
+    .pay-shell {
+      width: 100%;
+      max-width: 480px;
+    }
+    .brand-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding: 0 4px;
+    }
+    .brand-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+    .brand-title span { color: #2563eb; }
+    .secure-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #059669;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+    .pay-card {
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+    .pay-head {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      color: #ffffff;
+      padding: 26px 24px;
+    }
+    .pay-head-sub {
+      font-size: 12px;
+      font-weight: 600;
+      color: #93c5fd;
+      margin-bottom: 6px;
+    }
+    .pay-head-title {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 16px;
+      line-height: 1.35;
+    }
+    .pay-amount-box {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 14px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .pay-amount-label {
+      font-size: 13px;
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+    .pay-amount-value {
+      font-size: 26px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+    }
+    .pay-body {
+      padding: 24px;
+    }
+    .info-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-bottom: 18px;
+      border-bottom: 1px dashed #e2e8f0;
+      margin-bottom: 18px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 14px;
+    }
+    .info-row dt {
+      color: #64748b;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .info-row dd {
+      color: #0f172a;
+      font-weight: 700;
+      text-align: right;
+      word-break: keep-all;
+    }
+    .field-group {
+      margin-bottom: 16px;
+    }
+    .field-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+    .field-select {
+      width: 100%;
+      height: 46px;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      padding: 0 12px;
+      font-size: 14.5px;
+      font-weight: 600;
+      color: #0f172a;
+      background: #fff;
+    }
+    .notice-banner {
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+    .notice-banner.test {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+    }
+    .notice-banner.error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #b91c1c;
+    }
+    .notice-banner.done {
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+    }
+    .pay-btn {
+      width: 100%;
+      height: 54px;
+      border: none;
+      border-radius: 12px;
+      background: #2563eb;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .pay-btn:hover { background: #1d4ed8; }
+    .pay-btn:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+    .pay-btn.secondary {
+      margin-top: 10px;
+      height: 44px;
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .done-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #10b981;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 800;
+      margin: 0 auto 14px;
+    }
+    .foot-note {
+      margin-top: 18px;
+      text-align: center;
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="pay-shell">
+    <div class="brand-bar">
+      <div class="brand-title"><span>KCC 홈씨씨</span> × (주)라이프앤조이</div>
+      <div class="secure-pill">SSL 보안결제</div>
+    </div>
+
+    <div class="pay-card" id="payCard">
+      <div class="pay-body" style="padding: 48px 24px; text-align: center; color: #64748b;">
+        결제 요청 정보를 불러오는 중입니다...
+      </div>
+    </div>
+
+    <div class="foot-note">
+      가맹점: (주)라이프앤조이 · KCC 홈씨씨 창호 공식 파트너<br />
+      결제 완료 즉시 계약관리 수납 내역에 자동 반영됩니다.
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const cardEl = document.getElementById('payCard');
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token') || '';
+      const paymentKey = params.get('paymentKey') || '';
+      const redirectOrderId = params.get('orderId') || '';
+      const redirectAmount = params.get('amount') || '';
+      const failCode = params.get('code') || '';
+      const failMessage = params.get('message') || '';
+
+      function esc(v) {
+        return String(v ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function won(n) {
+        return Number(n || 0).toLocaleString('ko-KR') + '원';
+      }
+
+      function renderError(msg) {
+        cardEl.innerHTML = `
+          <div class="pay-body" style="padding:40px 24px;text-align:center;">
+            <div style="font-size:36px;margin-bottom:12px;">!</div>
+            <h2 style="font-size:18px;font-weight:800;margin-bottom:8px;">결제 링크 확인 필요</h2>
+            <p style="font-size:14px;color:#64748b;line-height:1.6;">${esc(msg)}</p>
+          </div>
+        `;
+      }
+
+      function renderCompleted(order) {
+        const quotaText = Number(order.installmentMonths || 0) >= 2
+          ? `${order.installmentMonths}개월 할부`
+          : '일시불';
+        cardEl.innerHTML = `
+          <div class="pay-head" style="background:linear-gradient(135deg,#065f46 0%,#047857 100%);text-align:center;">
+            <div class="done-icon">✓</div>
+            <div class="pay-head-sub" style="color:#a7f3d0;">PAYMENT COMPLETED</div>
+            <div class="pay-head-title" style="margin-bottom:14px;">카드결제가 정상 완료되었습니다</div>
+            <div class="pay-amount-box">
+              <span class="pay-amount-label">승인 완료 금액</span>
+              <span class="pay-amount-value">${won(order.amount)}</span>
+            </div>
+          </div>
+          <div class="pay-body">
+            <div class="notice-banner done">
+              고객님의 결제 내역이 계약 시스템에 <strong>자동 입금완료</strong> 처리되었습니다.
+            </div>
+            <dl class="info-list" style="border-bottom:none;margin-bottom:8px;">
+              <div class="info-row"><dt>고객명</dt><dd>${esc(order.customerName)} 고객님</dd></div>
+              <div class="info-row"><dt>결제 구분</dt><dd>${esc(order.phaseLabel)} (${esc(quotaText)})</dd></div>
+              <div class="info-row"><dt>결제 수단</dt><dd>${esc(order.cardCompany || '신용/체크카드')}</dd></div>
+              <div class="info-row"><dt>승인 번호</dt><dd>${esc(order.pgApprovalNo || '-')}</dd></div>
+              <div class="info-row"><dt>승인 일시</dt><dd>${esc(order.approvedAtText || '방금 전')}</dd></div>
+              <div class="info-row"><dt>주문/계약번호</dt><dd>${esc(order.contractNo || order.orderId)}</dd></div>
+            </dl>
+            ${order.receiptUrl ? `<a href="${esc(order.receiptUrl)}" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;line-height:44px;" class="pay-btn secondary">매출전표(영수증) 확인</a>` : ''}
+          </div>
+        `;
+      }
+
+      async function confirmRedirectPayment() {
+        cardEl.innerHTML = `
+          <div class="pay-body" style="padding:48px 24px;text-align:center;">
+            <h3 style="font-size:17px;font-weight:800;margin-bottom:8px;">카드사 결제 승인 처리 중입니다...</h3>
+            <p style="font-size:13.5px;color:#64748b;">창을 닫지 말고 잠시만 기다려 주세요.</p>
+          </div>
+        `;
+        const res = await fetch('/api/payments/public', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            paymentKey,
+            orderId: redirectOrderId,
+            amount: Number(redirectAmount),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          renderError(data.error || '결제 승인 확인 중 오류가 발생했습니다.');
+          return;
+        }
+        window.history.replaceState({}, '', `/pay.html?token=${encodeURIComponent(token)}`);
+        renderCompleted(data.order);
+      }
+
+      async function init() {
+        if (!token) {
+          renderError('결제 토큰 정보가 없습니다. 전달받으신 결제 링크 주소를 다시 확인해 주세요.');
+          return;
+        }
+
+        if (paymentKey && redirectOrderId && redirectAmount) {
+          await confirmRedirectPayment();
+          return;
+        }
+
+        const res = await fetch('/api/payments/public?token=' + encodeURIComponent(token));
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.order) {
+          renderError(data.error || '유효하지 않은 결제 링크입니다.');
+          return;
+        }
+
+        const { order, pg } = data;
+        if (order.status === 'paid') {
+          renderCompleted(order);
+          return;
+        }
+        if (order.status === 'cancelled') {
+          renderError('취소된 결제 요청 링크입니다. 담당자에게 새 결제 링크를 요청해 주세요.');
+          return;
+        }
+
+        const quotaOptions = [
+          { value: 0, label: '일시불' },
+          { value: 2, label: '2개월 할부' },
+          { value: 3, label: '3개월 할부' },
+          { value: 4, label: '4개월 할부' },
+          { value: 5, label: '5개월 할부' },
+          { value: 6, label: '6개월 할부' },
+          { value: 10, label: '10개월 할부' },
+          { value: 12, label: '12개월 할부' },
+          { value: 18, label: '18개월 할부' },
+          { value: 24, label: '24개월 할부' },
+        ];
+
+        cardEl.innerHTML = `
+          <div class="pay-head">
+            <div class="pay-head-sub">${esc(pg.merchantName)}</div>
+            <div class="pay-head-title">${esc(order.customerName)} 고객님<br/>${esc(order.product)} ${esc(order.phaseLabel)} 결제 안내</div>
+            <div class="pay-amount-box">
+              <span class="pay-amount-label">결제 요청 금액</span>
+              <span class="pay-amount-value">${won(order.amount)}</span>
+            </div>
+          </div>
+          <div class="pay-body">
+            ${failCode ? `<div class="notice-banner error"><strong>결제가 중단되었습니다:</strong> ${esc(failMessage || failCode)}</div>` : ''}
+            ${!pg.liveReady ? `
+              <div class="notice-banner test">
+                <strong>테스트 결제 모드 안내</strong><br/>
+                현재 실결제 PG 가맹점 키 연동 전 상태입니다. 아래 승인 버튼 클릭 시 실제 카드 과금 없이 <strong>결제완료 및 계약관리 자동 입금반영</strong> 흐름을 즉시 검증할 수 있습니다.
+              </div>
+            ` : ''}
+            <dl class="info-list">
+              <div class="info-row"><dt>고객명</dt><dd>${esc(order.customerName)} (${esc(order.customerPhone || '-')})</dd></div>
+              <div class="info-row"><dt>시공 품목</dt><dd>${esc(order.product)}</dd></div>
+              <div class="info-row"><dt>결제 구분</dt><dd>${esc(order.phaseLabel)}</dd></div>
+              ${order.contractNo ? `<div class="info-row"><dt>계약번호</dt><dd>${esc(order.contractNo)}</dd></div>` : ''}
+              ${order.memo ? `<div class="info-row"><dt>안내 메모</dt><dd>${esc(order.memo)}</dd></div>` : ''}
+            </dl>
+
+            <div class="field-group">
+              <label class="field-label" for="installmentSelect">할부 개월 선택</label>
+              <select class="field-select" id="installmentSelect">
+                ${quotaOptions.map(opt => `<option value="${opt.value}" ${Number(order.installmentMonths || 0) === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+              </select>
+            </div>
+
+            ${!pg.liveReady ? `
+              <div class="field-group">
+                <label class="field-label" for="testCardSelect">카드사 선택 (테스트 검증용)</label>
+                <select class="field-select" id="testCardSelect">
+                  <option value="신한카드">신한카드</option>
+                  <option value="삼성카드">삼성카드</option>
+                  <option value="현대카드">현대카드</option>
+                  <option value="KB국민카드">KB국민카드</option>
+                  <option value="롯데카드">롯데카드</option>
+                  <option value="하나카드">하나카드</option>
+                  <option value="우리카드">우리카드</option>
+                  <option value="NH농협카드">NH농협카드</option>
+                </select>
+              </div>
+            ` : ''}
+
+            <button type="button" class="pay-btn" id="submitPayBtn">
+              ${won(order.amount)} 안전 카드결제 하기
+            </button>
+          </div>
+        `;
+
+        const submitBtn = document.getElementById('submitPayBtn');
+        submitBtn.addEventListener('click', async () => {
+          const selectedMonths = Number(document.getElementById('installmentSelect')?.value || 0);
+          submitBtn.disabled = true;
+          submitBtn.textContent = '결제창 연결 중...';
+
+          try {
+            if (pg.liveReady && pg.clientKey && window.TossPayments) {
+              const tossPayments = window.TossPayments(pg.clientKey);
+              const baseUrl = window.location.origin + '/pay.html?token=' + encodeURIComponent(token);
+              await tossPayments.requestPayment('카드', {
+                amount: Number(order.amount),
+                orderId: order.orderId,
+                orderName: `${order.product} (${order.phaseLabel})`,
+                customerName: order.customerName,
+                cardInstallmentPlan: selectedMonths,
+                successUrl: baseUrl,
+                failUrl: baseUrl,
+              });
+              return;
+            }
+
+            // 테스트 시뮬레이션 결제 승인
+            const cardCompany = document.getElementById('testCardSelect')?.value || '테스트카드';
+            const confirmRes = await fetch('/api/payments/public', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                token,
+                mode: 'test_confirm',
+                orderId: order.orderId,
+                amount: Number(order.amount),
+                cardCompany,
+                installmentMonths: selectedMonths,
+              }),
+            });
+            const confirmData = await confirmRes.json().catch(() => ({}));
+            if (!confirmRes.ok) {
+              alert(confirmData.error || '결제 처리에 실패했습니다.');
+              submitBtn.disabled = false;
+              submitBtn.textContent = `${won(order.amount)} 안전 카드결제 하기`;
+              return;
+            }
+            renderCompleted(confirmData.order);
+          } catch (err) {
+            if (err && err.code !== 'USER_CANCEL') {
+              alert(err.message || '결제 진행 중 오류가 발생했습니다.');
+            }
+            submitBtn.disabled = false;
+            submitBtn.textContent = `${won(order.amount)} 안전 카드결제 하기`;
+          }
+        });
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>
