@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as auth from "../auth.js";
 import type * as crm from "../crm.js";
 import type * as http from "../http.js";
 import type * as landing from "../landing.js";
@@ -23,6 +24,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
   crm: typeof crm;
   http: typeof http;
   landing: typeof landing;
