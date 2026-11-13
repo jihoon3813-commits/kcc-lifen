@@ -5,7 +5,7 @@ import {
   parseBody,
   authenticateRequest,
 } from "./_lib/authHelper.js";
-import { isPartnerAllowed, formatKstDateSlice } from "./_lib/crmHelper.js";
+import { isPartnerAllowed, formatKstDateSlice, parseQuoteInquiry } from "./_lib/crmHelper.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -20,10 +20,16 @@ export default async function handler(req, res) {
     try {
       const { q, stage, product, partner, period, sort } = req.query || {};
       const data = await convexClient.query(api.crm.listCustomersData, {});
-      const { projects, quotes, landingLinks, quoteViews, quoteDispatches, organizations } = data;
+      const { projects, quotes, landingLinks, quoteViews, quoteDispatches, organizations, quoteInquiries = [] } = data;
 
       const linkById = new Map(landingLinks.map((l) => [Number(l.linkId), l]));
       const linkByCode = new Map(landingLinks.map((l) => [l.code, l]));
+
+      const inquiriesByProj = new Map();
+      for (const inq of quoteInquiries) {
+        if (!inquiriesByProj.has(inq.projectId)) inquiriesByProj.set(inq.projectId, []);
+        inquiriesByProj.get(inq.projectId).push(parseQuoteInquiry(inq));
+      }
 
       const viewsByProj = new Map();
       for (const v of quoteViews) {
@@ -47,6 +53,9 @@ export default async function handler(req, res) {
           token: qt.accessToken || "",
           url: qt.accessToken ? `/quote.html?token=${qt.accessToken}` : "",
           date: formatKstDateSlice(qt.publishedAt || qt.createdAt),
+          createdAt: qt.createdAt || "",
+          updatedAt: qt.updatedAt || "",
+          publishedAt: qt.publishedAt || "",
           viewed: (viewsByProj.get(qt.projectId) || 0) > 0,
         });
       }
@@ -134,6 +143,7 @@ export default async function handler(req, res) {
           quoteType: latestQ ? latestQ.quoteType : "가견적",
           dispatchCount: dispatchesByProj.get(p.projectId) || 0,
           viewed: (viewsByProj.get(p.projectId) || 0) > 0,
+          quoteInquiries: inquiriesByProj.get(p.projectId) || [],
         };
       });
 

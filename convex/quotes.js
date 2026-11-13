@@ -241,6 +241,14 @@ export const recordPublicConsultRequest = mutation({
       createdAt: now,
     });
 
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .first();
+    if (project) {
+      await ctx.db.patch(project._id, { updatedAt: now });
+    }
+
     return { ok: true, createdAt: now };
   },
 });

@@ -4048,3 +4048,125 @@ button.quote-customer-name:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* 견적관리·계약관리 테이블 행 24시간 이내 수정(빨간 세로띠) · 신규(파란 세로띠) 강조 */
+table tr.is-updated-24h > td {
+  background: rgba(239, 68, 68, 0.045);
+}
+table tr.is-updated-24h > td:first-child {
+  box-shadow: inset 4px 0 0 #ef4444;
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.09) 0%, rgba(239, 68, 68, 0.045) 100%);
+}
+table tr.is-new-24h > td {
+  background: rgba(37, 99, 235, 0.045);
+}
+table tr.is-new-24h > td:first-child {
+  box-shadow: inset 4px 0 0 #2563eb;
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.09) 0%, rgba(37, 99, 235, 0.045) 100%);
+}
+
+/* 견적관리 고객명 문의 토글 및 문의 상세 패널 */
+.quote-cust-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.quote-inquiry-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.quote-inquiry-toggle:hover {
+  background: #fef3c7;
+  border-color: #d97706;
+}
+.quote-inquiry-toggle.open {
+  background: #d97706;
+  border-color: #b45309;
+  color: #ffffff;
+}
+.quote-inquiry-inline-preview {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #475569;
+  max-width: 340px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+tr.quote-inquiry-detail-row > td {
+  background: #f8fafc !important;
+  padding: 12px 16px !important;
+  border-top: 0;
+}
+.quote-inquiry-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.quote-inquiry-box-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--navy);
+}
+.quote-inquiry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.quote-inquiry-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+}
+.quote-inquiry-item-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #64748b;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.quote-inquiry-time {
+  font-weight: 700;
+  color: #334155;
+}
+.quote-inquiry-pref b {
+  color: #0f172a;
+}
+.quote-inquiry-topics {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.quote-inquiry-memo {
+  color: #1e293b;
+  line-height: 1.5;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  padding: 6px 9px;
+  white-space: pre-wrap;
+}

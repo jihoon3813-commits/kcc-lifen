@@ -8,14 +8,19 @@ import { v } from "convex/values";
 export const listCustomersData = query({
   args: {},
   handler: async (ctx) => {
-    const [projects, quotes, landingLinks, quoteViews, quoteDispatches, organizations] = await Promise.all([
+    const [projects, quotes, landingLinks, quoteViews, quoteDispatches, organizations, consultations] = await Promise.all([
       ctx.db.query("projects").collect(),
       ctx.db.query("quotes").collect(),
       ctx.db.query("landingLinks").collect(),
       ctx.db.query("quoteViews").collect(),
       ctx.db.query("quoteDispatches").collect(),
       ctx.db.query("organizations").collect(),
+      ctx.db.query("consultations").collect(),
     ]);
+
+    const quoteInquiries = consultations
+      .filter((c) => typeof c.content === "string" && c.content.startsWith("[모바일 견적서 상담 요청]"))
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 
     return {
       projects: projects.sort((a, b) => b.projectId - a.projectId),
@@ -24,6 +29,7 @@ export const listCustomersData = query({
       quoteViews,
       quoteDispatches: quoteDispatches.filter((d) => d.status === "sent"),
       organizations,
+      quoteInquiries,
     };
   },
 });

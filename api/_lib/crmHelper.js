@@ -34,3 +34,38 @@ export function formatShortKst(isoStr) {
   const mi = String(kst.getUTCMinutes()).padStart(2, "0");
   return `${mm}.${dd} ${hh}:${mi}`;
 }
+
+export function parseQuoteInquiry(doc) {
+  const raw = String(doc?.content || "");
+  const parts = raw.split(" · ").map((s) => s.trim()).filter(Boolean);
+  let planSummary = "";
+  let topics = [];
+  let preferredTime = "상관없음";
+  let memo = "";
+
+  for (const part of parts) {
+    if (part.startsWith("선택 조건:")) {
+      planSummary = part.slice("선택 조건:".length).trim();
+    } else if (part.startsWith("문의 항목:")) {
+      const tStr = part.slice("문의 항목:".length).trim();
+      topics = tStr ? tStr.split(",").map((t) => t.trim()).filter(Boolean) : [];
+    } else if (part.startsWith("희망 연락시간:")) {
+      preferredTime = part.slice("희망 연락시간:".length).trim() || "상관없음";
+    } else if (part.startsWith("고객 메모:")) {
+      memo = part.slice("고객 메모:".length).trim();
+    }
+  }
+
+  return {
+    id: doc?._id ? String(doc._id) : `${doc?.projectId || 0}-${doc?.createdAt || ""}`,
+    projectId: Number(doc?.projectId || 0),
+    authorName: doc?.authorName || "",
+    planSummary,
+    topics,
+    preferredTime,
+    memo,
+    createdAt: doc?.createdAt || "",
+    createdAtText: formatShortKst(doc?.createdAt || ""),
+    rawContent: raw,
+  };
+}

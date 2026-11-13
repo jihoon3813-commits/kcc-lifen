@@ -1,6 +1,7 @@
 import express from 'express';
 import { convexClient, api } from '../convex.js';
 import { requireAuth, checkPartnerAccess } from '../middleware/auth.js';
+import { parseQuoteInquiry } from '../../api/_lib/crmHelper.js';
 
 const router = express.Router();
 
@@ -45,10 +46,16 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
   try {
     const { q, stage, product, partner, period, sort } = req.query;
     const data = await convexClient.query(api.crm.listCustomersData, {});
-    const { projects, quotes, landingLinks, quoteViews, quoteDispatches, organizations } = data;
+    const { projects, quotes, landingLinks, quoteViews, quoteDispatches, organizations, quoteInquiries = [] } = data;
 
     const linkById = new Map(landingLinks.map((l) => [Number(l.linkId), l]));
     const linkByCode = new Map(landingLinks.map((l) => [l.code, l]));
+
+    const inquiriesByProj = new Map();
+    for (const inq of quoteInquiries) {
+      if (!inquiriesByProj.has(inq.projectId)) inquiriesByProj.set(inq.projectId, []);
+      inquiriesByProj.get(inq.projectId).push(parseQuoteInquiry(inq));
+    }
 
     const quotesByProj = new Map();
     const viewsByProj = new Map();
@@ -72,6 +79,9 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
         token: qt.accessToken || '',
         url: qt.accessToken ? `/quote.html?token=${qt.accessToken}` : '',
         date: formatKstDateSlice(qt.publishedAt || qt.createdAt),
+        createdAt: qt.createdAt || '',
+        updatedAt: qt.updatedAt || '',
+        publishedAt: qt.publishedAt || '',
         viewed: (viewsByProj.get(qt.projectId) || 0) > 0,
       });
     }
@@ -157,6 +167,7 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
         quoteType: latestQ ? latestQ.quoteType : '가견적',
         dispatchCount: dispatchesByProj.get(p.projectId) || 0,
         viewed: (viewsByProj.get(p.projectId) || 0) > 0,
+        quoteInquiries: inquiriesByProj.get(p.projectId) || [],
       };
     });
 

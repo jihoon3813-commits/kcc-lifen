@@ -92,6 +92,7 @@ router.get('/', requireAuth, checkPartnerAccess, (req, res) => {
       note: r.note || '',
       date: String(r.created_at || '').slice(0, 10),
       createdAt: toKstIso(r.created_at),
+      updatedAt: toKstIso(r.updated_at || r.created_at),
       createdAtText: String(r.created_at || '').slice(0, 16),
       quoteId: r.quote_id,
       quoteVersion: r.quote_version,
