@@ -18,9 +18,12 @@ export const listCustomersData = query({
       ctx.db.query("consultations").collect(),
     ]);
 
-    const quoteInquiries = consultations
-      .filter((c) => typeof c.content === "string" && c.content.startsWith("[모바일 견적서 상담 요청]"))
+    const sortedConsultations = consultations
+      .slice()
       .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+
+    const quoteInquiries = sortedConsultations
+      .filter((c) => typeof c.content === "string" && c.content.startsWith("[모바일 견적서 상담 요청]"));
 
     return {
       projects: projects.sort((a, b) => b.projectId - a.projectId),
@@ -30,6 +33,7 @@ export const listCustomersData = query({
       quoteDispatches: quoteDispatches.filter((d) => d.status === "sent"),
       organizations,
       quoteInquiries,
+      consultations: sortedConsultations,
     };
   },
 });

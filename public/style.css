@@ -3303,37 +3303,106 @@
   pointer-events: none;
 }
 
+.fp-rendered-fields-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: none;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  .fp-pages-container, .fp-a4-page, .fp-a4-page * {
-    visibility: visible;
-  }
-  .dialog.form-preview-dialog, .dialog-body, .fp-viewport {
-    position: static !important;
-    overflow: visible !important;
-    padding: 0 !important;
+  html, body {
+    width: 210mm !important;
+    height: auto !important;
     margin: 0 !important;
-    background: transparent !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  .fp-pages-container {
-    gap: 0 !important;
+  body.fp-print-mode #app,
+  body:has(.form-preview-dialog) #app,
+  body.fp-print-mode #toast,
+  body:has(.form-preview-dialog) #toast,
+  body.fp-print-mode .dialog-head,
+  body.fp-print-mode .dialog-footer,
+  body.fp-print-mode .fp-header-bar,
+  body.fp-print-mode .fp-page-number-tag,
+  .form-preview-dialog .dialog-head,
+  .form-preview-dialog .dialog-footer,
+  .form-preview-dialog .fp-header-bar,
+  .form-preview-dialog .fp-page-number-tag {
+    display: none !important;
+  }
+  body.fp-print-mode #overlay,
+  body:has(.form-preview-dialog) #overlay,
+  body.fp-print-mode .overlay,
+  body:has(.form-preview-dialog) .overlay,
+  .dialog.form-preview-dialog,
+  .dialog.form-preview-dialog .dialog-body,
+  .dialog.form-preview-dialog .fp-viewport,
+  .dialog.form-preview-dialog .fp-pages-container {
+    position: static !important;
+    inset: auto !important;
     display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    transform: none !important;
+    backdrop-filter: none !important;
+    animation: none !important;
+    visibility: visible !important;
   }
   .fp-a4-page {
     position: relative !important;
+    display: block !important;
+    width: 210mm !important;
+    height: 296.5mm !important;
+    min-height: 296.5mm !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     page-break-after: always !important;
     break-after: page !important;
-    width: 100% !important;
-    height: 100% !important;
     box-shadow: none !important;
     transform: none !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     padding: 0 !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  .fp-page-number-tag, .fp-header-bar {
-    display: none !important;
+  .fp-a4-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+  .fp-a4-page .fe-pdf-canvas,
+  .fp-a4-page .fe-default-template,
+  .fp-a4-page .fp-rendered-fields-layer {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .fp-rendered-signature img {
+    mix-blend-mode: normal !important;
   }
 }
 

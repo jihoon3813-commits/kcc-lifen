@@ -5,7 +5,7 @@ import {
   parseBody,
   authenticateRequest,
 } from "../_lib/authHelper.js";
-import { isPartnerAllowed, formatKstDateSlice, formatShortKst, resolveProjectAttribution } from "../_lib/crmHelper.js";
+import { isPartnerAllowed, formatKstDateSlice, formatShortKst, resolveProjectAttribution, summarizeProjectNotes } from "../_lib/crmHelper.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -37,14 +37,8 @@ export default async function handler(req, res) {
       const linkByCode = new Map(landingLinks.map((l) => [l.code, l]));
       const attr = resolveProjectAttribution(project, linkById, linkByCode);
 
-      const mappedNotes = notes.map((n, idx) => ({
-        id: idx + 1,
-        by: n.authorName,
-        type: n.type,
-        text: n.content,
-        important: n.isImportant ? 1 : 0,
-        date: formatShortKst(n.createdAt),
-      }));
+      const noteSummary = summarizeProjectNotes(project, notes || []);
+      const mappedNotes = noteSummary.notes || [];
 
       const mappedQuotes = quotes.map((q) => ({
         ...q,
@@ -99,7 +93,10 @@ export default async function handler(req, res) {
           partner: project.partnerName,
           owner: project.ownerName,
           date: formatKstDateSlice(project.createdAt),
-          note: project.note || "",
+          note: noteSummary.note,
+          noteMeta: noteSummary.noteMeta,
+          feedback: noteSummary.feedback,
+          feedbackMeta: noteSummary.feedbackMeta,
           description: project.description || "",
           measure: project.measureDate || "",
           build: project.buildDate || "",
@@ -111,7 +108,7 @@ export default async function handler(req, res) {
           quoteType: mappedQuotes[0]?.quoteType || "가견적",
           viewed: quoteViews.length > 0,
         },
-        notes: mappedNotes.filter((n) => n.type === "notes"),
+        notes: mappedNotes.filter((n) => n.type !== "feedback"),
         feedback: mappedNotes.filter((n) => n.type === "feedback"),
         quotes: mappedQuotes,
         contracts,

@@ -70,6 +70,56 @@ export function parseQuoteInquiry(doc) {
   };
 }
 
+/** Map a raw Convex consultation document to the CRM client note shape. */
+export function mapConsultationNote(doc, idx = 0) {
+  const type = doc?.type === "feedback" ? "feedback" : "notes";
+  const createdAt = doc?.createdAt || "";
+  return {
+    id: idx + 1,
+    by: doc?.authorName || "관리자",
+    type,
+    text: doc?.content || "",
+    important: doc?.isImportant ? 1 : 0,
+    date: formatShortKst(createdAt),
+    createdAt,
+  };
+}
+
+/**
+ * Group newest-first mapped consultations for a project into summary fields and log array.
+ */
+export function summarizeProjectNotes(project, rawConsults) {
+  if (!Array.isArray(rawConsults)) {
+    return {
+      note: project?.note || "",
+      noteMeta: null,
+      feedback: "",
+      feedbackMeta: null,
+      notes: undefined,
+    };
+  }
+
+  const mapped = rawConsults
+    .slice()
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .map((n, idx) => mapConsultationNote(n, idx));
+
+  const latestConsult = mapped.find((n) => n.type !== "feedback" && String(n.text || "").trim());
+  const latestFeedback = mapped.find((n) => n.type === "feedback" && String(n.text || "").trim());
+  const fallbackBy = project?.ownerName && project.ownerName !== "미배정" ? project.ownerName : "시스템";
+  const fallbackDate = formatShortKst(project?.createdAt || "");
+
+  return {
+    note: latestConsult ? latestConsult.text : (project?.note || ""),
+    noteMeta: latestConsult
+      ? { date: latestConsult.date, by: latestConsult.by }
+      : (project?.note ? { date: fallbackDate, by: fallbackBy } : null),
+    feedback: latestFeedback ? latestFeedback.text : "",
+    feedbackMeta: latestFeedback ? { date: latestFeedback.date, by: latestFeedback.by } : null,
+    notes: mapped,
+  };
+}
+
 export const RENTAL_STATUS_LABELS = {
   received: "접수 완료",
   review: "서류 확인 중",

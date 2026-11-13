@@ -5,7 +5,7 @@ import {
   parseBody,
   authenticateRequest,
 } from "./_lib/authHelper.js";
-import { isPartnerAllowed, formatKstDateSlice, parseQuoteInquiry, resolveProjectAttribution } from "./_lib/crmHelper.js";
+import { isPartnerAllowed, formatKstDateSlice, parseQuoteInquiry, resolveProjectAttribution, summarizeProjectNotes } from "./_lib/crmHelper.js";
 import { notifyNewCustomer } from "./_lib/discordHelper.js";
 
 export default async function handler(req, res) {
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     try {
       const { q, stage, product, partner, period, sort } = req.query || {};
       const data = await convexClient.query(api.crm.listCustomersData, {});
-      const { projects, quotes, landingLinks, quoteViews, quoteDispatches, organizations, quoteInquiries = [] } = data;
+      const { projects, quotes, landingLinks, quoteViews, quoteDispatches, organizations, quoteInquiries = [], consultations } = data;
 
       const linkById = new Map(landingLinks.map((l) => [Number(l.linkId), l]));
       const linkByCode = new Map(landingLinks.map((l) => [l.code, l]));
@@ -30,6 +30,16 @@ export default async function handler(req, res) {
       for (const inq of quoteInquiries) {
         if (!inquiriesByProj.has(inq.projectId)) inquiriesByProj.set(inq.projectId, []);
         inquiriesByProj.get(inq.projectId).push(parseQuoteInquiry(inq));
+      }
+
+      const hasConsultationsList = Array.isArray(consultations);
+      const consultsByProj = new Map();
+      if (hasConsultationsList) {
+        for (const cn of consultations) {
+          const pid = Number(cn.projectId);
+          if (!consultsByProj.has(pid)) consultsByProj.set(pid, []);
+          consultsByProj.get(pid).push(cn);
+        }
       }
 
       const viewsByProj = new Map();
@@ -103,6 +113,10 @@ export default async function handler(req, res) {
         const roughQ = pQuotes.find((qt) => qt.quoteType === "가견적") || null;
         const finalQ = pQuotes.find((qt) => qt.quoteType === "최종견적") || null;
         const attr = resolveProjectAttribution(p, linkById, linkByCode);
+        const noteSummary = summarizeProjectNotes(
+          p,
+          hasConsultationsList ? (consultsByProj.get(Number(p.projectId)) || []) : undefined
+        );
 
         return {
           id: p.projectId,
@@ -123,7 +137,11 @@ export default async function handler(req, res) {
           date: formatKstDateSlice(p.createdAt),
           createdAt: p.createdAt || "",
           updatedAt: p.updatedAt || "",
-          note: p.note || "",
+          note: noteSummary.note,
+          noteMeta: noteSummary.noteMeta,
+          feedback: noteSummary.feedback,
+          feedbackMeta: noteSummary.feedbackMeta,
+          ...(Array.isArray(noteSummary.notes) ? { notes: noteSummary.notes } : {}),
           measure: p.measureDate || "",
           build: p.buildDate || "",
           roughQuoteUrl: p.roughQuoteUrl || (roughQ ? roughQ.url : ""),

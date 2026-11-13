@@ -1,7 +1,7 @@
 import express from 'express';
 import { convexClient, api } from '../convex.js';
 import { requireAuth, checkPartnerAccess } from '../middleware/auth.js';
-import { parseQuoteInquiry, resolveProjectAttribution } from '../../api/_lib/crmHelper.js';
+import { parseQuoteInquiry, resolveProjectAttribution, summarizeProjectNotes } from '../../api/_lib/crmHelper.js';
 import { notifyNewCustomer } from '../../api/_lib/discordHelper.js';
 
 const router = express.Router();
@@ -47,7 +47,7 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
   try {
     const { q, stage, product, partner, period, sort } = req.query;
     const data = await convexClient.query(api.crm.listCustomersData, {});
-    const { projects, quotes, landingLinks, quoteViews, quoteDispatches, organizations, quoteInquiries = [] } = data;
+    const { projects, quotes, landingLinks, quoteViews, quoteDispatches, organizations, quoteInquiries = [], consultations } = data;
 
     const linkById = new Map(landingLinks.map((l) => [Number(l.linkId), l]));
     const linkByCode = new Map(landingLinks.map((l) => [l.code, l]));
@@ -56,6 +56,16 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
     for (const inq of quoteInquiries) {
       if (!inquiriesByProj.has(inq.projectId)) inquiriesByProj.set(inq.projectId, []);
       inquiriesByProj.get(inq.projectId).push(parseQuoteInquiry(inq));
+    }
+
+    const hasConsultationsList = Array.isArray(consultations);
+    const consultsByProj = new Map();
+    if (hasConsultationsList) {
+      for (const cn of consultations) {
+        const pid = Number(cn.projectId);
+        if (!consultsByProj.has(pid)) consultsByProj.set(pid, []);
+        consultsByProj.get(pid).push(cn);
+      }
     }
 
     const quotesByProj = new Map();
@@ -130,6 +140,10 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
       const roughQ = pQuotes.find((qt) => qt.quoteType === '가견적') || null;
       const finalQ = pQuotes.find((qt) => qt.quoteType === '최종견적') || null;
       const attr = resolveProjectAttribution(p, linkById, linkByCode);
+      const noteSummary = summarizeProjectNotes(
+        p,
+        hasConsultationsList ? (consultsByProj.get(Number(p.projectId)) || []) : undefined
+      );
 
       return {
         id: p.projectId,
@@ -150,7 +164,11 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
         date: formatKstDateSlice(p.createdAt),
         createdAt: p.createdAt || '',
         updatedAt: p.updatedAt || '',
-        note: p.note || '',
+        note: noteSummary.note,
+        noteMeta: noteSummary.noteMeta,
+        feedback: noteSummary.feedback,
+        feedbackMeta: noteSummary.feedbackMeta,
+        ...(Array.isArray(noteSummary.notes) ? { notes: noteSummary.notes } : {}),
         measure: p.measureDate || '',
         build: p.buildDate || '',
         roughQuoteUrl: p.roughQuoteUrl || (roughQ ? roughQ.url : ''),
@@ -203,14 +221,8 @@ router.get('/:id', requireAuth, checkPartnerAccess, async (req, res) => {
     const linkByCode = new Map(landingLinks.map((l) => [l.code, l]));
     const attr = resolveProjectAttribution(project, linkById, linkByCode);
 
-    const mappedNotes = notes.map((n, idx) => ({
-      id: idx + 1,
-      by: n.authorName,
-      type: n.type,
-      text: n.content,
-      important: n.isImportant ? 1 : 0,
-      date: formatShortKst(n.createdAt),
-    }));
+    const noteSummary = summarizeProjectNotes(project, notes || []);
+    const mappedNotes = noteSummary.notes || [];
 
     const mappedQuotes = quotes.map((q) => ({
       ...q,
@@ -265,7 +277,10 @@ router.get('/:id', requireAuth, checkPartnerAccess, async (req, res) => {
         partner: project.partnerName,
         owner: project.ownerName,
         date: formatKstDateSlice(project.createdAt),
-        note: project.note || '',
+        note: noteSummary.note,
+        noteMeta: noteSummary.noteMeta,
+        feedback: noteSummary.feedback,
+        feedbackMeta: noteSummary.feedbackMeta,
         description: project.description || '',
         measure: project.measureDate || '',
         build: project.buildDate || '',
@@ -277,7 +292,7 @@ router.get('/:id', requireAuth, checkPartnerAccess, async (req, res) => {
         quoteType: mappedQuotes[0]?.quoteType || '가견적',
         viewed: quoteViews.length > 0,
       },
-      notes: mappedNotes.filter((n) => n.type === 'notes'),
+      notes: mappedNotes.filter((n) => n.type !== 'feedback'),
       feedback: mappedNotes.filter((n) => n.type === 'feedback'),
       quotes: mappedQuotes,
       contracts,

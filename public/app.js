@@ -5,7 +5,18 @@ const icon=(name,extra='')=>`<svg class="icon ${extra}" viewBox="0 0 24 24" aria
 const parseNum=v=>Number(String(v??'').replace(/[^\d.-]/g,''))||0;
 const num=n=>parseNum(n).toLocaleString('ko-KR'), won=n=>num(n)+'원';
 function formatMoneyInput(el){const sel=el.selectionStart??el.value.length,digitsAfter=el.value.slice(sel).replace(/\D/g,'').length,raw=el.value.replace(/\D/g,''),formatted=raw?Number(raw).toLocaleString('ko-KR'):'';el.value=formatted;if(document.activeElement===el){let pos=formatted.length,rem=digitsAfter;while(pos>0&&rem>0){pos--;if(/\d/.test(formatted[pos]))rem--}if(pos>0&&formatted[pos-1]===',')pos--;try{el.setSelectionRange(pos,pos)}catch{}}}
-const now=()=>new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Seoul'});
+function formatShortKstClient(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  if (Number.isNaN(d.getTime())) return String(isoStr);
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(kst.getUTCDate()).padStart(2, '0');
+  const hh = String(kst.getUTCHours()).padStart(2, '0');
+  const mi = String(kst.getUTCMinutes()).padStart(2, '0');
+  return `${mm}.${dd} ${hh}:${mi}`;
+}
+const now=()=>formatShortKstClient(new Date().toISOString());
 const DEFAULT_CONTRACT_STATUSES = [
   { id: 1, name: '계약체결', color: 'blue', sort_order: 1 },
   { id: 2, name: '미수납', color: 'orange', sort_order: 2 },
@@ -570,6 +581,29 @@ async function apiSwitchRole(target, options = {}) {
   }
 }
 
+function applyCustomersFromServer(list) {
+  if (!Array.isArray(list)) return;
+  db.customers = list.map(c => {
+    if (Array.isArray(c.notes)) {
+      db.notes[c.id] = c.notes;
+      return c;
+    }
+    const existingNotes = Array.isArray(db.notes[c.id]) ? db.notes[c.id] : null;
+    if (existingNotes && existingNotes.length) {
+      const latestNote = existingNotes.find(n => n.type !== 'feedback' && String(n.text || '').trim());
+      const latestFb = existingNotes.find(n => n.type === 'feedback' && String(n.text || '').trim());
+      return {
+        ...c,
+        note: latestNote ? latestNote.text : (c.note || ''),
+        noteMeta: latestNote ? { date: latestNote.date, by: latestNote.by } : c.noteMeta,
+        feedback: latestFb ? latestFb.text : (c.feedback || ''),
+        feedbackMeta: latestFb ? { date: latestFb.date, by: latestFb.by } : c.feedbackMeta
+      };
+    }
+    return c;
+  });
+}
+
 async function syncFromServer() {
   try {
     if (!authToken) {
@@ -596,7 +630,7 @@ async function syncFromServer() {
 
     if (cRes.ok) {
       const data = await cRes.json();
-      db.customers = data.customers;
+      applyCustomersFromServer(data.customers);
     }
     if (pRes.ok) {
       const data = await pRes.json();
@@ -698,7 +732,7 @@ async function syncCustomersRealtime() {
         const prevSnap = JSON.stringify(db.customers || []);
         const nextSnap = JSON.stringify(data.customers);
         if (prevSnap !== nextSnap) {
-          db.customers = data.customers;
+          applyCustomersFromServer(data.customers);
           save();
           if (isUserInteractingWithForm()) {
             pendingRealtimeRender = true;
@@ -1511,7 +1545,7 @@ function filteredCustomers() {
     return b.date.localeCompare(a.date) || b.id - a.id;
   });
 }
-function customerRows(){const list=filteredCustomers();return list.length?list.map(c=>{const ll=findCustomerLandingLink(c);const ch=getCustomerChannel(c);const camp=c.adCampaign||ll?.name||'';const act=getCustomerActivityState(c);const stripCls=act.kind==='updated'?' is-updated-24h':(act.kind==='new'?' is-new-24h':'');const stripBadge=act.kind==='updated'?'<span class="cust-strip-badge is-updated" title="최근 24시간 이내 수정">수정</span>':(act.kind==='new'?'<span class="cust-strip-badge is-new" title="최근 24시간 이내 신규 등록">신규</span>':'');return `<article class="customer-row${stripCls}" data-action="customer" data-id="${c.id}" tabindex="0" aria-label="${esc(c.name)} 고객 상세"><input type="checkbox" data-select="${c.id}" ${selected.has(c.id)?'checked':''} aria-label="${c.name} 선택"><div><div class="row-top">${stripBadge}${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span class="row-code">No. ${c.id}</span><span class="row-code">${c.date.slice(5).replace('-','.')}</span></div><div class="name-line">${badge(c.product,c.product==='주방'?'purple':c.product==='욕실'?'green':'')}<b>${esc(c.name)}</b><span>${esc(c.phone)}</span></div><div class="row-address">${icon('pin')}${esc(c.address)}</div><div class="row-meta"><span class="ch-pill ${channelTone(ch)}">${esc(ch)}</span>${camp?`<span class="ch-campaign-label" title="유입 광고 캠페인/링크명">${esc(camp)}</span>`:''}<span>· ${esc(c.partner)}</span>${c.measure?`<span>· 실측 ${c.measure.slice(5)}</span>`:''}</div></div><div class="row-activity"><div class="line"><span class="tag">상담</span><div><p>${esc(c.note)}</p><small>${c.date.slice(5)} 09:30 · ${esc(c.owner)}</small></div></div><div class="line feedback"><span class="tag feedback">피드백</span><p>${esc(c.feedback)}</p></div></div><div class="row-end"><div class="row-owner"><span class="mini-avatar">${c.owner==='미배정'?'–':esc(c.owner.slice(-2))}</span>${esc(c.owner)}</div><div class="row-links">${c.quote?(c.roughQuote&&c.finalQuote?`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="가견적">가견적 ↗</button><button class="link-chip" style="background:#eef8f4;border-color:#a8dac6;color:#1f6853" data-action="preview" data-id="${c.id}" data-type="최종견적">최종견적 ↗</button>`:`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="${esc(c.quoteType||'가견적')}">${esc(c.quoteType||'가견적')} ↗</button>`):`<button class="link-chip muted" data-action="new-quote" data-id="${c.id}">견적 작성</button>`}${c.quote?`<button class="link-chip" style="background:#fffbeb;border-color:#f2d675;color:#855a00" data-action="send-quote" data-id="${c.id}">문자·카톡</button>`:''}<button class="link-chip" data-action="customer" data-id="${c.id}">상세보기</button></div><div class="row-bottom">${c.quote?(c.viewed?'● 고객 열람 완료':'○ 아직 열람하지 않음')+(c.dispatchCount?` · 발송 ${c.dispatchCount}회`:''):'견적 발행 전'}</div></div></article>`}).join(''):`<div class="empty">${icon('search')}<strong>조건에 맞는 고객이 없습니다.</strong>검색어나 필터를 변경해 주세요.</div>`}
+function customerRows(){const list=filteredCustomers();return list.length?list.map(c=>{const ll=findCustomerLandingLink(c);const ch=getCustomerChannel(c);const camp=c.adCampaign||ll?.name||'';const act=getCustomerActivityState(c);const stripCls=act.kind==='updated'?' is-updated-24h':(act.kind==='new'?' is-new-24h':'');const stripBadge=act.kind==='updated'?'<span class="cust-strip-badge is-updated" title="최근 24시간 이내 수정">수정</span>':(act.kind==='new'?'<span class="cust-strip-badge is-new" title="최근 24시간 이내 신규 등록">신규</span>':'');return `<article class="customer-row${stripCls}" data-action="customer" data-id="${c.id}" tabindex="0" aria-label="${esc(c.name)} 고객 상세"><input type="checkbox" data-select="${c.id}" ${selected.has(c.id)?'checked':''} aria-label="${c.name} 선택"><div><div class="row-top">${stripBadge}${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span class="row-code">No. ${c.id}</span><span class="row-code">${c.date.slice(5).replace('-','.')}</span></div><div class="name-line">${badge(c.product,c.product==='주방'?'purple':c.product==='욕실'?'green':'')}<b>${esc(c.name)}</b><span>${esc(c.phone)}</span></div><div class="row-address">${icon('pin')}${esc(c.address)}</div><div class="row-meta"><span class="ch-pill ${channelTone(ch)}">${esc(ch)}</span>${camp?`<span class="ch-campaign-label" title="유입 광고 캠페인/링크명">${esc(camp)}</span>`:''}<span>· ${esc(c.partner)}</span>${c.measure?`<span>· 실측 ${c.measure.slice(5)}</span>`:''}</div></div><div class="row-activity"><div class="line"><span class="tag">상담</span><div><p>${c.note?esc(c.note):'<span style="color:var(--muted)">등록된 상담 이력이 없습니다.</span>'}</p><small>${esc(c.noteMeta?.date||formatShortKstClient(c.createdAt)||(c.date?c.date.slice(5).replace('-','.'):''))} · ${esc(c.noteMeta?.by||c.owner)}</small></div></div><div class="line feedback"><span class="tag feedback">피드백</span><p>${c.feedback?esc(c.feedback):'<span style="color:var(--muted)">등록된 피드백이 없습니다.</span>'}</p></div></div><div class="row-end"><div class="row-owner"><span class="mini-avatar">${c.owner==='미배정'?'–':esc(c.owner.slice(-2))}</span>${esc(c.owner)}</div><div class="row-links">${c.quote?(c.roughQuote&&c.finalQuote?`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="가견적">가견적 ↗</button><button class="link-chip" style="background:#eef8f4;border-color:#a8dac6;color:#1f6853" data-action="preview" data-id="${c.id}" data-type="최종견적">최종견적 ↗</button>`:`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="${esc(c.quoteType||'가견적')}">${esc(c.quoteType||'가견적')} ↗</button>`):`<button class="link-chip muted" data-action="new-quote" data-id="${c.id}">견적 작성</button>`}${c.quote?`<button class="link-chip" style="background:#fffbeb;border-color:#f2d675;color:#855a00" data-action="send-quote" data-id="${c.id}">문자·카톡</button>`:''}<button class="link-chip" data-action="customer" data-id="${c.id}">상세보기</button></div><div class="row-bottom">${c.quote?(c.viewed?'● 고객 열람 완료':'○ 아직 열람하지 않음')+(c.dispatchCount?` · 발송 ${c.dispatchCount}회`:''):'견적 발행 전'}</div></div></article>`}).join(''):`<div class="empty">${icon('search')}<strong>조건에 맞는 고객이 없습니다.</strong>검색어나 필터를 변경해 주세요.</div>`}
 function customersPage(){
   const c = visibleCustomers();
   const channelOptions = getChannelFilterOptions();
@@ -3867,7 +3901,10 @@ async function openFormPreview(formIdx, selectedApplicantId = null, draftFields 
   if (!form) return toast('양식을 찾을 수 없습니다.');
 
   toast('렌탈 신청 고객 및 서명 데이터를 불러오는 중...');
-  let applicants = previewApplicantsCache;
+  let applicants = null;
+  if (!selectedApplicantId && previewApplicantsCache) {
+    applicants = previewApplicantsCache;
+  }
 
   if (!applicants || (selectedApplicantId && !applicants.some(a => a.id === selectedApplicantId))) {
     try {
@@ -4050,12 +4087,13 @@ function initFormPreviewEvents(formIdx, applicants, fields, pdfDoc, totalPages) 
   const container = $('#fp-pages-container');
   let currentZoom = 1.0;
 
-  // 모든 페이지 캔버스 비동기 순차 렌더링
+  // 모든 페이지 캔버스 비동기 순차 렌더링 (고해상도 2.0x)
+  const canvasRenderPromises = [];
   if (pdfDoc && totalPages > 0) {
     for (let pNum = 1; pNum <= totalPages; pNum++) {
       const cv = $(`#fp-pdf-canvas-${pNum}`);
       if (cv) {
-        renderPdfPageToCanvas(pdfDoc, pNum, cv);
+        canvasRenderPromises.push(renderPdfPageToCanvas(pdfDoc, pNum, cv, 2.0));
       }
     }
   }
@@ -4094,8 +4132,27 @@ function initFormPreviewEvents(formIdx, applicants, fields, pdfDoc, totalPages) 
     openFormEditor(formIdx);
   });
 
-  // 인쇄
-  $('#fp-print-btn')?.addEventListener('click', () => {
+  // 인쇄 / PDF 저장 (렌더링 및 서명 이미지 디코딩 완료 대기 후 호출)
+  $('#fp-print-btn')?.addEventListener('click', async () => {
+    if (canvasRenderPromises.length) {
+      await Promise.all(canvasRenderPromises).catch(() => {});
+    }
+    const imgs = [...document.querySelectorAll('#fp-pages-container img')];
+    if (imgs.length) {
+      await Promise.all(imgs.map(img => (typeof img.decode === 'function' ? img.decode().catch(() => {}) : Promise.resolve())));
+    }
+    const selId = $('#fp-applicant-select')?.value;
+    const selApp = applicants.find(a => a.id === selId) || applicants[0];
+    const prevTitle = document.title;
+    const safeCust = String(selApp?.customerName || '고객').replace(/[\\/:*?"<>|]/g, '_');
+    const safeId = String(selApp?.id || 'RENTAL').replace(/[\\/:*?"<>|]/g, '_');
+    document.title = `${safeCust}_렌탈동의서_${safeId}`;
+    const restoreTitle = () => {
+      document.title = prevTitle;
+      window.removeEventListener('afterprint', restoreTitle);
+    };
+    window.addEventListener('afterprint', restoreTitle);
+    setTimeout(restoreTitle, 30000);
     window.print();
   });
 }
@@ -4183,16 +4240,19 @@ function openDialog(title,body,footer='',cls='',subtitle='',dark=false){
       newBody.scrollTop = prevScroll;
     }
     document.body.style.overflow = 'hidden';
+    document.body.classList.toggle('fp-print-mode', String(cls).includes('form-preview-dialog'));
     return;
   }
   
   overlayEl.innerHTML = `<div class="overlay"><section class="dialog ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title.replace(/<[^>]*>/g,''))}"><header class="dialog-head ${dark?'dark':''}"><div><h2>${title}</h2>${subtitle?`<p>${subtitle}</p>`:''}</div><button class="close" data-action="close" aria-label="닫기">${icon('close')}</button></header>${body}${footer?`<footer class="dialog-footer">${footer}</footer>`:''}</section></div>`;
   document.body.style.overflow = 'hidden';
+  document.body.classList.toggle('fp-print-mode', String(cls).includes('form-preview-dialog'));
   setTimeout(() => $('.dialog .close')?.focus(), 20);
 }
 function closeDialog(){ 
   $('#overlay').innerHTML = '';
   document.body.style.overflow = '';
+  document.body.classList.remove('fp-print-mode');
   detailId = null;
   detailTab = 'notes';
   restoreFocus?.isConnected && restoreFocus.focus();
@@ -4201,8 +4261,125 @@ function closeDialog(){
 function formDialog(title,fields,submit,subtitle='',extra=''){openDialog(title,`<form id="edit-form" data-submit="${submit}" ${extra}><div class="dialog-body">${fields}</div><div class="dialog-footer">${btn('취소','close')}<button type="submit" class="btn primary">저장하기</button></div></form>`,'','',subtitle)}
 function linkRow(label,url,action,id,emptyLabel=label+' 등록'){return url?`<div style="display:flex;gap:6px"><a class="btn soft sm" href="${esc(url)}" target="_blank" rel="noopener noreferrer" style="flex:1">${icon('external')}${label} 바로가기</a><button class="btn sm" type="button" data-action="${action}" data-id="${id}" title="${label} 링크 수정" aria-label="${label} 링크 수정" style="padding:6px 9px">${icon('edit')}</button></div>`:btn(emptyLabel,action,'link','sm block',`data-id="${id}"`)}
 function linkDialog(title,label,url,submit,id,customerName){const cObj=accessibleC(id);const isQuoteLink=(label==='가견적'||label==='최종견적');openDialog(title,`<form id="edit-form" data-submit="${submit}" data-id="${id}"><div class="dialog-body">${field(label+' URL','url',url||'','text')}<p class="field-hint">이동할 ${label} 페이지 주소(URL)를 입력해 주세요. CRM에서 ${label}을 발행하면 전용 모바일 링크가 자동 연결됩니다.</p><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${isQuoteLink&&cObj?.quote?`<button type="button" class="btn soft sm" data-action="preview" data-id="${id}" data-type="${label}">${icon('eye')}${label} 모바일 화면 미리보기</button>`:''}${url?`<a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon('external')}새 탭에서 열기</a>`:''}</div></div><div class="dialog-footer"><button type="button" class="btn" data-action="customer" data-id="${id}">취소</button><button type="submit" class="btn primary">저장하기</button></div></form>`,'','',`${esc(customerName)} · ${label}`)}
-function openCustomer(id,tab='notes'){const c=accessibleC(id);if(!c)return;detailId=c.id;detailTab=tab;const custContracts=db.contracts.filter(k=>k.cid===c.id);const logs=db.notes[id]||[{date:'11.12 09:30',by:c.owner==='미배정'?'시스템':c.owner,text:c.note,type:'notes'}];const shown=tab==='feedback'?(logs.filter(n=>n.type==='feedback').length?logs.filter(n=>n.type==='feedback'):[{date:'11.11 16:20',by:'영업지원팀',text:c.feedback}]):logs.filter(n=>n.type!=='feedback');let content='';
-if(['notes','feedback'].includes(tab))content=shown.map(n=>`<div class="note"><div class="avatar">${esc(n.by.slice(-2))}</div><div class="note-body"><div class="note-meta"><b>${esc(n.by)}</b><span>${esc(n.date)}</span>${n.important?badge('중요','orange'):''}</div><p>${esc(n.text)}</p></div></div>`).join('')||'<div class="empty">등록된 기록이 없습니다.</div>';
+const _customerDetailInFlight = new Set();
+
+function getCustomerNoteLogs(c) {
+  if (!c) return [];
+  if (Array.isArray(db.notes[c.id])) return db.notes[c.id];
+  if (Array.isArray(c.notes)) return c.notes;
+  return [];
+}
+
+function getShownCustomerLogs(c, tab) {
+  const logs = getCustomerNoteLogs(c);
+  if (tab === 'feedback') {
+    const fbs = logs.filter(n => n.type === 'feedback' && String(n.text || '').trim());
+    if (fbs.length) return fbs;
+    if (c.feedback && String(c.feedback).trim() && c.feedback !== '등록된 피드백이 없습니다.') {
+      return [{ date: c.feedbackMeta?.date || '', by: c.feedbackMeta?.by || '영업지원팀', text: c.feedback, type: 'feedback' }];
+    }
+    return [];
+  }
+  const notes = logs.filter(n => n.type !== 'feedback' && String(n.text || '').trim());
+  if (notes.length) return notes;
+  if (c.note && String(c.note).trim()) {
+    return [{
+      date: c.noteMeta?.date || formatShortKstClient(c.createdAt) || (c.date ? c.date.slice(5).replace('-', '.') : ''),
+      by: c.noteMeta?.by || (c.owner === '미배정' ? '시스템' : c.owner),
+      text: c.note,
+      type: 'notes'
+    }];
+  }
+  return [];
+}
+
+function renderCustomerNotesHtml(c, tab) {
+  const shown = getShownCustomerLogs(c, tab);
+  return shown.map(n => {
+    const author = n.by || '관리자';
+    return `<div class="note"><div class="avatar">${esc(author.slice(-2))}</div><div class="note-body"><div class="note-meta"><b>${esc(author)}</b><span>${esc(n.date || '')}</span>${n.important ? badge('중요', 'orange') : ''}</div><p>${esc(n.text)}</p></div></div>`;
+  }).join('') || `<div class="empty">${tab === 'feedback' ? '등록된 피드백이 없습니다.' : '등록된 상담 이력이 없습니다.'}</div>`;
+}
+
+function renderCustomerHistoryHtml(c, displayCustCh) {
+  const createdKst = formatShortKstClient(c.createdAt) || (c.date ? c.date.slice(5).replace('-', '.') : '');
+  const entries = (Array.isArray(db.history[c.id]) && db.history[c.id].length)
+    ? db.history[c.id]
+    : [
+        { date: createdKst, text: '고객 접수 · ' + displayCustCh + (c.adCampaign ? (' (' + c.adCampaign + ')') : ''), by: '시스템' },
+        { date: createdKst, text: '담당자 ' + c.owner, by: '운영관리자' }
+      ];
+  return `<h4>${icon('history')}변경 히스토리</h4>` + entries.map(h => `<div class="history-item"><time>${esc(h.date || '')}</time><p>${esc(h.text || '')}</p><small>${esc(h.by || '관리자')}</small></div>`).join('');
+}
+
+async function loadCustomerDetail(id, options = {}) {
+  const cid = Number(id);
+  if (!cid || !authToken) return;
+  if (_customerDetailInFlight.has(cid) && !options.force) return;
+  _customerDetailInFlight.add(cid);
+  try {
+    const res = await apiFetch('/api/customers/' + cid);
+    if (!res.ok) return;
+    const data = await res.json();
+    const combined = [
+      ...(Array.isArray(data.notes) ? data.notes.map(n => ({ ...n, type: 'notes' })) : []),
+      ...(Array.isArray(data.feedback) ? data.feedback.map(n => ({ ...n, type: 'feedback' })) : [])
+    ].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    db.notes[cid] = combined;
+    if (Array.isArray(data.history)) {
+      db.history[cid] = data.history.map(h => ({
+        ...h,
+        text: h.action && h.text && !String(h.text).startsWith(h.action)
+          ? (h.action + ' · ' + h.text)
+          : (h.text || h.action || '')
+      }));
+    }
+    const target = findC(cid);
+    if (target) {
+      const latestNote = combined.find(n => n.type !== 'feedback' && String(n.text || '').trim());
+      const latestFb = combined.find(n => n.type === 'feedback' && String(n.text || '').trim());
+      if (data.customer) {
+        if (typeof data.customer.note === 'string') target.note = data.customer.note;
+        if (data.customer.noteMeta !== undefined) target.noteMeta = data.customer.noteMeta;
+        if (typeof data.customer.feedback === 'string') target.feedback = data.customer.feedback;
+        if (data.customer.feedbackMeta !== undefined) target.feedbackMeta = data.customer.feedbackMeta;
+      }
+      if (latestNote) {
+        target.note = latestNote.text;
+        target.noteMeta = { date: latestNote.date, by: latestNote.by };
+      }
+      if (latestFb) {
+        target.feedback = latestFb.text;
+        target.feedbackMeta = { date: latestFb.date, by: latestFb.by };
+      }
+      target.notes = combined;
+    }
+    save();
+    const openWrap = $('.overlay .customer-detail');
+    if (openWrap && detailId === cid) {
+      const cNow = accessibleC(cid) || findC(cid);
+      if (cNow && ['notes', 'feedback'].includes(detailTab)) {
+        const contentEl = openWrap.querySelector('.detail-content');
+        if (contentEl) contentEl.innerHTML = renderCustomerNotesHtml(cNow, detailTab);
+      }
+      const histEl = openWrap.querySelector('.detail-history');
+      if (cNow && histEl) {
+        histEl.innerHTML = renderCustomerHistoryHtml(cNow, getCustomerChannel(cNow));
+      }
+    }
+    const rowsEl = $('#customer-rows');
+    if (page === 'customers' && rowsEl) {
+      rowsEl.innerHTML = customerRows();
+    }
+  } catch (err) {
+    console.warn('loadCustomerDetail warning:', err);
+  } finally {
+    _customerDetailInFlight.delete(cid);
+  }
+}
+
+function openCustomer(id,tab='notes'){const c=accessibleC(id);if(!c)return;const wasAlreadyOpen=Boolean($('.overlay .customer-detail')&&detailId===c.id);detailId=c.id;detailTab=tab;const custContracts=db.contracts.filter(k=>k.cid===c.id);let content='';
+if(['notes','feedback'].includes(tab))content=renderCustomerNotesHtml(c,tab);
 if(tab==='quotes')content=`
     <div class="quote-stage-grid">
       <div class="quote-stage-card is-rough">
@@ -4294,6 +4471,8 @@ if (existingDetail && detailId === c.id) {
   }
   const contentEl = existingDetail.querySelector('.detail-content');
   if (contentEl) contentEl.innerHTML = content;
+  const histEl = existingDetail.querySelector('.detail-history');
+  if (histEl) histEl.innerHTML = renderCustomerHistoryHtml(c, getCustomerChannel(c));
   const formEl = existingDetail.querySelector('.note-compose');
   if (['notes', 'feedback'].includes(tab)) {
     const formHtml = `<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`;
@@ -4310,9 +4489,10 @@ const quoteShortcutBtn = canManageQuotes()
   : btn('본사 견적 요청', 'request-quote', 'plus', 'soft sm', `data-id="${id}"`);
 const displayCustCh = getCustomerChannel(c);
 const chDatalist = `<datalist id="ad-channel-presets">${AD_CHANNEL_PRESETS.map(p => `<option value="${esc(p)}"></option>`).join('')}<option value="직접등록"></option></datalist>`;
-const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${canManageQuotes()?`<button type="button" class="link-chip" style="background:#eef4ff;color:#2753a8;border-color:#c6d8f8" data-action="new-quote" data-id="${id}">+ 견적등록</button>`:''}<button type="button" class="link-chip" style="background:#17243c;color:#fff;border-color:#17243c" data-action="new-contract" data-id="${id}" data-from="customer-modal">+ 계약등록</button><button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',stages,c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 상담사','detail-owner',getHqOwnerOptions(c.owner),c.owner)}<div class="field"><label for="detail-source" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">유입경로 (채널) <span class="ch-pill ${channelTone(displayCustCh)}">${esc(displayCustCh)}</span></label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${canManageQuotes()?btn('견적등록 바로가기','new-quote','plus','primary sm block',`data-id="${id}"`):btn('본사 견적 요청','request-quote','plus','primary sm block',`data-id="${id}"`)}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,Boolean(c.quote))}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,Boolean(c.quote))}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${btn('계약 등록','new-contract','contract','soft block',`data-id="${id}" data-from="customer-modal"`)}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history"><h4>${icon('history')}변경 히스토리</h4>${[...(db.history[id]||[]),{date:c.date.slice(5)+' 09:30',text:'고객 접수 · '+displayCustCh+(c.adCampaign?(' ('+c.adCampaign+')'):''),by:'시스템'},{date:c.date.slice(5)+' 09:30',text:'담당자 '+c.owner,by:'운영관리자'}].map(h=>`<div class="history-item"><time>${esc(h.date)}</time><p>${esc(h.text)}</p><small>${esc(h.by)}</small></div>`).join('')}</aside></div>`;
+const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${canManageQuotes()?`<button type="button" class="link-chip" style="background:#eef4ff;color:#2753a8;border-color:#c6d8f8" data-action="new-quote" data-id="${id}">+ 견적등록</button>`:''}<button type="button" class="link-chip" style="background:#17243c;color:#fff;border-color:#17243c" data-action="new-contract" data-id="${id}" data-from="customer-modal">+ 계약등록</button><button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',stages,c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 상담사','detail-owner',getHqOwnerOptions(c.owner),c.owner)}<div class="field"><label for="detail-source" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">유입경로 (채널) <span class="ch-pill ${channelTone(displayCustCh)}">${esc(displayCustCh)}</span></label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${canManageQuotes()?btn('견적등록 바로가기','new-quote','plus','primary sm block',`data-id="${id}"`):btn('본사 견적 요청','request-quote','plus','primary sm block',`data-id="${id}"`)}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,Boolean(c.quote))}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,Boolean(c.quote))}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${btn('계약 등록','new-contract','contract','soft block',`data-id="${id}" data-from="customer-modal"`)}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history">${renderCustomerHistoryHtml(c,displayCustCh)}</aside></div>`;
 const detailFooter = `<small>고객 상태: ${badge(c.status)}${custContracts.length ? ` · 계약 <b>${custContracts.length}건</b>` : ''} · ${esc(c.product)} · ${esc(c.partner)}</small>${custContracts.length ? btn('계약관리 이동', 'go-customer-contracts', 'external', 'sm soft', `data-id="${id}"`) : ''}${quoteShortcutBtn}${c.quote ? btn('모바일 견적 미리보기', 'preview', 'eye', 'sm soft', `data-id="${id}"`) : ''}${btn('계약 등록', 'new-contract', 'contract', 'sm primary', `data-id="${id}" data-from="customer-modal"`)}${btn('닫기', 'close', '', 'sm')}`;
 openDialog(`${esc(c.name)} <span style="font-size:11px;font-weight:400;color:#91a6c9;margin-left:8px">No. ${c.id}</span>`,body,detailFooter,'wide',`${esc(c.phone)}　｜　${esc(c.address)}`,true);detailId=c.id;detailTab=tab;
+if (!wasAlreadyOpen) loadCustomerDetail(c.id);
 }
 let _daumPostcodePromise = null;
 function loadDaumPostcodeScript() {
@@ -5034,7 +5214,7 @@ function openNewContractDialog(id = null, fromCustomerModal = false) {
   );
 }
 
-window.openImageLightbox = function(src, title = '이미지 미리보기') {
+window.openImageLightbox = function(src, title = '이미지 미리보기', downloadName = '') {
   let box = document.getElementById('image-lightbox-overlay');
   if (!box) {
     box = document.createElement('div');
@@ -5043,20 +5223,24 @@ window.openImageLightbox = function(src, title = '이미지 미리보기') {
     box.onclick = () => { box.style.display = 'none'; };
     document.body.appendChild(box);
   }
+  const ext = getDocFileExtension('', src);
+  const fname = downloadName || (String(title || 'image').replace(/[\\/:*?"<>|]/g, '_') + '.' + ext);
   box.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:92vw;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);cursor:default" onclick="event.stopPropagation()">
       <div style="padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc">
         <b style="font-size:15px;color:#0f172a;font-weight:700">${esc(title)}</b>
         <div style="display:flex;gap:8px">
-          <a class="btn sm soft" href="${src}" target="_blank" download="${esc(title)}.png">새 탭 열기 ↗</a>
+          <button type="button" class="btn sm soft" id="lightbox-download-btn">${icon('download')}다운로드</button>
           <button type="button" class="btn sm" onclick="document.getElementById('image-lightbox-overlay').style.display='none'">닫기 ✕</button>
         </div>
       </div>
       <div style="padding:20px;overflow:auto;display:flex;justify-content:center;align-items:center;background:#0f172a">
-        <img src="${src}" alt="${esc(title)}" style="max-width:100%;max-height:76vh;object-fit:contain;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+        <img src="${esc(src)}" alt="${esc(title)}" style="max-width:100%;max-height:76vh;object-fit:contain;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
       </div>
     </div>
   `;
+  const dlBtn = document.getElementById('lightbox-download-btn');
+  if (dlBtn) dlBtn.onclick = () => triggerDocDownload(src, fname);
   box.style.display = 'flex';
 };
 
@@ -5191,6 +5375,79 @@ const RENTAL_STATUS_MAP = {
   rejected: '진행 불가',
   cancelled: '취소'
 };
+let _activeRentalDocs = null;
+
+function getDocFileExtension(mimeType = '', url = '') {
+  const mt = String(mimeType || '').toLowerCase();
+  if (mt.includes('jpeg') || mt.includes('jpg')) return 'jpg';
+  if (mt.includes('webp')) return 'webp';
+  if (mt.includes('pdf')) return 'pdf';
+  if (mt.includes('gif')) return 'gif';
+  if (mt.includes('png')) return 'png';
+  const match = /^data:image\/([a-z0-9+.-]+);/i.exec(String(url || ''));
+  if (match) return match[1].replace('jpeg', 'jpg');
+  return 'png';
+}
+
+async function triggerDocDownload(src, filename) {
+  if (!src) {
+    toast('다운로드할 파일이 없습니다.');
+    return;
+  }
+  const safeName = String(filename || 'document.png').replace(/[\\/:*?"<>|]/g, '_');
+  const fireLink = (href) => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = safeName;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+  try {
+    if (String(src).startsWith('data:') || String(src).startsWith('blob:')) {
+      fireLink(src);
+      return;
+    }
+    const res = await fetch(src);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    fireLink(objUrl);
+    setTimeout(() => URL.revokeObjectURL(objUrl), 2000);
+  } catch {
+    window.open(src, '_blank', 'noopener,noreferrer');
+  }
+}
+
+function renderRentalDocCard({ kind, doc, title, iconName, completedLabel, emptyLabel, archivedText, lightboxTitle }) {
+  const src = doc && (doc.dataUrl || doc.viewUrl);
+  const dlBtn = src
+    ? `<button type="button" class="btn sm soft" data-action="download-rental-doc" data-kind="${esc(kind)}" title="${esc(title)} 다운로드">${icon('download')}다운로드</button>`
+    : '';
+  let bodyHtml = '';
+  if (src) {
+    bodyHtml = `<div style="background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:8px;text-align:center;cursor:pointer;transition:border-color .2s" onclick="openImageLightbox('${esc(src)}', '${esc(lightboxTitle)}')">` +
+      `<img src="${esc(src)}" alt="${esc(title)}" style="max-height:160px;max-width:100%;object-fit:contain;border-radius:4px;display:block;margin:0 auto;box-shadow:0 1px 3px rgba(0,0,0,0.1)">` +
+      `<div style="font-size:11px;color:#64748b;margin-top:6px;display:flex;justify-content:space-between;align-items:center">` +
+        `<span>${esc(doc.mimeType || 'image/png')}</span>` +
+        `<span style="color:var(--blue);font-weight:600">클릭 시 확대 보기 🔍</span>` +
+      `</div>` +
+    `</div>`;
+  } else if (doc) {
+    bodyHtml = `<div style="padding:16px;text-align:center;background:#fff;border-radius:8px;border:1px dashed #cbd5e1;font-size:12px;color:#64748b">${esc(archivedText)}</div>`;
+  } else {
+    bodyHtml = `<div style="padding:20px;text-align:center;background:#fff;border-radius:8px;border:1px dashed #cbd5e1;font-size:12px;color:#94a3b8">${esc(emptyLabel)}</div>`;
+  }
+  return `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px">` +
+    `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">` +
+      `<b style="font-size:12px;color:#334155;display:flex;align-items:center;gap:5px">${icon(iconName, 'sm')} ${esc(title)} ${doc ? '(v' + doc.versionNo + ')' : ''}</b>` +
+      `<div style="display:flex;align-items:center;gap:6px">${doc ? badge(completedLabel, 'green') : badge('미제출', 'gray')}${dlBtn}</div>` +
+    `</div>` +
+    bodyHtml +
+  `</div>`;
+}
+
 async function openApplication(id, contractId = null) {
   try {
     const [res, audRes] = await Promise.all([
@@ -5215,6 +5472,12 @@ async function openApplication(id, contractId = null) {
     );
     const idDoc = (detail.documents || []).find(d => d.kind === 'id_card' && d.isActive && !d.deletedAt);
     const sigDoc = (detail.documents || []).find(d => d.kind === 'signature' && d.isActive && !d.deletedAt);
+    _activeRentalDocs = {
+      id_card: idDoc || null,
+      signature: sigDoc || null,
+      appId: app.id,
+      customerName: app.customerName || '고객'
+    };
 
     // 연결된 계약 정보 및 고객 정보
     const contract = contractId
@@ -5249,67 +5512,32 @@ async function openApplication(id, contractId = null) {
       '</div>' +
       '<div class="divider"></div>' +
 
-      // 고객 등록 사진(신분증) 및 전자 서명 이미지 직관적 표시
+      // 고객 등록 사진(신분증) 및 전자 서명 이미지 직관적 표시 + 다운로드
       '<div style="margin:12px 0">' +
         '<div style="font-weight:700;font-size:13px;color:#1e293b;margin-bottom:10px;display:flex;align-items:center;gap:6px">' +
           icon('shield') + ' 고객 등록 서류 및 사진' +
         '</div>' +
         '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:12px">' +
-
-          // 1. 신분증 사진
-          '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
-            '<div style="display:flex;justify-content:space-between;align-items:center">' +
-              '<b style="font-size:12px;color:#334155;display:flex;align-items:center;gap:5px">' +
-                icon('shield', 'sm') + ' 신분증 사진 ' + (idDoc ? '(v' + idDoc.versionNo + ')' : '') +
-              '</b>' +
-              (idDoc ? badge('등록 완료', 'green') : badge('미제출', 'gray')) +
-            '</div>' +
-            (idDoc && idDoc.dataUrl ? (
-              '<div style="background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:8px;text-align:center;cursor:pointer;transition:border-color .2s" onclick="openImageLightbox(\'' + idDoc.dataUrl + '\', \'고객 등록 신분증 사진\')">' +
-                '<img src="' + idDoc.dataUrl + '" alt="신분증 사진" style="max-height:160px;max-width:100%;object-fit:contain;border-radius:4px;display:block;margin:0 auto;box-shadow:0 1px 3px rgba(0,0,0,0.1)">' +
-                '<div style="font-size:11px;color:#64748b;margin-top:6px;display:flex;justify-content:space-between;align-items:center">' +
-                  '<span>' + esc(idDoc.mimeType || 'image/png') + '</span>' +
-                  '<span style="color:var(--blue);font-weight:600">클릭 시 확대 보기 🔍</span>' +
-                '</div>' +
-              '</div>'
-            ) : (idDoc ? (
-              '<div style="padding:16px;text-align:center;background:#fff;border-radius:8px;border:1px dashed #cbd5e1;font-size:12px;color:#64748b">' +
-                '신분증 파일 암호화 안전 보관 중 (' + esc(idDoc.mimeType || 'image/png') + ')' +
-              '</div>'
-            ) : (
-              '<div style="padding:20px;text-align:center;background:#fff;border-radius:8px;border:1px dashed #cbd5e1;font-size:12px;color:#94a3b8">' +
-                '등록된 신분증 사진이 없습니다.' +
-              '</div>'
-            ))) +
-          '</div>' +
-
-          // 2. 전자 서명
-          '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px">' +
-            '<div style="display:flex;justify-content:space-between;align-items:center">' +
-              '<b style="font-size:12px;color:#334155;display:flex;align-items:center;gap:5px">' +
-                icon('edit', 'sm') + ' 전자 서명 ' + (sigDoc ? '(v' + sigDoc.versionNo + ')' : '') +
-              '</b>' +
-              (sigDoc ? badge('서명 완료', 'green') : badge('미서명', 'gray')) +
-            '</div>' +
-            (sigDoc && sigDoc.dataUrl ? (
-              '<div style="background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:8px;text-align:center;cursor:pointer;transition:border-color .2s" onclick="openImageLightbox(\'' + sigDoc.dataUrl + '\', \'고객 전자 서명\')">' +
-                '<img src="' + sigDoc.dataUrl + '" alt="전자 서명" style="max-height:160px;max-width:100%;object-fit:contain;border-radius:4px;display:block;margin:0 auto;box-shadow:0 1px 3px rgba(0,0,0,0.1)">' +
-                '<div style="font-size:11px;color:#64748b;margin-top:6px;display:flex;justify-content:space-between;align-items:center">' +
-                  '<span>' + esc(sigDoc.mimeType || 'image/png') + '</span>' +
-                  '<span style="color:var(--blue);font-weight:600">클릭 시 확대 보기 🔍</span>' +
-                '</div>' +
-              '</div>'
-            ) : (sigDoc ? (
-              '<div style="padding:16px;text-align:center;background:#fff;border-radius:8px;border:1px dashed #cbd5e1;font-size:12px;color:#64748b">' +
-                '전자 서명 보관 중' +
-              '</div>'
-            ) : (
-              '<div style="padding:20px;text-align:center;background:#fff;border-radius:8px;border:1px dashed #cbd5e1;font-size:12px;color:#94a3b8">' +
-                '등록된 서명이 없습니다.' +
-              '</div>'
-            ))) +
-          '</div>' +
-
+          renderRentalDocCard({
+            kind: 'id_card',
+            doc: idDoc,
+            title: '신분증 사진',
+            iconName: 'shield',
+            completedLabel: '등록 완료',
+            emptyLabel: '등록된 신분증 사진이 없습니다.',
+            archivedText: '신분증 파일 암호화 안전 보관 중 (' + (idDoc?.mimeType || 'image/png') + ')',
+            lightboxTitle: '고객 등록 신분증 사진'
+          }) +
+          renderRentalDocCard({
+            kind: 'signature',
+            doc: sigDoc,
+            title: '전자 서명',
+            iconName: 'edit',
+            completedLabel: '서명 완료',
+            emptyLabel: '등록된 서명이 없습니다.',
+            archivedText: '전자 서명 보관 중',
+            lightboxTitle: '고객 전자 서명'
+          }) +
         '</div>' +
       '</div>' +
 
@@ -5945,7 +6173,7 @@ case'assign':{if(!selected.size){toast('고객을 먼저 선택하세요.');brea
 case'rough-quote-link':{const c=accessibleC(id);if(c)linkDialog('가견적 링크 관리','가견적',c.roughQuoteUrl,'rough-quote-link',id,c.name);break}
 case'final-quote-link':{const c=accessibleC(id);if(c)linkDialog('최종견적 링크 관리','최종견적',c.finalQuoteUrl,'final-quote-link',id,c.name);break}
 case'drawing':{const c=accessibleC(id);if(c)linkDialog('내관도 링크 관리','내관도',c.drawing,'drawing',id,c.name);break}
-case'contract':openContract(id);break;case'cash-contract':openContract(id,true);break;case'application':openApplication(id);break;case'find-application':{const app=db.applications.find(x=>x.cid===Number(id));if(app)openApplication(app.id);else toast('아직 접수된 렌탈 신청이 없습니다.');break}
+case'contract':openContract(id);break;case'cash-contract':openContract(id,true);break;case'application':openApplication(id);break;case'download-rental-doc':{const kind=el.dataset.kind;const doc=_activeRentalDocs?.[kind];const src=doc?.dataUrl||doc?.viewUrl;if(!src){toast('다운로드할 서류 파일이 없습니다.');break}const ext=getDocFileExtension(doc.mimeType,src);const label=kind==='id_card'?'신분증':'전자서명';const cust=(_activeRentalDocs?.customerName||'고객').replace(/[\\/:*?"<>|]/g,'_');const appNo=(_activeRentalDocs?.appId||'rental').replace(/[\\/:*?"<>|]/g,'_');triggerDocDownload(src,`${cust}_${appNo}_${label}_v${doc.versionNo||1}.${ext}`);break}case'find-application':{const app=db.applications.find(x=>x.cid===Number(id));if(app)openApplication(app.id);else toast('아직 접수된 렌탈 신청이 없습니다.');break}
 case'open-supplement-dialog':openSupplementDialog(id);break;
 case'submit-supplement':{
   const supType = $('#sup-type')?.value || 'blurry_id';
@@ -6747,24 +6975,57 @@ document.addEventListener('submit',async e=>{const f=e.target;if(!f.dataset.subm
   }
 case'note':{
     const c=accessibleC(id);
+    if(!c)break;
     const text=d.note.trim();
     if(!text)return;
-    const type=f.dataset.type;
+    if(f.dataset.submitting==='1')return;
+    f.dataset.submitting='1';
+    const submitBtn=f.querySelector('button[type="submit"]');
+    if(submitBtn)submitBtn.disabled=true;
+    const type=f.dataset.type==='feedback'?'feedback':'notes';
+    const authorName=getActiveUser().name||(role==='본사 관리자'?'김지훈':'파트너 관리자');
+    const createdAtIso=new Date().toISOString();
     try {
-      const res = await apiFetch('/api/customers/' + id + '/notes', {
+      const res = await apiFetch('/api/customers/' + c.id + '/notes', {
         method: 'POST',
         body: { type, note: text, important: !!d.important }
       });
       if (res.ok) {
-        await syncFromServer();
-        openCustomer(id, type);
+        const entry={date:now(),by:authorName,text,important:!!d.important,type,createdAt:createdAtIso};
+        const curLogs=Array.isArray(db.notes[c.id])?[...db.notes[c.id]]:[];
+        curLogs.unshift(entry);
+        db.notes[c.id]=curLogs;
+        if(type==='feedback'){c.feedback=text;c.feedbackMeta={date:entry.date,by:authorName};}
+        else{c.note=text;c.noteMeta={date:entry.date,by:authorName};}
+        audit(c.id,(type==='feedback'?'피드백 등록 · ':'상담 이력 등록 · ')+text.slice(0,50));
+        openCustomer(c.id, type);
+        const rowsEl=$('#customer-rows');
+        if(page==='customers'&&rowsEl)rowsEl.innerHTML=customerRows();
         toast((type==='feedback'?'피드백':'상담 기록') + '이 서버에 저장되었습니다.');
+        await syncFromServer();
+        await loadCustomerDetail(c.id, { force: true });
         break;
       }
-    } catch (err) {}
-    (db.notes[id]??=[{date:c.date,by:c.owner,text:c.note,type:'notes'}]).unshift({date:now(),by:role==='본사 관리자'?'김지훈':'파트너 관리자',text,important:!!d.important,type});
+      let errMsg='기록 저장에 실패했습니다.';
+      try{const errData=await res.json();if(errData?.error)errMsg=errData.error;}catch{}
+      toast(errMsg);
+      break;
+    } catch (err) {
+      if (authToken) {
+        toast('서버 연결 오류로 기록을 저장하지 못했습니다.');
+        break;
+      }
+    } finally {
+      if(f.isConnected){
+        delete f.dataset.submitting;
+        if(submitBtn)submitBtn.disabled=false;
+      }
+    }
+    const curLogs=Array.isArray(db.notes[c.id])?[...db.notes[c.id]]:[];
+    curLogs.unshift({date:now(),by:authorName,text,important:!!d.important,type,createdAt:createdAtIso});
+    db.notes[c.id]=curLogs;
     if(type==='feedback')c.feedback=text;else c.note=text;
-    audit(id,(type==='feedback'?'피드백':'상담이력')+' 등록');render();openCustomer(id,type);toast('기록을 저장했습니다.');break;
+    audit(c.id,(type==='feedback'?'피드백':'상담이력')+' 등록');render();openCustomer(c.id,type);toast('기록을 저장했습니다.');break;
   }
 case'schedule':{const c=accessibleC(d.cid);if(!c)break;c.measure=d.date;c.status='실측예정';audit(c.id,`실측 예정 ${d.date} ${d.time}`);closeDialog();render();toast('실측 일정을 체험 데이터에 등록했습니다.');break}
 case'assign':for(const cid of selected){const c=accessibleC(cid);if(c){const prev=c.owner;c.owner=d.owner;audit(cid,`담당자 ${prev} → ${d.owner}`)}}selected.clear();closeDialog();render();toast('담당자를 배정했습니다.');break;

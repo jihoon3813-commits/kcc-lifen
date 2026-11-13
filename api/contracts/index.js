@@ -5,7 +5,7 @@ import {
   parseBody,
   authenticateRequest,
 } from "../_lib/authHelper.js";
-import { getRentalStatusLabel } from "../_lib/crmHelper.js";
+import { getRentalStatusLabel, formatKstDateSlice } from "../_lib/crmHelper.js";
 import { notifyNewContract } from "../_lib/discordHelper.js";
 
 function mapContract(c, projectMap, rentalByAppNo, rentalByProject) {
@@ -156,8 +156,9 @@ export default async function handler(req, res) {
     try {
       const bundle = await convexClient.query(api.crm.getCustomerDetail, { projectId });
       const proj = bundle?.project;
+      const todayKst = formatKstDateSlice(new Date().toISOString());
       const contractNo = String(
-        body.contractNo || body.contract_no || `C-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${projectId}`
+        body.contractNo || body.contract_no || `C-${todayKst.replace(/-/g, "")}-${projectId}`
       );
       const totalAmount = Number(body.totalAmount ?? body.total_amount ?? 0);
       const depositAmount = Number(body.depositAmount ?? body.deposit_amount ?? 0);
@@ -168,7 +169,7 @@ export default async function handler(req, res) {
       const customerName = String(body.customerName || body.customer_name || proj?.customerName || "");
       const customerPhone = String(body.customerPhone || body.customer_phone || proj?.customerPhone || "");
       const contractStatus = String(body.status || "계약진행");
-      const contractDate = String(body.contractDate || body.contract_date || new Date().toISOString().slice(0, 10));
+      const contractDate = String(body.contractDate || body.contract_date || todayKst);
 
       await convexClient.mutation(api.crm.upsertContract, {
         contractNo,
