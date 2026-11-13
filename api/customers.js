@@ -5,7 +5,7 @@ import {
   parseBody,
   authenticateRequest,
 } from "./_lib/authHelper.js";
-import { isPartnerAllowed, formatKstDateSlice, parseQuoteInquiry } from "./_lib/crmHelper.js";
+import { isPartnerAllowed, formatKstDateSlice, parseQuoteInquiry, resolveProjectAttribution } from "./_lib/crmHelper.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -101,14 +101,7 @@ export default async function handler(req, res) {
         const latestQ = pQuotes[0] || null;
         const roughQ = pQuotes.find((qt) => qt.quoteType === "가견적") || null;
         const finalQ = pQuotes.find((qt) => qt.quoteType === "최종견적") || null;
-        const ll =
-          (p.landingLinkId ? linkById.get(Number(p.landingLinkId)) : null) ||
-          linkByCode.get(p.source) ||
-          null;
-        const resolvedChannel =
-          p.adChannel ||
-          ll?.channel ||
-          (p.source === "랜딩페이지" ? "기본 랜딩(미분류)" : p.source);
+        const attr = resolveProjectAttribution(p, linkById, linkByCode);
 
         return {
           id: p.projectId,
@@ -120,10 +113,10 @@ export default async function handler(req, res) {
           status: p.status,
           label: p.label,
           source: p.source,
-          adChannel: resolvedChannel,
-          adCampaign: p.adCampaign || ll?.name || "",
-          landingLinkId: p.landingLinkId || ll?.linkId || null,
-          landingLinkCode: ll?.code || "",
+          adChannel: attr.adChannel,
+          adCampaign: attr.adCampaign,
+          landingLinkId: attr.landingLinkId,
+          landingLinkCode: attr.landingLinkCode,
           partner: p.partnerName,
           owner: p.ownerName,
           date: formatKstDateSlice(p.createdAt),

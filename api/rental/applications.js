@@ -3,6 +3,7 @@ import multer from "multer";
 import { api } from "../../convex/_generated/api.js";
 import { convexClient, setCors } from "../_lib/authHelper.js";
 import { deriveCsrfToken, resolveCustomerViewer } from "../_lib/publicQuoteHelper.js";
+import { uploadBufferToConvexStorage } from "../_lib/storageHelper.js";
 import { buildRentalPlans } from "../../server/utils/mobileQuoteFormatter.js";
 import { toPlanResponse } from "./context.js";
 
@@ -124,6 +125,26 @@ export default async function handler(req, res) {
     const rand = crypto.randomBytes(2).toString("hex").toUpperCase();
     const appNo = `R-${ymd}-${project.projectId}-${rand}`;
 
+    const idMime = idDocFile.mimetype || "image/jpeg";
+    const sigMime = sigFile.mimetype || "image/png";
+    const [idStorageId, sigStorageId] = await Promise.all([
+      uploadBufferToConvexStorage(
+        convexClient,
+        api.rentals.generateUploadUrl,
+        idDocFile.buffer,
+        idMime
+      ),
+      uploadBufferToConvexStorage(
+        convexClient,
+        api.rentals.generateUploadUrl,
+        sigFile.buffer,
+        sigMime
+      ),
+    ]);
+
+    const idDigest = crypto.createHash("sha256").update(idDocFile.buffer).digest("hex");
+    const sigDigest = crypto.createHash("sha256").update(sigFile.buffer).digest("hex");
+
     await convexClient.mutation(api.rentals.upsertApplication, {
       appNo,
       projectId: project.projectId,
@@ -138,7 +159,30 @@ export default async function handler(req, res) {
       totalRentalFee: Number(selectedPlan.total || 0),
       status: "received",
       underwritingMemo: `온라인 렌탈 신청 접수 (신분증 ${Math.round(idDocFile.size / 1024)}KB, 전자서명 ${Math.round(sigFile.size / 1024)}KB 첨부)`,
+      checkId: false,
+      checkSignature: false,
+      checkConsent: false,
+      consentsJson: JSON.stringify(consents),
     });
+
+    await Promise.all([
+      convexClient.mutation(api.rentals.saveDocument, {
+        appNo,
+        kind: "id_card",
+        storageId: idStorageId,
+        mimeType: idMime,
+        byteSize: idDocFile.size,
+        sha256Digest: idDigest,
+      }),
+      convexClient.mutation(api.rentals.saveDocument, {
+        appNo,
+        kind: "signature",
+        storageId: sigStorageId,
+        mimeType: sigMime,
+        byteSize: sigFile.size,
+        sha256Digest: sigDigest,
+      }),
+    ]);
 
     await convexClient.mutation(api.crm.upsertContract, {
       contractNo: appNo,

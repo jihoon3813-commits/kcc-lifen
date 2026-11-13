@@ -127,3 +127,37 @@ export function maskBirthDate(raw) {
   }
   return "****-**-**";
 }
+
+export function resolveProjectAttribution(project, linkById, linkByCode) {
+  const src = String(project?.source || "").trim();
+  const rawAdCh = String(project?.adChannel || "").trim();
+  const ll =
+    (project?.landingLinkId ? linkById?.get(Number(project.landingLinkId)) : null) ||
+    (src ? linkByCode?.get(src) : null) ||
+    (rawAdCh ? linkByCode?.get(rawAdCh) : null) ||
+    null;
+
+  const isUnresolvedOrCode =
+    !rawAdCh ||
+    (ll?.code && rawAdCh === ll.code) ||
+    rawAdCh === "랜딩페이지" ||
+    rawAdCh === "기본 랜딩(직접유입)" ||
+    rawAdCh === "기본 랜딩(미분류)";
+
+  let resolvedChannel = rawAdCh;
+  if (isUnresolvedOrCode && ll?.channel) {
+    resolvedChannel = ll.channel;
+  } else if (!resolvedChannel) {
+    resolvedChannel =
+      ll?.channel ||
+      (src === "랜딩페이지" ? "기본 랜딩(미분류)" : src || "직접등록");
+  }
+
+  return {
+    link: ll,
+    adChannel: resolvedChannel,
+    adCampaign: project?.adCampaign || ll?.name || "",
+    landingLinkId: project?.landingLinkId || ll?.linkId || null,
+    landingLinkCode: ll?.code || "",
+  };
+}

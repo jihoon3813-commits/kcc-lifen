@@ -5,7 +5,7 @@ import {
   parseBody,
   authenticateRequest,
 } from "../_lib/authHelper.js";
-import { isPartnerAllowed, formatKstDateSlice, formatShortKst } from "../_lib/crmHelper.js";
+import { isPartnerAllowed, formatKstDateSlice, formatShortKst, resolveProjectAttribution } from "../_lib/crmHelper.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -33,10 +33,9 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: "해당 고객 정보에 접근 권한이 없습니다." });
       }
 
-      const ll =
-        landingLinks.find((l) => Number(l.linkId) === Number(project.landingLinkId)) ||
-        landingLinks.find((l) => l.code === project.source) ||
-        null;
+      const linkById = new Map(landingLinks.map((l) => [Number(l.linkId), l]));
+      const linkByCode = new Map(landingLinks.map((l) => [l.code, l]));
+      const attr = resolveProjectAttribution(project, linkById, linkByCode);
 
       const mappedNotes = notes.map((n, idx) => ({
         id: idx + 1,
@@ -93,13 +92,10 @@ export default async function handler(req, res) {
           status: project.status,
           label: project.label,
           source: project.source,
-          adChannel:
-            project.adChannel ||
-            ll?.channel ||
-            (project.source === "랜딩페이지" ? "기본 랜딩(미분류)" : project.source),
-          adCampaign: project.adCampaign || ll?.name || "",
-          landingLinkId: project.landingLinkId || ll?.linkId || null,
-          landingLinkCode: ll?.code || "",
+          adChannel: attr.adChannel,
+          adCampaign: attr.adCampaign,
+          landingLinkId: attr.landingLinkId,
+          landingLinkCode: attr.landingLinkCode,
           partner: project.partnerName,
           owner: project.ownerName,
           date: formatKstDateSlice(project.createdAt),

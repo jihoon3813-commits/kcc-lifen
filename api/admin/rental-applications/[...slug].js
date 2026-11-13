@@ -12,6 +12,7 @@ import {
   normalizeRentalStatusCode,
   maskBirthDate,
 } from "../../_lib/crmHelper.js";
+import { fetchUrlAsDataUrl } from "../../_lib/storageHelper.js";
 import { maskPhone } from "../../../server/utils/mobileQuoteFormatter.js";
 
 const ALLOWED_TRANSITIONS = {
@@ -67,6 +68,54 @@ export default async function handler(req, res) {
     const upfront = Math.max(0, total - monthly * months);
 
     if (!action && req.method === "GET") {
+      const canViewSensitiveDocs =
+        auth.user.role === "hq_admin" || auth.user.role === "accountant";
+
+      let rawDocs = [];
+      try {
+        rawDocs = await convexClient.query(api.rentals.getDocumentsByAppNo, {
+          appNo: app.appNo,
+        });
+      } catch (docErr) {
+        console.warn("[rental-applications] getDocumentsByAppNo warning:", docErr?.message);
+      }
+
+      const documents = await Promise.all(
+        (rawDocs || []).map(async (d) => {
+          let dataUrl = null;
+          if (canViewSensitiveDocs && !d.deletedAt && d.url) {
+            if ((d.byteSize || 0) <= 1.8 * 1024 * 1024) {
+              try {
+                dataUrl = await fetchUrlAsDataUrl(d.url, d.mimeType || "image/png");
+              } catch {}
+            }
+            if (!dataUrl) {
+              dataUrl = d.url;
+            }
+          }
+          return {
+            id: String(d._id),
+            kind: d.kind,
+            versionNo: d.versionNo || 1,
+            mimeType: d.mimeType || "image/png",
+            byteSize: d.byteSize || 0,
+            digestPrefix: d.sha256Digest ? d.sha256Digest.slice(0, 16) : "",
+            isActive: Boolean(d.isActive),
+            deletedAt: d.deletedAt || null,
+            createdAt: d.createdAt || "",
+            dataUrl,
+            viewUrl: d.url || null,
+          };
+        })
+      );
+
+      let parsedConsents = [];
+      if (app.consentsJson) {
+        try {
+          parsedConsents = JSON.parse(app.consentsJson);
+        } catch {}
+      }
+
       return res.status(200).json({
         application: {
           id: app.appNo,
@@ -91,10 +140,11 @@ export default async function handler(req, res) {
           allowedNextStatuses: ALLOWED_TRANSITIONS[statusCode] || [statusCode],
           revision: 1,
           checks: {
-            id: true,
-            signature: true,
-            consent: true,
+            id: Boolean(app.checkId),
+            signature: Boolean(app.checkSignature),
+            consent: Boolean(app.checkConsent),
           },
+          contractReference: app.contractReference || null,
           snapshotPricing: {
             planKey: `plan_${months}`,
             planTitle: app.productSummary || `${months}개월 렌탈`,
@@ -120,10 +170,10 @@ export default async function handler(req, res) {
           created_at: app.createdAt || "",
           updatedAt: app.updatedAt || "",
         },
-        documents: [],
-        consents: [],
+        documents,
+        consents: Array.isArray(parsedConsents) ? parsedConsents : [],
         permissions: {
-          canViewSensitiveDocs: auth.user.role === "hq_admin",
+          canViewSensitiveDocs,
           canConfirmContract: auth.user.role === "hq_admin" || auth.user.role === "accountant",
           canPurgeDocs: auth.user.role === "hq_admin",
         },
@@ -158,10 +208,19 @@ export default async function handler(req, res) {
       const nextCode = normalizeRentalStatusCode(body.status || statusCode);
       const nextLabel = getRentalStatusLabel(nextCode);
       const memo = body.memo !== undefined ? String(body.memo) : body.underwritingMemo;
+      const checks = body.checks || {};
       await convexClient.mutation(api.rentals.updateReview, {
         appNo: app.appNo,
         status: nextCode,
         underwritingMemo: memo !== undefined ? String(memo) : undefined,
+        contractReference:
+          body.contractReference !== undefined
+            ? String(body.contractReference || "").trim()
+            : undefined,
+        checkId: checks.id !== undefined ? Boolean(checks.id) : undefined,
+        checkSignature:
+          checks.signature !== undefined ? Boolean(checks.signature) : undefined,
+        checkConsent: checks.consent !== undefined ? Boolean(checks.consent) : undefined,
       });
       return res.status(200).json({
         success: true,

@@ -4,7 +4,7 @@ import {
   setCors,
   authenticateRequest,
 } from "../_lib/authHelper.js";
-import { isPartnerAllowed, formatKstDateSlice } from "../_lib/crmHelper.js";
+import { isPartnerAllowed, formatKstDateSlice, resolveProjectAttribution } from "../_lib/crmHelper.js";
 
 function inPeriod(isoStr, period) {
   if (period === "all") return true;
@@ -57,9 +57,11 @@ export default async function handler(req, res) {
       });
     }
 
+    const linkById = new Map(allLinks.map((l) => [Number(l.linkId), l]));
+    const linkByCode = new Map(allLinks.map((l) => [l.code, l]));
     const channelMap = new Map();
     for (const p of projects) {
-      const ch = p.adChannel || p.source || "기본 랜딩(직접유입)";
+      const ch = resolveProjectAttribution(p, linkById, linkByCode).adChannel || "기본 랜딩(직접유입)";
       if (!channelMap.has(ch)) channelMap.set(ch, { channel: ch, views: 0, leads: 0, quotes: 0, contracts: 0 });
       const entry = channelMap.get(ch);
       entry.leads += 1;
@@ -98,18 +100,24 @@ export default async function handler(req, res) {
         conversionRate: 0,
       })),
       products: [],
-      recentEvents: allEvents.slice(-20).reverse().map((ev, idx) => ({
-        id: idx + 1,
-        createdAt: ev.createdAt,
-        productName: ev.productName || "KCC 홈씨씨 창호",
-        channel: ev.channel || "직접 방문",
-        campaignName: ev.campaignName || ev.utmCampaign || "",
-        partnerName: ev.partnerName || "직영",
-        ipMasked: "-",
-        device: "웹",
-        eventType: ev.eventType,
-        eventLabel: ev.eventType === "page_view" ? "페이지 방문" : ev.eventType,
-      })),
+      recentEvents: allEvents.slice(-20).reverse().map((ev, idx) => {
+        const evLink =
+          (ev.landingLinkId ? linkById.get(Number(ev.landingLinkId)) : null) ||
+          (ev.channel ? linkByCode.get(ev.channel) : null) ||
+          null;
+        return {
+          id: idx + 1,
+          createdAt: ev.createdAt,
+          productName: ev.productName || "KCC 홈씨씨 창호",
+          channel: evLink?.channel || ev.utmSource || ev.channel || "직접 방문",
+          campaignName: ev.campaignName || ev.utmCampaign || evLink?.name || "",
+          partnerName: evLink?.partnerName || ev.partnerName || "직영",
+          ipMasked: "-",
+          device: "웹",
+          eventType: ev.eventType,
+          eventLabel: ev.eventType === "page_view" ? "페이지 방문" : ev.eventType,
+        };
+      }),
     });
   } catch (err) {
     console.error("Vercel GET /api/analytics/overview error:", err);

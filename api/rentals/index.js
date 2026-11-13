@@ -17,10 +17,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [apps, projectsList] = await Promise.all([
+    const [apps, projectsList, activeDocs] = await Promise.all([
       convexClient.query(api.rentals.list, {}),
       convexClient.query(api.projects.list, {}),
+      convexClient.query(api.rentals.listActiveDocuments, {}).catch(() => []),
     ]);
+
+    const docMap = new Map();
+    for (const d of activeDocs || []) {
+      const entry = docMap.get(d.appNo) || { hasIdCard: false, hasSignature: false };
+      if (d.kind === "id_card") entry.hasIdCard = true;
+      if (d.kind === "signature") entry.hasSignature = true;
+      docMap.set(d.appNo, entry);
+    }
 
     const projects = Array.isArray(projectsList) ? projectsList : [];
     const projMap = new Map(projects.map((p) => [Number(p.projectId), p]));
@@ -41,6 +50,7 @@ export default async function handler(req, res) {
         const createdAt = a.createdAt || "";
         const date = createdAt ? createdAt.slice(0, 10) : "";
         const createdAtText = createdAt ? createdAt.replace("T", " ").slice(0, 16) : "";
+        const docFlags = docMap.get(a.appNo) || { hasIdCard: false, hasSignature: false };
 
         return {
           id: a.appNo,
@@ -63,7 +73,13 @@ export default async function handler(req, res) {
           product: p?.product || "창호",
           review: a.underwritingMemo || "",
           consent: true,
-          checks: { id: true, signature: true, consent: true },
+          hasIdCard: docFlags.hasIdCard,
+          hasSignature: docFlags.hasSignature,
+          checks: {
+            id: Boolean(a.checkId),
+            signature: Boolean(a.checkSignature),
+            consent: Boolean(a.checkConsent),
+          },
           date,
           createdAt,
           createdAtText,

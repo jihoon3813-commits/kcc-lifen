@@ -407,6 +407,27 @@ export const upsertLandingLink = mutation({
           active: args.active ?? existing.active,
           updatedAt: now,
         });
+        if (existing.channel !== args.channel || existing.name !== args.name || existing.code !== args.code) {
+          const allProjects = await ctx.db.query("projects").collect();
+          for (const pr of allProjects) {
+            if (pr.landingLinkId === existing.linkId || pr.source === existing.code) {
+              const patchProj = {};
+              if (!pr.adChannel || pr.adChannel === existing.channel || pr.adChannel === existing.code) {
+                patchProj.adChannel = args.channel;
+              }
+              if (!pr.adCampaign || pr.adCampaign === existing.name) {
+                patchProj.adCampaign = args.name;
+              }
+              if (pr.source === existing.code && args.code) {
+                patchProj.source = args.code;
+              }
+              if (Object.keys(patchProj).length > 0) {
+                patchProj.updatedAt = now;
+                await ctx.db.patch(pr._id, patchProj);
+              }
+            }
+          }
+        }
         return { linkId: existing.linkId };
       }
     }
@@ -458,21 +479,32 @@ export const recordLandingEvent = mutation({
   },
   handler: async (ctx, args) => {
     const now = new Date().toISOString();
+    const cleanChannelArg = args.channel ? String(args.channel).trim() : undefined;
     let resolvedLink = null;
     if (args.landingLinkId) {
       resolvedLink = await ctx.db
         .query("landingLinks")
         .withIndex("by_linkId", (q) => q.eq("linkId", args.landingLinkId))
         .first();
-    } else if (args.channel) {
+    } else if (cleanChannelArg) {
       resolvedLink = await ctx.db
         .query("landingLinks")
-        .withIndex("by_code", (q) => q.eq("code", args.channel))
+        .withIndex("by_code", (q) => q.eq("code", cleanChannelArg))
         .first();
     }
 
+    const resolvedChannelName = resolvedLink?.channel || args.utmSource || cleanChannelArg;
+    const resolvedCampaignName = args.campaignName || args.utmCampaign || resolvedLink?.name || resolvedLink?.campaign;
+    const resolvedPartnerName =
+      args.partnerName && args.partnerName !== "직영"
+        ? args.partnerName
+        : (resolvedLink?.partnerName || args.partnerName || "직영");
+
     await ctx.db.insert("landingEvents", {
       ...args,
+      channel: resolvedChannelName,
+      campaignName: resolvedCampaignName,
+      partnerName: resolvedPartnerName,
       landingLinkId: args.landingLinkId ?? resolvedLink?.linkId,
       createdAt: now,
     });

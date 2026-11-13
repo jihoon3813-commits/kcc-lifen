@@ -1,7 +1,7 @@
 import express from 'express';
 import { convexClient, api } from '../convex.js';
 import { requireAuth, checkPartnerAccess } from '../middleware/auth.js';
-import { parseQuoteInquiry } from '../../api/_lib/crmHelper.js';
+import { parseQuoteInquiry, resolveProjectAttribution } from '../../api/_lib/crmHelper.js';
 
 const router = express.Router();
 
@@ -128,11 +128,7 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
       const latestQ = pQuotes[0] || null;
       const roughQ = pQuotes.find((qt) => qt.quoteType === '가견적') || null;
       const finalQ = pQuotes.find((qt) => qt.quoteType === '최종견적') || null;
-      const ll = (p.landingLinkId ? linkById.get(Number(p.landingLinkId)) : null) || linkByCode.get(p.source) || null;
-      const resolvedChannel =
-        p.adChannel ||
-        ll?.channel ||
-        (p.source === '랜딩페이지' ? '기본 랜딩(미분류)' : p.source);
+      const attr = resolveProjectAttribution(p, linkById, linkByCode);
 
       return {
         id: p.projectId,
@@ -144,10 +140,10 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
         status: p.status,
         label: p.label,
         source: p.source,
-        adChannel: resolvedChannel,
-        adCampaign: p.adCampaign || ll?.name || '',
-        landingLinkId: p.landingLinkId || ll?.linkId || null,
-        landingLinkCode: ll?.code || '',
+        adChannel: attr.adChannel,
+        adCampaign: attr.adCampaign,
+        landingLinkId: attr.landingLinkId,
+        landingLinkCode: attr.landingLinkCode,
         partner: p.partnerName,
         owner: p.ownerName,
         date: formatKstDateSlice(p.createdAt),
@@ -202,10 +198,9 @@ router.get('/:id', requireAuth, checkPartnerAccess, async (req, res) => {
       return res.status(403).json({ error: '해당 고객 정보에 접근 권한이 없습니다.' });
     }
 
-    const ll =
-      landingLinks.find((l) => Number(l.linkId) === Number(project.landingLinkId)) ||
-      landingLinks.find((l) => l.code === project.source) ||
-      null;
+    const linkById = new Map(landingLinks.map((l) => [Number(l.linkId), l]));
+    const linkByCode = new Map(landingLinks.map((l) => [l.code, l]));
+    const attr = resolveProjectAttribution(project, linkById, linkByCode);
 
     const mappedNotes = notes.map((n, idx) => ({
       id: idx + 1,
@@ -262,13 +257,10 @@ router.get('/:id', requireAuth, checkPartnerAccess, async (req, res) => {
         status: project.status,
         label: project.label,
         source: project.source,
-        adChannel:
-          project.adChannel ||
-          ll?.channel ||
-          (project.source === '랜딩페이지' ? '기본 랜딩(미분류)' : project.source),
-        adCampaign: project.adCampaign || ll?.name || '',
-        landingLinkId: project.landingLinkId || ll?.linkId || null,
-        landingLinkCode: ll?.code || '',
+        adChannel: attr.adChannel,
+        adCampaign: attr.adCampaign,
+        landingLinkId: attr.landingLinkId,
+        landingLinkCode: attr.landingLinkCode,
         partner: project.partnerName,
         owner: project.ownerName,
         date: formatKstDateSlice(project.createdAt),

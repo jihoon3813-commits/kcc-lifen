@@ -339,28 +339,31 @@ function findCustomerLandingLink(c) {
 }
 function getCustomerChannel(c) {
   if (!c) return '직접등록';
-  const raw = String(c.adChannel || c.source || '직접등록').trim();
-  if (raw === '랜딩페이지') return '기본 랜딩(미분류)';
   const ll = findCustomerLandingLink(c);
-  if (ll && ll.channel && (!c.adChannel || c.adChannel === c.source || c.adChannel === ll.code)) {
+  const rawAd = String(c.adChannel || '').trim();
+  if (
+    ll &&
+    ll.channel &&
+    (!rawAd ||
+      rawAd === ll.code ||
+      rawAd === '랜딩페이지' ||
+      rawAd === '기본 랜딩(직접유입)' ||
+      rawAd === '기본 랜딩(미분류)')
+  ) {
     return ll.channel;
   }
+  const raw = String(c.adChannel || c.source || '직접등록').trim();
+  if (raw === '랜딩페이지') return '기본 랜딩(미분류)';
+  if (ll && ll.channel && raw === ll.code) return ll.channel;
   return raw;
 }
 function buildTrackingUrl(link, origin = window.location.origin) {
   if (!link) return '';
-  const base = link.targetUrl || '/landing/';
+  const rawBase = String(link.targetUrl || '/').trim();
+  const base = (!rawBase || rawBase === '/landing' || rawBase === '/landing/') ? '/' : rawBase;
   try {
     const u = new URL(base, origin);
     if (link.code) u.searchParams.set('ch', link.code);
-    if (link.partnerName && link.partnerName !== '직영') {
-      u.searchParams.set('partner', link.partnerName);
-    }
-    if (link.includeUtm) {
-      if (link.channel) u.searchParams.set('utm_source', link.channel);
-      if (link.medium) u.searchParams.set('utm_medium', link.medium);
-      if (link.name) u.searchParams.set('utm_campaign', link.name);
-    }
     return u.href;
   } catch {
     const sep = base.includes('?') ? '&' : '?';
@@ -637,7 +640,12 @@ async function syncFromServer() {
     }
     if (fRes.ok) {
       const data = await fRes.json();
-      db.forms = data.forms;
+      if (Array.isArray(data.forms) && data.forms.length > 0) {
+        data.forms.forEach(f => {
+          f.fieldsConfig = normalizeFormFields(f.fieldsConfig);
+        });
+        db.forms = data.forms;
+      }
     }
     if (anRes && anRes.ok) {
       db.analytics = await anRes.json();
@@ -2810,7 +2818,10 @@ async function getPdfDoc(pdfUrl) {
   if (!window.pdfjsLib || !pdfUrl) return null;
   if (pdfDocCache.has(pdfUrl)) return pdfDocCache.get(pdfUrl);
   try {
-    const loadingTask = pdfjsLib.getDocument(pdfUrl);
+    const docOpts = String(pdfUrl).startsWith('/api/') && authToken
+      ? { url: pdfUrl, httpHeaders: { Authorization: `Bearer ${authToken}` } }
+      : pdfUrl;
+    const loadingTask = pdfjsLib.getDocument(docOpts);
     const pdf = await loadingTask.promise;
     pdfDocCache.set(pdfUrl, pdf);
     return pdf;
@@ -3027,7 +3038,7 @@ async function openFormEditor(formIdx) {
   `;
 
   openDialog(
-    '양식 필드 에디터 · (렌탈) 개인정보 동의서',
+    '양식 필드 에디터 · ' + esc(form.name || '(렌탈) 개인정보 동의서'),
     bodyHtml,
     '',
     'form-editor-dialog',
@@ -3663,6 +3674,7 @@ function initFormEditorEvents(formIdx) {
   $('#fe-trigger-upload-btn')?.addEventListener('click', () => fileInp?.click());
   fileInp?.addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     await handleFormPdfUpload(formIdx, file);
   });
@@ -3704,7 +3716,9 @@ function initFormEditorEvents(formIdx) {
           body: {
             fieldsConfig: curForm.fieldsConfig,
             pdfPath: curForm.pdfPath,
-            fileName: curForm.fileName
+            pdfStorageId: curForm.pdfStorageId || undefined,
+            fileName: curForm.fileName,
+            text: curForm.text
           }
         });
         if (res.ok) {
@@ -3721,44 +3735,112 @@ function initFormEditorEvents(formIdx) {
   });
 }
 
-// PDF 업로드 처리 (한글 파일명 보존 및 다중 페이지 재로딩)
+// PDF 업로드 처리 (한글 파일명 보존, 대용량 직접 업로드 및 다중 페이지 재로딩)
 async function handleFormPdfUpload(formIdx, file) {
   const form = db.forms[formIdx];
   if (!file || !form) return;
+
+  const originalFileName = file.name || 'form.pdf';
+  if (file.type && file.type !== 'application/pdf' && !originalFileName.toLowerCase().endsWith('.pdf')) {
+    return toast('PDF 파일(.pdf)만 업로드할 수 있습니다.');
+  }
+
   toast('PDF 파일을 업로드하고 있습니다...');
 
-  // 브라우저 측에서 파일명 한글 안전 보존
-  const originalFileName = file.name;
-
-  const fd = new FormData();
-  fd.append('file', file);
-  fd.append('fileName', originalFileName);
-
   try {
-    const res = await fetch('/api/settings/forms/upload-pdf', {
-      method: 'POST',
-      headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
-      body: fd
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      return toast(data.error || 'PDF 업로드에 실패했습니다.');
+    let data = null;
+
+    // 4MB 초과는 서버리스 바디 제한 우회를 위해 직접 스토리지 업로드 우선 시도
+    if (file.size > 4 * 1024 * 1024) {
+      try {
+        const urlRes = await apiFetch('/api/settings/forms/upload-url', { method: 'POST' });
+        if (urlRes.ok) {
+          const { uploadUrl } = await urlRes.json();
+          if (uploadUrl) {
+            const upRes = await fetch(uploadUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/pdf' },
+              body: file
+            });
+            if (!upRes.ok) throw new Error('스토리지 직접 업로드 실패');
+            const { storageId } = await upRes.json();
+            const regRes = await apiFetch('/api/settings/forms/register-pdf', {
+              method: 'POST',
+              body: { storageId, fileName: originalFileName }
+            });
+            data = await regRes.json().catch(() => ({}));
+            if (!regRes.ok) {
+              return toast(data.error || 'PDF 등록에 실패했습니다.');
+            }
+          }
+        }
+      } catch (directErr) {
+        console.warn('Direct PDF upload fallback:', directErr);
+      }
+    }
+
+    if (!data) {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('fileName', originalFileName);
+      const res = await fetch('/api/settings/forms/upload-pdf', {
+        method: 'POST',
+        headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+        body: fd
+      });
+      data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return toast(data.error || 'PDF 업로드에 실패했습니다.');
+      }
+    }
+
+    if (!data.pdfPath) {
+      return toast('서버에서 PDF 경로를 반환하지 않았습니다.');
     }
 
     form.pdfPath = data.pdfPath;
+    form.pdfStorageId = data.pdfStorageId || null;
     form.fileName = data.fileName || originalFileName;
     save();
 
+    if (form.id) {
+      try {
+        const patchRes = await apiFetch('/api/settings/forms/' + encodeURIComponent(form.id), {
+          method: 'PATCH',
+          body: {
+            pdfPath: form.pdfPath,
+            pdfStorageId: form.pdfStorageId || undefined,
+            fileName: form.fileName,
+            fieldsConfig: form.fieldsConfig
+          }
+        });
+        if (patchRes.ok) {
+          const patchData = await patchRes.json().catch(() => ({}));
+          if (patchData.version) {
+            form.version = patchData.version;
+            save();
+          }
+        }
+      } catch (syncErr) {
+        console.warn('PDF metadata sync warning:', syncErr);
+      }
+    }
+
     pdfDocCache.delete(data.pdfPath);
-    toast(`[${form.fileName}] PDF가 성공적으로 등록되었습니다!`);
 
     // PDF 로드 및 총 페이지 수 파악
     const newDoc = await getPdfDoc(data.pdfPath);
-    if (editorState) {
+    if (!newDoc) {
+      toast('PDF 파일은 저장되었으나 화면 렌더링에 실패했습니다. 새로고침 후 확인해 주세요.');
+    } else {
+      toast(`[${form.fileName}] PDF가 성공적으로 등록되었습니다!`);
+    }
+
+    const isEditorOpen = Boolean($('#fe-pdf-canvas') && $('.overlay'));
+    if (isEditorOpen && editorState) {
       editorState.pdfDoc = newDoc;
       editorState.totalPages = newDoc ? newDoc.numPages : 1;
       editorState.currentPage = 1;
-      // 에디터 UI 새로고침
       openFormEditor(formIdx);
     } else {
       render();
@@ -3781,7 +3863,7 @@ async function openFormPreview(formIdx, selectedApplicantId = null, draftFields 
   toast('렌탈 신청 고객 및 서명 데이터를 불러오는 중...');
   let applicants = previewApplicantsCache;
 
-  if (!applicants) {
+  if (!applicants || (selectedApplicantId && !applicants.some(a => a.id === selectedApplicantId))) {
     try {
       const res = await apiFetch('/api/settings/forms/rental-applicants');
       if (res.ok) {
@@ -4222,7 +4304,7 @@ const quoteShortcutBtn = canManageQuotes()
   : btn('본사 견적 요청', 'request-quote', 'plus', 'soft sm', `data-id="${id}"`);
 const displayCustCh = getCustomerChannel(c);
 const chDatalist = `<datalist id="ad-channel-presets">${AD_CHANNEL_PRESETS.map(p => `<option value="${esc(p)}"></option>`).join('')}<option value="직접등록"></option></datalist>`;
-const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${canManageQuotes()?`<button type="button" class="link-chip" style="background:#eef4ff;color:#2753a8;border-color:#c6d8f8" data-action="new-quote" data-id="${id}">+ 견적등록</button>`:''}<button type="button" class="link-chip" style="background:#17243c;color:#fff;border-color:#17243c" data-action="new-contract" data-id="${id}" data-from="customer-modal">+ 계약등록</button><button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',stages,c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 상담사','detail-owner',getHqOwnerOptions(c.owner),c.owner)}<div class="field"><label for="detail-source">유입채널</label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${canManageQuotes()?btn('견적등록 바로가기','new-quote','plus','primary sm block',`data-id="${id}"`):btn('본사 견적 요청','request-quote','plus','primary sm block',`data-id="${id}"`)}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,Boolean(c.quote))}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,Boolean(c.quote))}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${btn('계약 등록','new-contract','contract','soft block',`data-id="${id}" data-from="customer-modal"`)}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history"><h4>${icon('history')}변경 히스토리</h4>${[...(db.history[id]||[]),{date:c.date.slice(5)+' 09:30',text:'고객 접수 · '+displayCustCh+(c.adCampaign?(' ('+c.adCampaign+')'):''),by:'시스템'},{date:c.date.slice(5)+' 09:30',text:'담당자 '+c.owner,by:'운영관리자'}].map(h=>`<div class="history-item"><time>${esc(h.date)}</time><p>${esc(h.text)}</p><small>${esc(h.by)}</small></div>`).join('')}</aside></div>`;
+const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${canManageQuotes()?`<button type="button" class="link-chip" style="background:#eef4ff;color:#2753a8;border-color:#c6d8f8" data-action="new-quote" data-id="${id}">+ 견적등록</button>`:''}<button type="button" class="link-chip" style="background:#17243c;color:#fff;border-color:#17243c" data-action="new-contract" data-id="${id}" data-from="customer-modal">+ 계약등록</button><button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',stages,c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 상담사','detail-owner',getHqOwnerOptions(c.owner),c.owner)}<div class="field"><label for="detail-source" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">유입경로 (채널) <span class="ch-pill ${channelTone(displayCustCh)}">${esc(displayCustCh)}</span></label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${canManageQuotes()?btn('견적등록 바로가기','new-quote','plus','primary sm block',`data-id="${id}"`):btn('본사 견적 요청','request-quote','plus','primary sm block',`data-id="${id}"`)}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,Boolean(c.quote))}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,Boolean(c.quote))}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${btn('계약 등록','new-contract','contract','soft block',`data-id="${id}" data-from="customer-modal"`)}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history"><h4>${icon('history')}변경 히스토리</h4>${[...(db.history[id]||[]),{date:c.date.slice(5)+' 09:30',text:'고객 접수 · '+displayCustCh+(c.adCampaign?(' ('+c.adCampaign+')'):''),by:'시스템'},{date:c.date.slice(5)+' 09:30',text:'담당자 '+c.owner,by:'운영관리자'}].map(h=>`<div class="history-item"><time>${esc(h.date)}</time><p>${esc(h.text)}</p><small>${esc(h.by)}</small></div>`).join('')}</aside></div>`;
 const detailFooter = `<small>고객 상태: ${badge(c.status)}${custContracts.length ? ` · 계약 <b>${custContracts.length}건</b>` : ''} · ${esc(c.product)} · ${esc(c.partner)}</small>${custContracts.length ? btn('계약관리 이동', 'go-customer-contracts', 'external', 'sm soft', `data-id="${id}"`) : ''}${quoteShortcutBtn}${c.quote ? btn('모바일 견적 미리보기', 'preview', 'eye', 'sm soft', `data-id="${id}"`) : ''}${btn('계약 등록', 'new-contract', 'contract', 'sm primary', `data-id="${id}" data-from="customer-modal"`)}${btn('닫기', 'close', '', 'sm')}`;
 openDialog(`${esc(c.name)} <span style="font-size:11px;font-weight:400;color:#91a6c9;margin-left:8px">No. ${c.id}</span>`,body,detailFooter,'wide',`${esc(c.phone)}　｜　${esc(c.address)}`,true);detailId=c.id;detailTab=tab;
 }
@@ -5206,31 +5288,14 @@ function syncCloneLinkUrlPreview() {
   if (!form || !box) return;
   const prodSel = $('#clone-link-product', form);
   const selOpt = prodSel?.options[prodSel.selectedIndex];
-  const baseUrl = selOpt?.dataset?.url || '/landing/';
+  const baseUrl = selOpt?.dataset?.url || '/';
   const codeRaw = ($('#clone-link-code', form)?.value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-  const chVal = ($('#clone-link-channel', form)?.value || '').trim();
-  let defaultSlug = 'ad_auto';
-  if (chVal.includes('네이버')) defaultSlug = 'naver_auto';
-  else if (chVal.includes('당근')) defaultSlug = 'daangn_auto';
-  else if (chVal.includes('인스타') || chVal.includes('페이스북') || chVal.includes('메타')) defaultSlug = 'meta_auto';
-  else if (chVal.includes('카카오')) defaultSlug = 'kakao_auto';
-  else if (chVal.includes('유튜브') || chVal.includes('구글')) defaultSlug = 'google_auto';
-
-  const code = codeRaw || defaultSlug;
-  const medVal = ($('#clone-link-medium', form)?.value || '').trim();
-  const nameVal = ($('#clone-link-name', form)?.value || '').trim();
-  const partnerVal = ($('#clone-link-partner', form)?.value || '직영').trim();
-  const includeUtm = Boolean($('#clone-link-utm', form)?.checked);
+  const code = codeRaw || '__AUTO__';
   const full = buildTrackingUrl({
     targetUrl: baseUrl,
-    code,
-    channel: chVal,
-    medium: medVal,
-    name: nameVal,
-    partnerName: partnerVal,
-    includeUtm
+    code
   });
-  box.textContent = full;
+  box.textContent = codeRaw ? full : full.replace('__AUTO__', '자동생성5자리');
 }
 function openCloneLinkDialog(linkId = null, defaultProdIdx = null) {
   const existing = linkId ? (db.landingLinks || []).find(x => Number(x.id) === Number(linkId)) : null;
@@ -5292,18 +5357,10 @@ function openCloneLinkDialog(linkId = null, defaultProdIdx = null) {
           <select class="input" id="clone-link-partner" name="partnerName">${options(partnerChoices, initPartner)}</select>
         </div>
       </div>
-      <div class="field-grid">
-        <div class="field">
-          <label for="clone-link-code">추적 식별 코드 (선택)</label>
-          <input class="input" id="clone-link-code" name="code" value="${esc(existing?.code || '')}" placeholder="비워두면 자동 생성 (예: daangn_a1b2)">
-        </div>
-        <div class="field">
-          <label>추가 설정</label>
-          <label class="checkline" style="margin-top:8px">
-            <input type="checkbox" id="clone-link-utm" name="includeUtm" ${existing?.includeUtm ? 'checked' : ''}>
-            <span>URL에 UTM 파라미터도 함께 붙이기</span>
-          </label>
-        </div>
+      <div class="field">
+        <label for="clone-link-code">추적 식별 코드 (선택)</label>
+        <input class="input" id="clone-link-code" name="code" value="${esc(existing?.code || '')}" placeholder="비워두면 채널명 비노출 짧은 코드 자동 생성 (예: k7m2x)">
+        <p class="field-hint">URL에는 짧은 코드(<code>?ch=코드</code>)만 노출되며, 채널명·캠페인명·파트너 귀속은 서버에서 자동 매칭됩니다.</p>
       </div>
       <div class="field">
         <label>생성될 광고 배포 링크 미리보기</label>
@@ -6993,7 +7050,7 @@ case'clone-link':{
       partnerName: (d.partnerName || '직영').trim(),
       code: (d.code || '').trim(),
       targetUrl,
-      includeUtm: Boolean(d.includeUtm),
+      includeUtm: false,
       memo: (d.memo || '').trim(),
       isActive: isEdit ? Boolean(d.isActive) : true
     };
@@ -7029,7 +7086,7 @@ case'clone-link':{
     } catch {}
     if (!handledByServer) {
       db.landingLinks = Array.isArray(db.landingLinks) ? db.landingLinks : [];
-      const genCode = payload.code || ('ad_' + Date.now().toString(36));
+      const genCode = payload.code || Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 5).padEnd(5, 'x');
       if (isEdit) {
         const idx = db.landingLinks.findIndex(x => Number(x.id) === Number(id));
         if (idx !== -1) {

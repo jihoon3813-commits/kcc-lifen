@@ -148,10 +148,30 @@ export default defineSchema({
     score: v.optional(v.number()),
     grade: v.optional(v.string()),
     underwritingMemo: v.optional(v.string()),
+    contractReference: v.optional(v.string()),
+    checkId: v.optional(v.boolean()),
+    checkSignature: v.optional(v.boolean()),
+    checkConsent: v.optional(v.boolean()),
+    consentsJson: v.optional(v.string()),
     createdAt: v.optional(v.string()),
     updatedAt: v.optional(v.string()),
   }).index("by_appNo", ["appNo"])
     .index("by_status", ["status"]),
+
+  // 8-1. 렌탈 신청 첨부 서류 (신분증 사진 / 전자 서명)
+  rentalDocuments: defineTable({
+    appNo: v.string(),
+    kind: v.string(), // 'id_card' | 'signature'
+    versionNo: v.number(),
+    storageId: v.id("_storage"),
+    mimeType: v.string(),
+    byteSize: v.number(),
+    sha256Digest: v.optional(v.string()),
+    isActive: v.boolean(),
+    deletedAt: v.optional(v.string()),
+    createdAt: v.string(),
+  }).index("by_appNo", ["appNo"])
+    .index("by_appNo_and_kind", ["appNo", "kind"]),
 
   // 9. 상담/피드백 메모
   consultations: defineTable({
@@ -176,7 +196,9 @@ export default defineSchema({
     name: v.string(),
     type: v.string(),
     pdfPath: v.optional(v.string()),
+    pdfStorageId: v.optional(v.id("_storage")),
     fileName: v.optional(v.string()),
+    text: v.optional(v.string()),
     fieldsConfigJson: v.optional(v.string()), // JSON stringified fieldsConfig
     version: v.number(),
     enabled: v.boolean(),

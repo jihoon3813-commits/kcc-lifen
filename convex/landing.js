@@ -52,8 +52,8 @@ export const submitConsultation = mutation({
         phone: cleanPhone,
         purpose: purposeLabel,
         partnerName: recent.partnerName || "직영",
-        channel: recent.source || "기본 랜딩(직접유입)",
-        campaign: args.utm_campaign || "",
+        channel: recent.adChannel || recent.source || "기본 랜딩(직접유입)",
+        campaign: recent.adCampaign || args.utm_campaign || "",
         message: "이미 상담 신청이 접수되었습니다. 담당자가 순차적으로 연락드리겠습니다.",
       };
     }
@@ -92,12 +92,18 @@ export const submitConsultation = mutation({
     const nextProjectId = maxId + 1;
 
     // 파트너명 및 유입 채널 결정
+    const cleanCh = args.ch ? String(args.ch).trim() : "";
     let matchedLink = null;
-    if (args.ch) {
+    if (cleanCh) {
       matchedLink = await ctx.db
         .query("landingLinks")
-        .withIndex("by_code", (q) => q.eq("code", args.ch))
+        .withIndex("by_code", (q) => q.eq("code", cleanCh))
         .first();
+      if (!matchedLink) {
+        const allLinks = await ctx.db.query("landingLinks").collect();
+        matchedLink =
+          allLinks.find((l) => String(l.code || "").trim().toLowerCase() === cleanCh.toLowerCase()) || null;
+      }
     }
     const partnerName = args.partner && args.partner !== "직영"
       ? args.partner
@@ -107,8 +113,8 @@ export const submitConsultation = mutation({
       channel = matchedLink.channel;
     } else if (args.utm_source) {
       channel = args.utm_source;
-    } else if (args.ch) {
-      channel = args.ch;
+    } else if (cleanCh) {
+      channel = cleanCh;
     } else if (partnerName !== "직영") {
       channel = "파트너 전용링크";
     }
@@ -140,8 +146,8 @@ export const submitConsultation = mutation({
       product: "창호",
       status: "신규접수",
       label: isMeasure ? "실측요청" : "상담요청",
-      source: args.ch || channel,
-      adChannel: matchedLink?.channel || (args.utm_source ? args.utm_source : undefined),
+      source: matchedLink?.code || cleanCh || channel,
+      adChannel: channel,
       adCampaign: campaign || undefined,
       landingLinkId: matchedLink?.linkId,
       partnerName: partnerName,
@@ -193,11 +199,27 @@ export const getInfo = query({
     ch: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const cleanCh = args.ch ? String(args.ch).trim() : "";
+    let matchedLink = null;
+    if (cleanCh) {
+      matchedLink = await ctx.db
+        .query("landingLinks")
+        .withIndex("by_code", (q) => q.eq("code", cleanCh))
+        .first();
+    }
+
+    const resolvedPartnerName =
+      args.partner && args.partner !== "직영"
+        ? args.partner
+        : (matchedLink?.partnerName && matchedLink.partnerName !== "직영"
+            ? matchedLink.partnerName
+            : undefined);
+
     let partnerObj = null;
-    if (args.partner && args.partner !== "직영") {
+    if (resolvedPartnerName) {
       const org = await ctx.db
         .query("organizations")
-        .withIndex("by_name", (q) => q.eq("name", args.partner))
+        .withIndex("by_name", (q) => q.eq("name", resolvedPartnerName))
         .first();
       if (org) {
         partnerObj = {
@@ -212,8 +234,8 @@ export const getInfo = query({
       brand: "KCC 홈씨씨 창호 렌탈",
       company: "(주)라이프앤조이",
       tel: "1588-0883",
-      partner: partnerObj || (args.partner && args.partner !== "직영" ? { name: args.partner } : null),
-      channel: args.ch || "기본 랜딩",
+      partner: partnerObj || (resolvedPartnerName ? { name: resolvedPartnerName } : null),
+      channel: matchedLink?.channel || cleanCh || "기본 랜딩",
     };
   },
 });

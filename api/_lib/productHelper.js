@@ -10,32 +10,30 @@ export function sanitizeLinkCode(raw) {
     .slice(0, 40);
 }
 
-function getChannelSlug(channelName) {
-  const s = String(channelName || "").toLowerCase();
-  if (s.includes("네이버") && s.includes("블로그")) return "naver_blog";
-  if (s.includes("네이버") && s.includes("브랜드")) return "naver_bs";
-  if (s.includes("네이버") || s.includes("naver")) return "naver_sa";
-  if (s.includes("당근") || s.includes("karrot") || s.includes("daangn")) return "daangn";
-  if (s.includes("인스타") || s.includes("insta")) return "insta";
-  if (s.includes("카카오") || s.includes("kakao")) return "kakao";
-  if (s.includes("페이스북") || s.includes("메타") || s.includes("meta") || s.includes("facebook")) return "meta";
-  if (s.includes("유튜브") || s.includes("youtube")) return "yt";
-  if (s.includes("구글") || s.includes("google") || s.includes("gdn")) return "google";
-  if (s.includes("오프라인") || s.includes("현수막") || s.includes("전단") || s.includes("qr")) return "qr";
-  if (s.includes("파트너")) return "partner";
-  return "ad";
+const SHORT_CODE_CHARS = "abcdefghjkmnpqrstuvwxyz23456789";
+
+function randomShortCode(length = 5) {
+  const bytes = crypto.randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += SHORT_CODE_CHARS[bytes[i] % SHORT_CODE_CHARS.length];
+  }
+  return out;
 }
 
-export function generateLinkCode(channelName, requestedCode = "", existingCodes = new Set()) {
+export function generateLinkCode(_channelName, requestedCode = "", existingCodes = new Set()) {
   const cleaned = sanitizeLinkCode(requestedCode);
   if (cleaned) return cleaned;
 
-  const prefix = getChannelSlug(channelName);
-  for (let i = 0; i < 8; i++) {
-    const candidate = `${prefix}_${crypto.randomBytes(2).toString("hex")}`;
+  for (let i = 0; i < 12; i++) {
+    const candidate = randomShortCode(5);
     if (!existingCodes.has(candidate)) return candidate;
   }
-  return `${prefix}_${Date.now().toString(36).slice(-5)}`;
+  for (let i = 0; i < 12; i++) {
+    const candidate = randomShortCode(6);
+    if (!existingCodes.has(candidate)) return candidate;
+  }
+  return Date.now().toString(36).slice(-6);
 }
 
 export function formatProductsAndLinks(data, user) {
@@ -87,8 +85,8 @@ export function formatProductsAndLinks(data, user) {
       medium: "",
       campaign: ll.campaign || ll.name,
       partnerName: ll.partnerName || "직영",
-      targetUrl: ll.targetUrl || "/landing/",
-      includeUtm: true,
+      targetUrl: ll.targetUrl || "/",
+      includeUtm: false,
       memo: "",
       isActive: ll.active !== false,
       createdAt: ll.createdAt || "",

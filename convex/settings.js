@@ -53,10 +53,21 @@ export const listAllSettings = query({
       ctx.db.query("consentForms").collect(),
       ctx.db.query("appSettings").collect(),
     ]);
+    const resolvedForms = await Promise.all(
+      consentForms.map(async (f) => {
+        const storageUrl = f.pdfStorageId
+          ? await ctx.storage.getUrl(f.pdfStorageId)
+          : null;
+        return {
+          ...f,
+          storageUrl,
+        };
+      })
+    );
     return {
       labels: labels.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
       contractStatuses: contractStatuses.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
-      consentForms,
+      consentForms: resolvedForms,
       appSettings,
     };
   },
@@ -102,12 +113,39 @@ export const deleteContractStatus = mutation({
   },
 });
 
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const getStorageFileUrl = query({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
+export const getConsentFormPdfUrl = query({
+  args: { storageId: v.string() },
+  handler: async (ctx, args) => {
+    const forms = await ctx.db.query("consentForms").collect();
+    const matched = forms.find((f) => String(f.pdfStorageId || "") === args.storageId);
+    if (!matched || !matched.pdfStorageId) return null;
+    return await ctx.storage.getUrl(matched.pdfStorageId);
+  },
+});
+
 export const upsertConsentForm = mutation({
   args: {
     formId: v.string(),
     name: v.string(),
     type: v.optional(v.string()),
+    pdfPath: v.optional(v.string()),
+    pdfStorageId: v.optional(v.id("_storage")),
     fileName: v.optional(v.string()),
+    text: v.optional(v.string()),
     fieldsConfigJson: v.optional(v.string()),
     enabled: v.optional(v.boolean()),
   },
@@ -121,26 +159,36 @@ export const upsertConsentForm = mutation({
       await ctx.db.patch(existing._id, {
         name: args.name,
         type: args.type ?? existing.type,
-        fileName: args.fileName ?? existing.fileName,
-        fieldsConfigJson: args.fieldsConfigJson ?? existing.fieldsConfigJson,
+        pdfPath: args.pdfPath !== undefined ? args.pdfPath : existing.pdfPath,
+        pdfStorageId:
+          args.pdfStorageId !== undefined ? args.pdfStorageId : existing.pdfStorageId,
+        fileName: args.fileName !== undefined ? args.fileName : existing.fileName,
+        text: args.text !== undefined ? args.text : existing.text,
+        fieldsConfigJson:
+          args.fieldsConfigJson !== undefined
+            ? args.fieldsConfigJson
+            : existing.fieldsConfigJson,
         version: (existing.version || 1) + 1,
         enabled: args.enabled ?? existing.enabled,
         updatedAt: now,
       });
-      return existing.formId;
+      return { formId: existing.formId, version: (existing.version || 1) + 1 };
     }
     await ctx.db.insert("consentForms", {
       formId: args.formId,
       name: args.name,
       type: args.type || "rental",
+      pdfPath: args.pdfPath,
+      pdfStorageId: args.pdfStorageId,
       fileName: args.fileName,
+      text: args.text,
       fieldsConfigJson: args.fieldsConfigJson,
       version: 1,
       enabled: args.enabled ?? true,
       createdAt: now,
       updatedAt: now,
     });
-    return args.formId;
+    return { formId: args.formId, version: 1 };
   },
 });
 
