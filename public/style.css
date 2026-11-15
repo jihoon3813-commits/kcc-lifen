@@ -1641,7 +1641,7 @@
   gap: 8px;
   max-height: 56dvh;
   overflow-y: auto;
-  padding-right: 2px;
+  padding: 2px 2px 2px 0;
 }
 .cust-picker-item {
   display: flex;
