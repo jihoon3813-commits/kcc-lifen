@@ -1855,9 +1855,9 @@ function renderScheduleActionChips(k, schedules) {
         ? `(${s.installmentMonths || ord.installmentMonths}개월)`
         : '(일시불)';
       if (isPaid) {
-        return `<button type="button" class="sch-chip is-paid" data-action="contract-card-link" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}" title="카드 결제완료 상세 보기">✓ ${esc(s.label)} 결제완료 · ${esc(ord?.approvedAtText || s.paidDate || '자동반영')}</button>`;
+        return `<button type="button" class="sch-chip is-paid" data-action="open-cash-check" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}" title="클릭하여 카드 결제일 확인·수정">✓ ${esc(s.label)}${esc(quotaTag)} 결제완료 (${esc(s.paidDate || ord?.approvedAtText || '확인됨')})</button>`;
       }
-      return `<button type="button" class="sch-chip is-card-pending" data-action="contract-card-link" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}" title="클릭하여 결제링크 복사·발송">💳 ${esc(s.label)}${esc(quotaTag)} · 결제링크 발송</button>`;
+      return `<button type="button" class="sch-chip is-unpaid" data-action="open-cash-check" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}" title="클릭하여 카드 결제완료 및 결제일 체크">□ ${esc(s.label)}${esc(quotaTag)} ${won(s.amount)} · 결제체크</button>`;
     }
     if (isPaid) {
       return `<button type="button" class="sch-chip is-paid" data-action="open-cash-check" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}" title="클릭하여 입금일 확인·수정">✓ ${esc(s.label)} 입금완료 (${esc(s.paidDate || '확인됨')})</button>`;
@@ -1876,7 +1876,6 @@ function contractsPage(){
   );
   const ns = getNewContractSummary();
   const canEditSettings = getUserAllowedMenuKeys(getActiveUser()).includes('settings');
-  const canViewPayments = getUserAllowedMenuKeys(getActiveUser()).includes('payments');
   const shownContracts = sortByActivityState(
     items.filter(k => contractTab === 'all' || isCashContract(k)),
     getActivityState,
@@ -1884,7 +1883,6 @@ function contractsPage(){
   );
 
   const headBtns =
-    (canViewPayments ? btn('카드결제 관리', 'go-payments-page', 'credit', 'soft') : '') +
     (canEditSettings ? btn('계약·수납상태 설정', 'go-contract-settings', 'settings', 'secondary') : '') +
     btn('계약 등록', 'new-contract', 'plus', 'primary');
 
@@ -1906,7 +1904,7 @@ function contractsPage(){
   const contractRowCids = [...new Set((contractTab === 'rental' ? apps : shownContracts).map(x => Number(x.cid)).filter(Boolean))];
   const allContractsSelected = contractRowCids.length > 0 && contractRowCids.every(cid => selected.has(cid));
 
-  return pageHead('계약관리', '현금 입금체크·입금일 기록, 카드 결제링크 발송·자동반영, 렌탈 60개월 약정을 통합 관리하세요.', headBtns, 'CONTRACT & PAYMENT') +
+  return pageHead('계약관리', '현금·카드 입금·결제체크 및 날짜 기록, 렌탈 60개월 약정을 통합 관리하세요.', headBtns, 'CONTRACT & PAYMENT') +
     `<div class="metrics">
       ${metric('전체 계약', items.length, '건', ns.allContractNew > 0 ? `공사건별 계약 현황 <span class="metric-red-num">신규 <b>${ns.allContractNew}</b></span>` : '공사건별 계약 현황', 'contract', '', 'contract-tab', 'data-value="all"')}
       ${metric('렌탈 신청', apps.length, '건', ns.rentalAppNew > 0 ? `신청 접수와 약정 단계 <span class="metric-red-num">신규 <b>${ns.rentalAppNew}</b></span>` : '60개월 렌탈 약정 현황', 'file', 'purple', 'contract-tab', 'data-value="rental"')}
@@ -1921,7 +1919,7 @@ function contractsPage(){
         <table class="mobile-card-table contract-master-table">
           <thead><tr><th style="width:36px"><input type="checkbox" data-select-all="contracts" ${allContractsSelected ? 'checked' : ''} aria-label="계약 고객 전체 선택"></th>${contractTab === 'rental' 
             ? '<th style="width:26%">고객 / 신청번호</th><th style="width:18%">렌탈 조건</th><th style="width:20%">월 납부금</th><th style="width:14%">심사 상태</th><th style="width:10%">접수일시</th><th style="width:12%">관리</th>' 
-            : '<th style="width:22%">고객 / 공사건</th><th style="width:13%">결제방식</th><th style="width:18%">계약금액 / 조건</th><th style="width:22%">수납 / 입금·결제링크</th><th style="width:12%">진행 상태</th><th style="width:13%">관리</th>'
+            : '<th style="width:22%">고객 / 공사건</th><th style="width:13%">결제방식</th><th style="width:18%">계약금액 / 조건</th><th style="width:22%">수납 / 입금·결제체크</th><th style="width:12%">진행 상태</th><th style="width:13%">관리</th>'
           }</tr></thead>
           <tbody>${contractTab === 'rental'
             ? apps.map(a => {
@@ -2064,7 +2062,7 @@ function contractsPage(){
       </div>
       ${!(contractTab === 'rental' ? apps.length : shownContracts.length) ? '<div class="empty">조건에 해당하는 계약/신청 내역이 없습니다.</div>' : ''}
     </section>
-    <div class="panel-caption">현금 건은 [입금체크]에서 입금완료 여부와 입금일자를 기록할 수 있으며, 카드 건은 [결제링크 발송] 후 고객 결제 시 자동으로 입금완료 반영됩니다.</div>`;
+    <div class="panel-caption">현금·카드 건 모두 [입금체크/결제체크]에서 완료 여부와 날짜를 기록할 수 있으며, 저장 시 실제 수납액에 즉시 반영됩니다.</div>`;
 }
 
 function paymentsPage() {
@@ -2208,9 +2206,19 @@ function openCashCheckDialog(contractId, scheduleId = '') {
   const upfront = Number(k.rentalUpfrontFee || 0);
   const schedules = getContractSchedules(k, isRental, upfront);
   const sch = (scheduleId && schedules.find(s => s.id === scheduleId)) || schedules[0];
-  if (!sch) { toast('확인할 현금 입금 항목이 없습니다.'); return; }
+  if (!sch) { toast('확인할 수납 항목이 없습니다.'); return; }
+  const isCardSch = sch.method === 'card';
+  const ord = isCardSch ? findScheduleCardOrder(k, sch) : null;
+  const isPaid = Boolean(sch.paid || ord?.status === 'paid');
   const todayKst = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
   const initDate = sch.paidDate || todayKst;
+  const quotaLabel = isCardSch
+    ? (Number(sch.installmentMonths || ord?.installmentMonths || 0) >= 2
+      ? ` · ${sch.installmentMonths || ord.installmentMonths}개월 할부`
+      : ' · 일시불')
+    : '';
+  const doneLabel = isCardSch ? '결제완료' : '입금완료';
+  const undoneLabel = isCardSch ? '미결제' : '미입금';
 
   const body = `<form id="edit-form" data-submit="cash-check" data-id="${esc(k.id)}">
     <input type="hidden" name="scheduleId" value="${esc(sch.id)}">
@@ -2218,31 +2226,37 @@ function openCashCheckDialog(contractId, scheduleId = '') {
       <div class="file-card" style="margin:0 0 16px;background:#f8fafc">
         ${icon('contract')}
         <div style="flex:1">
-          <b>${esc(k.customerName || '고객')} · ${esc(sch.label)}</b>
+          <b>${esc(k.customerName || '고객')} · ${esc(sch.label)}${esc(quotaLabel)}</b>
           <small>계약번호 ${esc(k.id)} · 대상 금액 <b>${won(sch.amount)}</b></small>
         </div>
-        ${badge(sch.paid ? '입금완료' : '미입금', sch.paid ? 'green' : 'orange')}
+        ${badge(isPaid ? doneLabel : undoneLabel, isPaid ? 'green' : 'orange')}
       </div>
-      <label class="checkline" style="padding:12px 14px;border:1px solid #cbd5e1;border-radius:10px;background:${sch.paid ? '#f0fdf4' : '#f8fafc'};margin-bottom:14px;cursor:pointer">
-        <input type="checkbox" name="paid" id="cash-check-paid" ${sch.paid ? 'checked' : ''}>
-        <b style="color:${sch.paid ? '#065f46' : '#334155'};font-size:14px">${esc(sch.label)} 현금 입금완료 확인</b>
+      <label class="checkline" style="padding:12px 14px;border:1px solid #cbd5e1;border-radius:10px;background:${isPaid ? '#f0fdf4' : '#f8fafc'};margin-bottom:14px;cursor:pointer">
+        <input type="checkbox" name="paid" id="cash-check-paid" ${isPaid ? 'checked' : ''}>
+        <b style="color:${isPaid ? '#065f46' : '#334155'};font-size:14px">${esc(sch.label)} ${isCardSch ? '카드 결제완료 확인' : '현금 입금완료 확인'}</b>
       </label>
       <div class="field-grid">
         <div class="field">
-          <label for="cash-check-date">입금 완료일 (언제 입금되었는지) <span>*</span></label>
+          <label for="cash-check-date">${isCardSch ? '결제 완료일 (언제 결제되었는지)' : '입금 완료일 (언제 입금되었는지)'} <span>*</span></label>
           <input class="input" type="date" id="cash-check-date" name="paidDate" value="${esc(initDate)}" required>
         </div>
-        ${field('입금 확인 금액 (원)', 'amount', sch.amount, 'money', true)}
+        ${field(isCardSch ? '결제 확인 금액 (원)' : '입금 확인 금액 (원)', 'amount', sch.amount, 'money', true)}
       </div>
-      <div class="notice-text">입금완료 체크 및 입금일자를 저장하면 <b>계약관리 실제 수납액</b>과 수납 상태에 즉시 반영됩니다. 입금 확인을 취소하려면 체크박스를 해제한 뒤 저장하세요.</div>
+      <div class="notice-text">${isCardSch ? '결제완료 체크 및 결제일자를 저장하면' : '입금완료 체크 및 입금일자를 저장하면'} <b>계약관리 실제 수납액</b>과 수납 상태에 즉시 반영됩니다. 확인을 취소하려면 체크박스를 해제한 뒤 저장하세요.</div>
     </div>
     <div class="dialog-footer">
       ${btn('닫기', 'close')}
-      <button type="submit" class="btn primary">${icon('check')}입금 확인 저장</button>
+      <button type="submit" class="btn primary">${icon('check')}${isCardSch ? '결제 확인 저장' : '입금 확인 저장'}</button>
     </div>
   </form>`;
 
-  openDialog('현금 입금완료 확인 · 입금일 기록', body, '', '', `${esc(k.customerName || '고객')} 고객 현금 수납 체크`);
+  openDialog(
+    isCardSch ? '카드 결제완료 확인 · 결제일 기록' : '현금 입금완료 확인 · 입금일 기록',
+    body,
+    '',
+    '',
+    `${esc(k.customerName || '고객')} 고객 ${isCardSch ? '카드' : '현금'} 수납 체크`
+  );
 }
 
 function openSendPaymentLinkDialog(orderId) {
@@ -5813,8 +5827,8 @@ function syncContractFormUI(recalcAmounts = false, sourceField = '') {
     const qLabel = qMonths >= 2 ? `${qMonths}개월 할부` : '일시불';
     const phaseMap = { full: '일시납', installment: '일시납(할부)', deposit: '선금', balance: '잔금' };
     cardSummaryEl.innerHTML = isEditMode
-      ? `저장 시 <b>[${phaseMap[cardOpt] || '카드결제'} · ${qLabel} · ${won(targetCardAmt)}]</b> 조건으로 카드결제 링크 금액·할부가 즉시 자동 반영됩니다.`
-      : `등록 즉시 <b>[${phaseMap[cardOpt] || '카드결제'} · ${qLabel} · ${won(targetCardAmt)}]</b> 전용 카드결제 링크가 자동 생성됩니다.`;
+      ? `저장 시 <b>[${phaseMap[cardOpt] || '카드결제'} · ${qLabel} · ${won(targetCardAmt)}]</b> 조건으로 계약 금액·할부가 반영되며, 계약관리에서 결제 여부를 체크할 수 있습니다.`
+      : `등록 후 계약관리에서 <b>[${phaseMap[cardOpt] || '카드결제'} · ${qLabel} · ${won(targetCardAmt)}]</b> 결제 완료 여부를 체크할 수 있습니다.`;
   }
 
   // 렌탈 섹션 동기화 (60개월 자동 선택)
@@ -6004,7 +6018,7 @@ function openNewContractDialog(id = null, opts = {}) {
 
       <!-- 2. 카드 결제 설정 -->
       <div id="pay-sec-card" class="pay-detail-box" hidden>
-        <div class="pay-sub-head">카드 결제 조건 선택 <small>(금액 자동 세팅 · 결제링크 자동 생성)</small></div>
+        <div class="pay-sub-head">카드 결제 조건 선택 <small>(금액 자동 세팅 · 계약관리에서 결제 체크)</small></div>
         <div class="pay-radio-pills">
           <label class="pay-pill"><input type="radio" name="cardOption" value="full" checked><span>일시납</span></label>
           <label class="pay-pill"><input type="radio" name="cardOption" value="installment"><span>일시납(할부)</span></label>
@@ -6036,7 +6050,7 @@ function openNewContractDialog(id = null, opts = {}) {
           <label class="checkline"><input type="checkbox" name="cardPriorDepositPaid" checked> <span>이전 <b>선금</b>은 이미 수납 완료됨</span></label>
         </div>
         <div class="pay-auto-summary" id="card-target-summary">
-          등록 즉시 <b>[일시납 · 일시불 · ${won(defaultAmount)}]</b> 전용 카드결제 링크가 자동 생성됩니다.
+          등록 후 계약관리에서 <b>[일시납 · 일시불 · ${won(defaultAmount)}]</b> 결제 완료 여부를 체크할 수 있습니다.
         </div>
       </div>
 
@@ -6266,7 +6280,7 @@ function openEditContractPaymentDialog(contractId, fromDetail = false) {
 
       <!-- 2. 카드 결제 설정 -->
       <div id="pay-sec-card" class="pay-detail-box" ${initCat === 'card' ? '' : 'hidden'}>
-        <div class="pay-sub-head">카드 결제 조건 · 금액 수정 <small>(대기중 결제링크 금액·할부 자동 연동)</small></div>
+        <div class="pay-sub-head">카드 결제 조건 · 금액 수정 <small>(계약관리 결제체크 금액·할부 연동)</small></div>
         <div class="pay-radio-pills">
           <label class="pay-pill"><input type="radio" name="cardOption" value="full" ${initCardOpt === 'full' ? 'checked' : ''}><span>일시납</span></label>
           <label class="pay-pill"><input type="radio" name="cardOption" value="installment" ${initCardOpt === 'installment' ? 'checked' : ''}><span>일시납(할부)</span></label>
@@ -6357,7 +6371,7 @@ function openEditContractPaymentDialog(contractId, fromDetail = false) {
         <label for="contract-form-note">계약 비고 / 변경 사유 메모</label>
         <textarea class="input" id="contract-form-note" name="note" style="min-height:66px" placeholder="금액 조정 사유, 결제수단 변경 협의 내용 등을 기록하세요.">${esc(k.note || '')}</textarea>
       </div>
-      <div class="notice-text">결제방식 또는 계약금액을 수정하면 <b>[계약관리]</b> 원장과 <b>[카드결제 관리]</b> 대기중 결제링크 금액이 동시에 자동 업데이트됩니다.</div>
+      <div class="notice-text">결제방식 또는 계약금액을 수정하면 <b>[계약관리]</b> 수납 일정과 금액이 즉시 자동 업데이트됩니다.</div>
     </div>
     <div class="dialog-footer">
       ${cancelBtnHtml}
@@ -6429,7 +6443,7 @@ function openContract(id, forceCashModal = false){
   const scheduleRowsHtml = schedules.length
     ? `<div class="contract-schedule-panel">
         <div class="contract-schedule-head">
-          <b>수납 일정 · 현금 입금체크 · 카드 결제링크</b>
+          <b>수납 일정 · 현금·카드 결제체크</b>
           <small>체크/결제 완료 시 실제 수납액 자동 반영</small>
         </div>
         ${schedules.map(s => {
@@ -6440,18 +6454,19 @@ function openContract(id, forceCashModal = false){
             const quotaLabel = Number(s.installmentMonths || ord?.installmentMonths || 0) >= 2
               ? `${s.installmentMonths || ord.installmentMonths}개월 할부`
               : '일시불';
-            const fullUrl = ord ? (location.origin + (ord.paymentUrl || (`/pay.html?token=${encodeURIComponent(ord.token)}`))) : '';
             return `<div class="contract-schedule-row">
               <div class="cs-left">
                 <div><b>${esc(s.label)}</b> <span class="badge blue">카드 · ${esc(quotaLabel)}</span></div>
                 <div class="cs-amt">${won(s.amount)}</div>
-                ${isSchPaid ? `<small style="color:#059669;font-weight:700">✓ 자동 결제완료 (${esc(ord?.cardCompany || '카드')} · ${esc(ord?.approvedAtText || s.paidDate || '')})</small>` : `<small style="color:#b45309">결제링크 발송 후 고객 결제 대기</small>`}
+                ${isSchPaid ? `<small style="color:#059669;font-weight:700">✓ 결제완료일: ${esc(s.paidDate || ord?.approvedAtText || '-')}</small>` : `<small style="color:#64748b">카드 결제 확인 시 우측 체크 후 저장하세요.</small>`}
               </div>
-              <div class="cs-right">
-                ${isSchPaid
-                  ? `${badge('결제완료', 'green')}${fullUrl ? `<a class="btn sm soft" href="${esc(fullUrl)}" target="_blank" rel="noopener noreferrer">${icon('external')}확인</a>` : ''}`
-                  : `${btn('결제링크 발송', 'contract-card-link', 'send', 'sm primary', `data-id="${esc(k.id)}" data-schedule="${esc(s.id)}"`)}${fullUrl ? btn('링크복사', 'copy-pay-link', 'copy', 'sm soft', `data-id="${esc(ord.orderId)}" data-url="${esc(fullUrl)}"`) : ''}`
-                }
+              <div class="cs-right cs-cash-controls">
+                <label class="checkline" style="margin:0;white-space:nowrap">
+                  <input type="checkbox" id="inline-cash-chk-${esc(s.id)}" ${isSchPaid ? 'checked' : ''}>
+                  <span>결제완료</span>
+                </label>
+                <input type="date" class="input" id="inline-cash-date-${esc(s.id)}" value="${esc(s.paidDate || todayKst)}" style="height:32px;padding:0 8px;width:136px;font-size:12px">
+                <button type="button" class="btn sm ${isSchPaid ? 'soft' : 'primary'}" data-action="save-inline-cash-check" data-id="${esc(k.id)}" data-schedule="${esc(s.id)}">저장</button>
               </div>
             </div>`;
           }
@@ -8559,13 +8574,7 @@ case'contract':{
           c.id,
           `${catKo} 계약 등록 (${cData.contractId || ''} · ${won(payload.quoteTotal)}) · 고객 상태 자동 변경: ${prevCustStatus} → 계약진행`
         );
-        if (cData.paymentOrder && cData.paymentOrder.orderId) {
-          page = 'contracts';
-          contractTab = 'all';
-          render();
-          openSendPaymentLinkDialog(cData.paymentOrder.orderId);
-          toast(`${c.name} 고객 계약 등록 및 전용 카드결제 링크가 생성되었습니다!`);
-        } else if (fromCustomerId) {
+        if (fromCustomerId) {
           render();
           openCustomer(c.id, returnTab);
           toast(`${c.name} 고객 계약이 계약관리에 자동 반영되었으며 상태가 [계약진행]으로 변경되었습니다.`);

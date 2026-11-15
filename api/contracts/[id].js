@@ -247,6 +247,7 @@ export default async function handler(req, res) {
       await savePaymentLedger(ledger);
       const totals = await syncContractTotalsToConvex(target.contractNo, meta);
 
+      const isCardSch = sch.method === "card";
       return res.status(200).json({
         ok: true,
         contractNo: target.contractNo,
@@ -254,8 +255,8 @@ export default async function handler(req, res) {
         meta,
         totals,
         message: nextPaid
-          ? `${sch.label} 입금완료(${nextDate})가 반영되었습니다.`
-          : `${sch.label} 입금확인 체크가 해제되었습니다.`,
+          ? `${sch.label} ${isCardSch ? "결제완료" : "입금완료"}(${nextDate})가 반영되었습니다.`
+          : `${sch.label} ${isCardSch ? "결제확인" : "입금확인"} 체크가 해제되었습니다.`,
       });
     }
 
