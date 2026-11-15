@@ -40,7 +40,7 @@ const BADGE_COLOR_OPTIONS = [
   ['dark', '진회색', '#1e293b']
 ];
 
-const ALL_MENU_KEYS = ['customers', 'quotes', 'contracts', 'payments', 'products', 'partners', 'stats', 'settings'];
+const ALL_MENU_KEYS = ['customers', 'quotes', 'contracts', 'products', 'partners', 'stats', 'settings'];
 const MENU_META = {
   customers: { label: '고객관리', icon: 'users', desc: '고객 상담·진행구분·일정 통합 관리' },
   quotes: { label: '견적관리', icon: 'file', desc: '원본 견적 분석 및 모바일 견적 발행' },
@@ -73,9 +73,9 @@ function normalizeRoleCodeClient(roleInput) {
 function getDefaultMenusByRole(roleInput) {
   const r = normalizeRoleCodeClient(roleInput);
   if (r === 'hq_admin') return [...ALL_MENU_KEYS];
-  if (r === 'accountant') return ['customers', 'contracts', 'payments', 'stats'];
+  if (r === 'accountant') return ['customers', 'contracts', 'stats'];
   if (r === 'partner') return ['customers', 'products', 'stats'];
-  return ['customers', 'quotes', 'contracts', 'payments', 'products'];
+  return ['customers', 'quotes', 'contracts', 'products'];
 }
 
 function normalizeUserRecord(raw, idx = 0) {
@@ -110,8 +110,7 @@ function normalizeUserRecord(raw, idx = 0) {
 
   const finalMenus = ALL_MENU_KEYS.filter(k =>
     validMenus.includes(k) ||
-    (username === 'admin' && (k === 'settings' || k === 'payments')) ||
-    (roleCode === 'hq_admin' && k === 'payments')
+    (username === 'admin' && k === 'settings')
   );
   return {
     id: raw.id ?? (idx + 1),
@@ -1333,7 +1332,7 @@ async function openMessagingIntegrationDialog() {
 let page='customers', customerTab='all', quoteTab='all', contractTab='all', paymentTab='all', paymentQuery='', settingsTab='labels', role='본사 관리자', query='', stageFilter='', productFilter='', partnerFilter='', sourceFilter='', linkFilter='', periodFilter='all', sortOrder='new', productLinkCatFilter='all', productLinkQuery='', selected=new Set(), expandedQuoteInquiries=new Set(), detailId=null, detailTab='notes', editor=null, statsPeriod='30', restoreFocus=null, quotePreviewId=null;
 let quoteConsultPhone = (()=>{try{return localStorage.getItem('kcc_quote_consult_phone')||'';}catch{return '';}})();
 let quoteConsultManagerName = (()=>{try{return localStorage.getItem('kcc_quote_consult_manager')||'';}catch{return '';}})();
-const menus=[['customers','고객관리','users'],['quotes','견적관리','file'],['contracts','계약관리','contract'],['payments','카드결제','credit'],['products','상품관리','box'],['partners','파트너관리','building'],['stats','통계관리','chart'],['settings','설정','settings']];
+const menus=[['customers','고객관리','users'],['quotes','견적관리','file'],['contracts','계약관리','contract'],['products','상품관리','box'],['partners','파트너관리','building'],['stats','통계관리','chart'],['settings','설정','settings']];
 const stages=['신규접수','상담중','가견적요청','견적안내','실측예정','최종견적','계약진행','시공완료','보류'];
 function getContractStatuses() {
   if (Array.isArray(db.contractStatuses) && db.contractStatuses.length) {
