@@ -4581,3 +4581,122 @@ tr.quote-inquiry-detail-row > td {
   border: 1px dashed #e2e8f0;
   border-radius: 8px;
 }
+
+/* ==========================================================================
+   Mobile Menu, Topbar, Tabs & Permission Card Overflow Fix
+   ========================================================================== */
+@media (max-width: 900px) {
+  html, body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+  .app, .shell, main, .panel {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .sidebar {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+  .mobile-bottom-nav {
+    max-width: 100vw;
+    box-sizing: border-box;
+  }
+  .mobile-bottom-nav .m-tab span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 680px) {
+  .topbar {
+    width: 100%;
+    max-width: 100vw;
+    padding: max(8px, env(safe-area-inset-top)) 10px 8px;
+    gap: 6px;
+    box-sizing: border-box;
+  }
+  .topbar-left {
+    flex: 1;
+    min-width: 0;
+    gap: 6px;
+  }
+  .mobile-more-btn {
+    height: 34px;
+    padding: 0 9px;
+    font-size: 12px;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .breadcrumb {
+    min-width: 0;
+  }
+  .breadcrumb b {
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+  }
+  .top-actions {
+    flex-shrink: 0;
+    gap: 5px;
+  }
+  .role-select {
+    max-width: 102px;
+    height: 34px;
+    font-size: 11px;
+    padding: 0 20px 0 7px;
+  }
+  .bell {
+    width: 34px;
+    height: 34px;
+  }
+  .top-actions .topbar-home-link,
+  .top-actions [data-action="my-profile"] {
+    display: none !important;
+  }
+  .top-actions [data-action="refresh-data"] {
+    width: 34px;
+    height: 34px;
+    padding: 0 !important;
+    justify-content: center;
+  }
+  .top-actions [data-action="refresh-data"] span {
+    display: none;
+  }
+  .top-actions [data-action="logout"] {
+    height: 34px;
+    padding: 0 8px !important;
+    font-size: 11px !important;
+    white-space: nowrap;
+  }
+  .tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .panel-head {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .mobile-card-table td[data-label="볼 수 있는 메뉴"] {
+    grid-column: 1 / -1;
+    padding-top: 8px !important;
+    border-top: 1px dashed #eef1f6 !important;
+  }
+  .menu-perm-chips {
+    gap: 6px;
+  }
+  .menu-mini-link {
+    white-space: nowrap;
+  }
+}
