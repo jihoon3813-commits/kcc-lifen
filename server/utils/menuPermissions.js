@@ -15,7 +15,7 @@ export const MENU_LABEL_MAP = Object.fromEntries(ALL_MENUS.map(m => [m.key, m.la
 
 export const ROLE_LABELS = {
   hq_admin: '최고관리자',
-  consultant: '상담사',
+  consultant: '관리자',
   estimator: '견적 담당자',
   accountant: '회계·정산',
   partner: '파트너 관리자'
@@ -27,6 +27,7 @@ const ROLE_ALIAS_MAP = {
   '운영관리자': 'hq_admin',
   '본사 관리자': 'hq_admin',
   consultant: 'consultant',
+  '관리자': 'consultant',
   '상담사': 'consultant',
   estimator: 'estimator',
   '견적 담당자': 'estimator',

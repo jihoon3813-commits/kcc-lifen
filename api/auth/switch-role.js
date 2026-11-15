@@ -40,6 +40,7 @@ export default async function handler(req, res) {
       const roleMap = {
         "본사 관리자": "admin",
         "최고관리자": "admin",
+        "관리자": "youngjin",
         "상담사": "youngjin",
         "견적 담당자": "jeongyeon",
         "파트너 관리자": "partner_hanbit",
