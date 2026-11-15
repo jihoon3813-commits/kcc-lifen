@@ -19,3 +19,111 @@
 /* Compact phones use a readable, single-column plan layout. */
 @media(max-width:600px){.price-grid{grid-template-columns:1fr;gap:19px}.price-card{display:grid;grid-template-columns:1fr 1fr;gap:0 13px;padding:22px}.price-card-top{grid-column:1/-1;height:22px;margin-bottom:15px}.price-card-top>span:first-child{font-size:9px}.price-card-top .pill{font-size:9px;padding:4px 8px}.price-card h3{grid-column:1;font-size:24px;align-self:start}.plan-subtitle{grid-column:1;font-size:10px;line-height:1.7;margin-top:7px;min-height:0;max-width:150px}.plan-image{grid-column:2;grid-row:2/5;height:155px;margin:0 -6px 0 0;align-self:center}.plan-amount{grid-column:1;border:0;padding-top:18px}.plan-amount small{font-size:10px}.plan-amount strong{font-size:29px}.plan-amount p>span{font-size:11px}.card-price{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;padding:11px 13px;margin:20px 0 14px}.card-price>span{font-size:10px}.card-price>b{font-size:23px}.card-price small{font-size:10px}.price-card ul{grid-column:1/-1;min-height:0;margin:0 0 17px;display:grid;gap:2px}.price-card li{font-size:12px;padding-left:17px;margin:3px 0}.price-card li:before{font-size:11px}.price-card .button{grid-column:1/-1;font-size:13px;padding:14px 16px;min-height:47px}.price-card .button .icon{width:17px;height:17px}}
 @media(max-width:370px){.price-card{padding:20px;gap:0 10px}.price-card h3{font-size:22px}.plan-amount strong{font-size:27px}.plan-image{height:140px}.card-price>b{font-size:21px}.price-card li{font-size:11px}}
+
+/* Mobile Typography & Natural Line-Wrapping Optimization (Expanded Sections) */
+@media (max-width: 760px) {
+  .body-copy,
+  .inline-cta p,
+  .comparison-message,
+  .measure-reassurance {
+    font-size: 12.5px;
+    line-height: 1.72;
+  }
+  .energy-layout h2,
+  .measurement-layout h2 {
+    font-size: 24px;
+    line-height: 1.38;
+  }
+  .energy-layout h2 br,
+  .measurement-layout h2 br,
+  .body-copy br,
+  .inline-cta p br,
+  .comparison-message br {
+    display: none;
+  }
+  .energy-label h3,
+  .evening-banner h3,
+  .timeline-heading h3,
+  .warranty-detail-intro h3 {
+    font-size: 20px;
+    line-height: 1.38;
+  }
+  .performance-name h3,
+  .glass-copy h3,
+  .case-caption h3 {
+    font-size: 18px;
+    line-height: 1.42;
+  }
+  .benefit-copy h3,
+  .scope-heading h3,
+  .measure-steps h3,
+  .event-copy h3 {
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .benefit-copy h3 {
+    min-height: 0;
+  }
+  .scope-grid h4,
+  .day-timeline h4,
+  .warranty-items h4,
+  .glass-features h3 {
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+  .performance-list p,
+  .glass-copy p,
+  .case-caption div > p,
+  .measure-steps p,
+  .event-copy p,
+  .comparison-row > div {
+    font-size: 11.5px;
+    line-height: 1.72;
+  }
+  .comparison-head > div,
+  .comparison-head > div:last-child {
+    font-size: 12.5px;
+  }
+}
+
+@media (max-width: 600px) {
+  .price-card {
+    padding: 18px 16px;
+  }
+  .price-card h3 {
+    font-size: 20px;
+  }
+  .plan-subtitle {
+    font-size: 10.5px;
+    max-width: none;
+  }
+  .plan-amount strong {
+    font-size: 24px;
+  }
+  .card-price > b {
+    font-size: 19px;
+  }
+  .cash-ref-box {
+    grid-column: 1 / -1;
+  }
+  .price-card li {
+    font-size: 11.5px;
+  }
+  .price-card .button {
+    font-size: 12.5px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 390px) {
+  .energy-layout h2,
+  .measurement-layout h2 {
+    font-size: 21px;
+  }
+  .price-card h3 {
+    font-size: 18px;
+  }
+  .plan-amount strong {
+    font-size: 22px;
+  }
+}
