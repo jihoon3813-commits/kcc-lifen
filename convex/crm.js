@@ -482,6 +482,7 @@ export const recordLandingEvent = mutation({
     utmSource: v.optional(v.string()),
     utmMedium: v.optional(v.string()),
     utmCampaign: v.optional(v.string()),
+    device: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = new Date().toISOString();

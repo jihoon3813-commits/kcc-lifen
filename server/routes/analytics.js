@@ -159,11 +159,37 @@ router.get('/overview', requireAuth, checkPartnerAccess, async (req, res) => {
           campaignName: ev.campaignName || ev.utmCampaign || evLink?.name || '',
           partnerName: evLink?.partnerName || ev.partnerName || '직영',
           ipMasked: '-',
-          device: '웹',
+          device: ev.device || '미분류(웹)',
           eventType: ev.eventType,
           eventLabel: ev.eventType === 'page_view' ? '페이지 방문' : ev.eventType,
         };
       });
+
+    const pageViewEvents = events.filter((e) => e.eventType === 'page_view');
+    const mobileViews = pageViewEvents.filter((e) => e.device === '모바일').length;
+    const pcViews = pageViewEvents.filter((e) => e.device === 'PC').length;
+    const unknownViews = Math.max(0, pageViewEvents.length - mobileViews - pcViews);
+    const devices = [
+      {
+        device: '모바일',
+        views: mobileViews,
+        sharePct: pageViewEvents.length ? Math.round((mobileViews / pageViewEvents.length) * 100) : 0,
+      },
+      {
+        device: 'PC',
+        views: pcViews,
+        sharePct: pageViewEvents.length ? Math.round((pcViews / pageViewEvents.length) * 100) : 0,
+      },
+      ...(unknownViews > 0
+        ? [
+            {
+              device: '기존(미분류)',
+              views: unknownViews,
+              sharePct: pageViewEvents.length ? Math.round((unknownViews / pageViewEvents.length) * 100) : 0,
+            },
+          ]
+        : []),
+    ];
 
     res.json({
       period,
@@ -180,6 +206,7 @@ router.get('/overview', requireAuth, checkPartnerAccess, async (req, res) => {
       channels,
       landingLinks,
       products: [],
+      devices,
       recentEvents,
     });
   } catch (err) {

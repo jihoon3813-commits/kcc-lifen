@@ -227,6 +227,16 @@ if (hasExplicitQuery) {
 }
 
 // Track page view (skip when opened inside CRM preview modal)
+function detectLandingDevice() {
+  try {
+    const ua = navigator.userAgent || '';
+    const isMobileUa = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(ua);
+    return (isMobileUa || window.innerWidth <= 760) ? '모바일' : 'PC';
+  } catch {
+    return 'PC';
+  }
+}
+
 if (!isPreviewMode) {
   try {
     fetch('/api/landing/event', {
@@ -239,7 +249,8 @@ if (!isPreviewMode) {
         partner: currentPartner,
         utm_source: currentUtmSource,
         utm_medium: currentUtmMedium,
-        utm_campaign: currentUtmCampaign
+        utm_campaign: currentUtmCampaign,
+        device: detectLandingDevice()
       })
     }).catch(() => {});
   } catch (e) {}

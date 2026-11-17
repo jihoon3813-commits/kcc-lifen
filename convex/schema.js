@@ -278,6 +278,7 @@ export default defineSchema({
     utmSource: v.optional(v.string()),
     utmMedium: v.optional(v.string()),
     utmCampaign: v.optional(v.string()),
+    device: v.optional(v.string()),
     createdAt: v.optional(v.string()),
   }).index("by_eventType", ["eventType"]),
 

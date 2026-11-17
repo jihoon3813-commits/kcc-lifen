@@ -4,6 +4,14 @@ import { api } from "../../convex/_generated/api.js";
 const CONVEX_URL = process.env.CONVEX_URL || "https://savory-hedgehog-927.convex.cloud";
 const client = new ConvexHttpClient(CONVEX_URL);
 
+function resolveEventDevice(req, bodyDevice) {
+  if (bodyDevice === "모바일" || bodyDevice === "PC") return bodyDevice;
+  const ua = String(req.headers?.["user-agent"] || "");
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(ua)
+    ? "모바일"
+    : "PC";
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -24,6 +32,7 @@ export default async function handler(req, res) {
       utmSource: body.utm_source ? String(body.utm_source) : undefined,
       utmMedium: body.utm_medium ? String(body.utm_medium) : undefined,
       utmCampaign: body.utm_campaign ? String(body.utm_campaign) : undefined,
+      device: resolveEventDevice(req, body.device ? String(body.device).trim() : ""),
     });
   } catch (err) {
     console.error("Landing event record error:", err);

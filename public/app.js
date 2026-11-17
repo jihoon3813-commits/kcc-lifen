@@ -2990,6 +2990,7 @@ function getLiveAnalyticsSnapshot() {
       contracts: contracts.filter(k => cs.some(c => c.id === k.cid && c.product === p.category)).length,
       conversionRate: p.views > 0 ? Number(((cs.filter(c => c.product === p.category).length / p.views) * 100).toFixed(1)) : 0
     })),
+    devices: [],
     recentEvents: []
   };
 }
@@ -3014,6 +3015,7 @@ function statsPage(){
   const channels = an.channels || [];
   const links = an.landingLinks || [];
   const prodPerf = an.products || [];
+  const devices = an.devices || [];
   const events = an.recentEvents || [];
   const barColors = ['#4c7ce5', '#ff7a2f', '#7c5ce6', '#f2b705', '#159c72', '#64748b'];
   const convFlow = [
@@ -3050,9 +3052,12 @@ function statsPage(){
         </table>
       </div>
     </section>` +
-    `<section class="panel" style="margin-top:20px"><div class="panel-head"><h3>고객 전환 흐름</h3><span class="pill-note">실운영 DB 기준 · 공사건 단위</span></div><div class="panel-pad"><div class="progress-list">${convFlow.map(([t, n]) => `<div><span>${t}</span><b>${n}건</b><i class="on" style="opacity:${Math.min(1, 0.25 + n / flowBase * 0.75).toFixed(2)}"></i></div>`).join('')}</div></div></section>` +
+    `<div class="two-col" style="margin-top:20px">
+      <section class="panel"><div class="panel-head"><div><h3>기기별 유입 비중 (모바일 / PC)</h3><p>실제 page_view 접속 환경 기준</p></div>${badge('실시간 집계', 'green')}</div><div class="panel-pad">${devices.length ? devices.map((dv, idx) => `<div class="bar-row"><span title="${esc(dv.device)}">${esc(dv.device)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(4, dv.sharePct)}%;background:${dv.device === '모바일' ? '#4c7ce5' : (dv.device === 'PC' ? '#7c5ce6' : '#94a3b8')}"></div></div><b>${num(dv.views)}회 (${dv.sharePct}%)</b></div>`).join('') : '<div class="empty">아직 수집된 기기 유입 데이터가 없습니다.</div>'}<div class="panel-caption">업데이트 이전 과거 방문 로그는 기존(미분류)으로 표시됩니다.</div></div></section>
+      <section class="panel"><div class="panel-head"><h3>고객 전환 흐름</h3><span class="pill-note">실운영 DB 기준 · 공사건 단위</span></div><div class="panel-pad"><div class="progress-list">${convFlow.map(([t, n]) => `<div><span>${t}</span><b>${n}건</b><i class="on" style="opacity:${Math.min(1, 0.25 + n / flowBase * 0.75).toFixed(2)}"></i></div>`).join('')}</div></div></section>
+    </div>` +
     `<section class="panel" style="margin-top:20px"><div class="panel-head"><div><h3>상품페이지별 성과</h3><p>상품군별 방문·상담·견적·계약 전환 분석</p></div></div><div class="table-wrap"><table><thead><tr><th>상품페이지</th><th>방문 수</th><th>상담 신청</th><th>견적 발행</th><th>계약</th><th>상담 전환율</th></tr></thead><tbody>${prodPerf.map(p => `<tr><td><b>${esc(p.name)}</b></td><td>${num(p.views)}</td><td>${num(p.leads)}건</td><td>${num(p.quotes)}건</td><td>${num(p.contracts)}건</td><td>${p.conversionRate}%</td></tr>`).join('')}</tbody></table></div></section>` +
-    `<section class="panel" style="margin-top:20px"><div class="panel-head"><div><h3>최근 접속 및 유입 이벤트 기록</h3><p>실제 landing_events 테이블 최근 20건 기준</p></div>${badge('IP 마스킹', 'gray')}</div><div class="table-wrap"><table><thead><tr><th>발생 시각</th><th>상품페이지</th><th>유입 채널 · 캠페인</th><th>접속 IP</th><th>기기</th><th>이벤트</th></tr></thead><tbody>${events.length ? events.map(ev => `<tr><td>${esc(String(ev.createdAt || '').slice(5, 16).replace('T', ' '))}</td><td>${esc(ev.productName)}</td><td><span class="ch-pill ${channelTone(ev.channel)}">${esc(ev.channel)}</span>${ev.campaignName ? ` <small style="color:#64748b">${esc(ev.campaignName)}</small>` : ''}</td><td>${esc(ev.ipMasked)}</td><td>${esc(ev.device)}</td><td>${badge(ev.eventLabel, ev.eventType === 'consultation_request' ? 'green' : 'gray')}</td></tr>`).join('') : '<tr><td colspan="6"><div class="empty">아직 수집된 이벤트 로그가 없습니다.</div></td></tr>'}</tbody></table></div></section>`;
+    `<section class="panel" style="margin-top:20px"><div class="panel-head"><div><h3>최근 접속 및 유입 이벤트 기록</h3><p>실제 landing_events 테이블 최근 20건 기준</p></div>${badge('IP 마스킹', 'gray')}</div><div class="table-wrap"><table><thead><tr><th>발생 시각</th><th>상품페이지</th><th>유입 채널 · 캠페인</th><th>접속 IP</th><th>기기</th><th>이벤트</th></tr></thead><tbody>${events.length ? events.map(ev => `<tr><td>${esc(String(ev.createdAt || '').slice(5, 16).replace('T', ' '))}</td><td>${esc(ev.productName)}</td><td><span class="ch-pill ${channelTone(ev.channel)}">${esc(ev.channel)}</span>${ev.campaignName ? ` <small style="color:#64748b">${esc(ev.campaignName)}</small>` : ''}</td><td>${esc(ev.ipMasked)}</td><td>${badge(ev.device || '미분류(웹)', ev.device === '모바일' ? 'blue' : (ev.device === 'PC' ? 'purple' : 'gray'))}</td><td>${badge(ev.eventLabel, ev.eventType === 'consultation_request' ? 'green' : 'gray')}</td></tr>`).join('') : '<tr><td colspan="6"><div class="empty">아직 수집된 이벤트 로그가 없습니다.</div></td></tr>'}</tbody></table></div></section>`;
 }
 function renderUsersSettingsPanel() {
   const activeU = getActiveUser();

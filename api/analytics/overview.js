@@ -69,10 +69,36 @@ export default async function handler(req, res) {
       if (contracts.some((c) => c.projectId === p.projectId)) entry.contracts += 1;
     }
 
+    const pageViewEvents = events.filter((e) => e.eventType === "page_view");
+    const mobileViews = pageViewEvents.filter((e) => e.device === "모바일").length;
+    const pcViews = pageViewEvents.filter((e) => e.device === "PC").length;
+    const unknownViews = Math.max(0, pageViewEvents.length - mobileViews - pcViews);
+    const devices = [
+      {
+        device: "모바일",
+        views: mobileViews,
+        sharePct: pageViewEvents.length ? Math.round((mobileViews / pageViewEvents.length) * 100) : 0,
+      },
+      {
+        device: "PC",
+        views: pcViews,
+        sharePct: pageViewEvents.length ? Math.round((pcViews / pageViewEvents.length) * 100) : 0,
+      },
+      ...(unknownViews > 0
+        ? [
+            {
+              device: "기존(미분류)",
+              views: unknownViews,
+              sharePct: pageViewEvents.length ? Math.round((unknownViews / pageViewEvents.length) * 100) : 0,
+            },
+          ]
+        : []),
+    ];
+
     return res.status(200).json({
       period,
       summary: {
-        totalViews: events.filter((e) => e.eventType === "page_view").length,
+        totalViews: pageViewEvents.length,
         totalCustomers: projects.length,
         quotedCustomers: quotedProjectIds.size,
         viewedCustomers: viewedProjectIds.size,
@@ -100,6 +126,7 @@ export default async function handler(req, res) {
         conversionRate: 0,
       })),
       products: [],
+      devices,
       recentEvents: allEvents.slice(-20).reverse().map((ev, idx) => {
         const evLink =
           (ev.landingLinkId ? linkById.get(Number(ev.landingLinkId)) : null) ||
@@ -113,7 +140,7 @@ export default async function handler(req, res) {
           campaignName: ev.campaignName || ev.utmCampaign || evLink?.name || "",
           partnerName: evLink?.partnerName || ev.partnerName || "직영",
           ipMasked: "-",
-          device: "웹",
+          device: ev.device || "미분류(웹)",
           eventType: ev.eventType,
           eventLabel: ev.eventType === "page_view" ? "페이지 방문" : ev.eventType,
         };

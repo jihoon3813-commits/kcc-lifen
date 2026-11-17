@@ -4,6 +4,14 @@ import { notifyNewCustomer } from '../../api/_lib/discordHelper.js';
 
 const router = express.Router();
 
+function resolveEventDevice(req, bodyDevice) {
+  if (bodyDevice === '모바일' || bodyDevice === 'PC') return bodyDevice;
+  const ua = String(req.headers?.['user-agent'] || '');
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(ua)
+    ? '모바일'
+    : 'PC';
+}
+
 // 1. Track landing page view or CTA click -> Convex Production
 router.post('/event', async (req, res) => {
   try {
@@ -16,6 +24,7 @@ router.post('/event', async (req, res) => {
       utm_source,
       utm_medium,
       utm_campaign,
+      device,
     } = req.body || {};
 
     await convexClient.mutation(api.crm.recordLandingEvent, {
@@ -27,6 +36,7 @@ router.post('/event', async (req, res) => {
       utmSource: utm_source ? String(utm_source) : undefined,
       utmMedium: utm_medium ? String(utm_medium) : undefined,
       utmCampaign: utm_campaign ? String(utm_campaign) : undefined,
+      device: resolveEventDevice(req, device ? String(device).trim() : ''),
     });
 
     res.json({
