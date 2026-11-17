@@ -124,13 +124,21 @@ export default async function handler(req, res) {
           hasConsultationsList ? (consultsByProj.get(Number(p.projectId)) || []) : undefined
         );
 
+        const linkedObj = p.landingLinkId ? linkById.get(Number(p.landingLinkId)) : (p.source ? linkByCode.get(p.source) : null);
+        const isGreenLead =
+          p.product === "그린리모델링" ||
+          p.source === "green_remodeling" ||
+          String(linkedObj?.targetUrl || "").includes("/green") ||
+          String(p.note || "").includes("[그린리모델링]") ||
+          String(p.title || "").includes("그린리모델링");
+
         return {
           id: p.projectId,
           customerId: p.projectId,
           name: p.customerName,
           phone: p.customerPhone,
           address: p.customerAddress,
-          product: p.product,
+          product: isGreenLead ? "그린리모델링" : p.product,
           status: p.status,
           label: p.label,
           source: p.source,

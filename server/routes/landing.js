@@ -81,7 +81,7 @@ router.post('/submit', async (req, res) => {
       return res.status(400).json({ error: '설치 지역을 선택해 주세요.' });
     }
 
-    const result = await convexClient.mutation(api.landing.submitConsultation, {
+    const baseArgs = {
       name: cleanName,
       phone: String(phone || ''),
       region: cleanRegion,
@@ -90,13 +90,25 @@ router.post('/submit', async (req, res) => {
       size: size ? String(size).trim() : undefined,
       scope: scope ? String(scope).trim() : undefined,
       purpose: purpose ? String(purpose) : 'cost',
-      product: product ? String(product).trim() : undefined,
       partner: partner ? String(partner) : undefined,
       ch: (ch || link) ? String(ch || link) : undefined,
       utm_source: utm_source ? String(utm_source) : undefined,
       utm_medium: utm_medium ? String(utm_medium) : undefined,
       utm_campaign: utm_campaign ? String(utm_campaign) : undefined,
-    });
+    };
+    let result;
+    try {
+      result = await convexClient.mutation(api.landing.submitConsultation, {
+        ...baseArgs,
+        ...(product ? { product: String(product).trim() } : {}),
+      });
+    } catch (mutErr) {
+      if (product) {
+        result = await convexClient.mutation(api.landing.submitConsultation, baseArgs);
+      } else {
+        throw mutErr;
+      }
+    }
 
     if (!result?.alreadySubmitted) {
       const addrParts = [cleanRegion, district, apartment, size ? `${size}평` : '']

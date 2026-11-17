@@ -49,7 +49,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const result = await client.mutation(api.landing.submitConsultation, {
+    const baseArgs = {
       name: cleanName,
       phone: String(phone || ""),
       region: cleanRegion,
@@ -58,13 +58,25 @@ export default async function handler(req, res) {
       size: size ? String(size).trim() : undefined,
       scope: scope ? String(scope).trim() : undefined,
       purpose: purpose ? String(purpose) : "cost",
-      product: product ? String(product).trim() : undefined,
       partner: partner ? String(partner) : undefined,
       ch: ch ? String(ch) : undefined,
       utm_source: utm_source ? String(utm_source) : undefined,
       utm_medium: utm_medium ? String(utm_medium) : undefined,
       utm_campaign: utm_campaign ? String(utm_campaign) : undefined,
-    });
+    };
+    let result;
+    try {
+      result = await client.mutation(api.landing.submitConsultation, {
+        ...baseArgs,
+        ...(product ? { product: String(product).trim() } : {}),
+      });
+    } catch (mutErr) {
+      if (product) {
+        result = await client.mutation(api.landing.submitConsultation, baseArgs);
+      } else {
+        throw mutErr;
+      }
+    }
 
     if (!result?.alreadySubmitted) {
       const addrParts = [cleanRegion, district, apartment, size ? `${size}평` : ""]
