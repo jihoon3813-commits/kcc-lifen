@@ -100,9 +100,17 @@ if (fs.existsSync(config.publicDir)) {
     return res.sendFile(path.join(config.publicDir, 'admin', 'index.html'));
   });
 
+  // /green 접속 시 그린리모델링 랜딩페이지로 연결
+  app.get(['/green', '/green/'], (req, res) => {
+    return res.sendFile(path.join(config.publicDir, 'green', 'index.html'));
+  });
+
   app.use(express.static(config.publicDir));
   app.use((req, res, next) => {
     if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      if (req.path === '/green' || req.path.startsWith('/green/')) {
+        return res.sendFile(path.join(config.publicDir, 'green', 'index.html'));
+      }
       if (req.path === '/landing' || req.path.startsWith('/landing/')) {
         return res.sendFile(path.join(config.publicDir, 'landing', 'index.html'));
       }
