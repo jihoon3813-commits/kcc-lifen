@@ -11,8 +11,8 @@ const router = express.Router();
 
 async function getFormattedProductsData(reqUser = null) {
   let data = await convexClient.query(api.crm.listProductsAndLinks, {});
-  if (!data?.products?.length) {
-    await ensureDefaultProductsInConvex(convexClient, api);
+  if (!data?.products?.length || !data.products.some((p) => p.code === 'PROD_GREEN')) {
+    await ensureDefaultProductsInConvex(convexClient, api, data?.products || []);
     data = await convexClient.query(api.crm.listProductsAndLinks, {});
   }
   return formatProductsAndLinks(data, reqUser);

@@ -99,14 +99,18 @@ export function formatProductsAndLinks(data, user) {
   });
 
   const formattedProducts = products.map((p) => {
+    const isGreen = p.code === "PROD_GREEN" || String(p.url || "").includes("/green");
     const views = events.filter(
       (ev) =>
         (ev.eventType === "page_view" || ev.eventType === "view") &&
         ev.productName === p.name
     ).length;
-    const linkCount = formattedLinks.filter(
-      (ll) => Number(ll.productId) === Number(p.prodId) || ll.productCategory === p.category
-    ).length;
+    const linkCount = formattedLinks.filter((ll) => {
+      if (Number(ll.productId) === Number(p.prodId)) return true;
+      if (ll.productCategory !== p.category) return false;
+      const linkIsGreen = String(ll.targetUrl || "").includes("/green");
+      return isGreen ? linkIsGreen : !linkIsGreen;
+    }).length;
 
     return {
       id: p.prodId,
@@ -115,8 +119,8 @@ export function formatProductsAndLinks(data, user) {
       category: p.category,
       desc: p.description || "",
       url: p.url || "/landing/",
-      icon: p.category === "창호" ? "window" : p.category === "주방" ? "kitchen" : "bath",
-      color: p.category === "창호" ? "#edf3f9" : p.category === "주방" ? "#f4f1ec" : "#edf4f1",
+      icon: isGreen ? "leaf" : p.category === "창호" ? "window" : p.category === "주방" ? "kitchen" : "bath",
+      color: isGreen ? "#e6f2ec" : p.category === "창호" ? "#edf3f9" : p.category === "주방" ? "#f4f1ec" : "#edf4f1",
       views,
       linkCount,
       active: p.active !== false,
@@ -157,10 +161,22 @@ export const DEFAULT_PRODUCTS = [
     url: "",
     active: true,
   },
+  {
+    prodId: 4,
+    name: "KCC 홈씨씨 그린리모델링",
+    code: "PROD_GREEN",
+    category: "창호",
+    description: "정부 이자지원 창호 교체, 조건 확인부터 상담까지.",
+    url: "/green",
+    active: true,
+  },
 ];
 
-export async function ensureDefaultProductsInConvex(convexClient, api) {
+export async function ensureDefaultProductsInConvex(convexClient, api, existingProducts = []) {
+  const existingCodes = new Set((existingProducts || []).map((p) => p.code));
   for (const prod of DEFAULT_PRODUCTS) {
-    await convexClient.mutation(api.crm.upsertProduct, prod);
+    if (!existingCodes.has(prod.code)) {
+      await convexClient.mutation(api.crm.upsertProduct, prod);
+    }
   }
 }
