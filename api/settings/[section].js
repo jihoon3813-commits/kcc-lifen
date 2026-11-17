@@ -14,12 +14,28 @@ import {
 } from "../_lib/formDefaults.js";
 import { fetchUrlAsDataUrl } from "../_lib/storageHelper.js";
 
+const DEFAULT_STAGES = [
+  { id: "1", name: "신규접수", color: "blue", sortOrder: 1, sort_order: 1 },
+  { id: "2", name: "상담중", color: "purple", sortOrder: 2, sort_order: 2 },
+  { id: "3", name: "가견적요청", color: "orange", sortOrder: 3, sort_order: 3 },
+  { id: "4", name: "견적안내", color: "blue", sortOrder: 4, sort_order: 4 },
+  { id: "5", name: "실측예정", color: "green", sortOrder: 5, sort_order: 5 },
+  { id: "6", name: "최종견적", color: "purple", sortOrder: 6, sort_order: 6 },
+  { id: "7", name: "계약진행", color: "green", sortOrder: 7, sort_order: 7 },
+  { id: "8", name: "시공완료", color: "gray", sortOrder: 8, sort_order: 8 },
+  { id: "9", name: "보류", color: "gray", sortOrder: 9, sort_order: 9 },
+];
+
 const DEFAULT_CONTRACT_STATUSES = [
-  { id: "1", name: "계약대기", color: "#64748b", sortOrder: 1 },
-  { id: "2", name: "계약금완료", color: "#2563eb", sortOrder: 2 },
-  { id: "3", name: "시공예정", color: "#7c3aed", sortOrder: 3 },
-  { id: "4", name: "완납", color: "#16a34a", sortOrder: 4 },
-  { id: "5", name: "취소", color: "#dc2626", sortOrder: 5 },
+  { id: "1", name: "계약체결", color: "blue", sortOrder: 1, sort_order: 1 },
+  { id: "2", name: "미수납", color: "red", sortOrder: 2, sort_order: 2 },
+  { id: "3", name: "약정대기", color: "orange", sortOrder: 3, sort_order: 3 },
+  { id: "4", name: "선금완료", color: "blue", sortOrder: 4, sort_order: 4 },
+  { id: "5", name: "잔금대기", color: "orange", sortOrder: 5, sort_order: 5 },
+  { id: "6", name: "수납완료", color: "green", sortOrder: 6, sort_order: 6 },
+  { id: "7", name: "정산완료", color: "green", sortOrder: 7, sort_order: 7 },
+  { id: "8", name: "계약보류", color: "gray", sortOrder: 8, sort_order: 8 },
+  { id: "9", name: "계약취소", color: "red", sortOrder: 9, sort_order: 9 },
 ];
 
 export default async function handler(req, res) {
@@ -49,36 +65,118 @@ export default async function handler(req, res) {
       });
     }
 
+    // 1b. /api/settings/stages & /:id
+    if (section === "stages") {
+      const mapStageRow = (s, idx = 0) => ({
+        id: s._id || s.id || String(idx + 1),
+        name: s.name,
+        color: s.color || DEFAULT_STAGES.find((d) => d.name === s.name)?.color || "blue",
+        sortOrder: s.sortOrder ?? s.sort_order ?? idx + 1,
+        sort_order: s.sortOrder ?? s.sort_order ?? idx + 1,
+      });
+      if (req.method === "GET") {
+        const settings = await convexClient.query(api.settings.listAllSettings, {});
+        const list =
+          settings.stages && settings.stages.length > 0
+            ? settings.stages.map(mapStageRow)
+            : DEFAULT_STAGES;
+        return res.status(200).json({ stages: list });
+      }
+      if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
+        const body = parseBody(req) || {};
+        if (body.direction === "up" || body.direction === "down") {
+          await convexClient.mutation(api.settings.upsertStage, {
+            idOrName: sub || undefined,
+            direction: body.direction,
+          });
+          const settings = await convexClient.query(api.settings.listAllSettings, {});
+          return res.status(200).json({
+            stages: (settings.stages || []).map(mapStageRow),
+            message: "순서가 변경되었습니다.",
+          });
+        }
+        if (!String(body.name || "").trim()) {
+          return res.status(400).json({ error: "진행구분명을 입력해 주세요." });
+        }
+        const id = await convexClient.mutation(api.settings.upsertStage, {
+          idOrName: sub || undefined,
+          name: String(body.name).trim(),
+          color: body.color ? String(body.color) : "blue",
+          sortOrder: body.sortOrder !== undefined ? Number(body.sortOrder) : undefined,
+        });
+        const settings = await convexClient.query(api.settings.listAllSettings, {});
+        return res.status(200).json({
+          id,
+          stages: (settings.stages || []).map(mapStageRow),
+          message: "진행구분이 저장되었습니다.",
+        });
+      }
+      if (req.method === "DELETE" && sub) {
+        const result = await convexClient.mutation(api.settings.deleteStage, { idOrName: sub });
+        if (result?.reason === "min_limit") {
+          return res.status(400).json({ error: "최소 1개 이상의 진행구분이 유지되어야 합니다." });
+        }
+        const settings = await convexClient.query(api.settings.listAllSettings, {});
+        return res.status(200).json({
+          deleted: true,
+          stages: (settings.stages || []).map(mapStageRow),
+        });
+      }
+    }
+
     // 2. /api/settings/contract-statuses & /:id
     if (section === "contract-statuses") {
+      const mapStatusRow = (s, idx = 0) => ({
+        id: s._id || s.id || String(idx + 1),
+        name: s.name,
+        color: s.color || "blue",
+        sortOrder: s.sortOrder ?? s.sort_order ?? idx + 1,
+        sort_order: s.sortOrder ?? s.sort_order ?? idx + 1,
+      });
       if (req.method === "GET") {
         const settings = await convexClient.query(api.settings.listAllSettings, {});
         const list =
           settings.contractStatuses && settings.contractStatuses.length > 0
-            ? settings.contractStatuses.map((s) => ({
-                id: s._id,
-                name: s.name,
-                color: s.color,
-                sortOrder: s.sortOrder,
-              }))
+            ? settings.contractStatuses.map(mapStatusRow)
             : DEFAULT_CONTRACT_STATUSES;
         return res.status(200).json({ contractStatuses: list });
       }
       if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
         const body = parseBody(req) || {};
+        if (body.direction === "up" || body.direction === "down") {
+          await convexClient.mutation(api.settings.upsertContractStatus, {
+            idOrName: sub || undefined,
+            direction: body.direction,
+          });
+          const settings = await convexClient.query(api.settings.listAllSettings, {});
+          return res.status(200).json({
+            contractStatuses: (settings.contractStatuses || []).map(mapStatusRow),
+            message: "순서가 변경되었습니다.",
+          });
+        }
         if (!String(body.name || "").trim()) {
           return res.status(400).json({ error: "상태명을 입력해 주세요." });
         }
         const id = await convexClient.mutation(api.settings.upsertContractStatus, {
+          idOrName: sub || undefined,
           name: String(body.name).trim(),
-          color: body.color ? String(body.color) : "#2563eb",
+          color: body.color ? String(body.color) : "blue",
           sortOrder: body.sortOrder !== undefined ? Number(body.sortOrder) : undefined,
         });
-        return res.status(200).json({ id, message: "계약·수납 상태가 저장되었습니다." });
+        const settings = await convexClient.query(api.settings.listAllSettings, {});
+        return res.status(200).json({
+          id,
+          contractStatuses: (settings.contractStatuses || []).map(mapStatusRow),
+          message: "계약·수납 상태가 저장되었습니다.",
+        });
       }
       if (req.method === "DELETE" && sub) {
         await convexClient.mutation(api.settings.deleteContractStatus, { idOrName: sub });
-        return res.status(200).json({ deleted: true });
+        const settings = await convexClient.query(api.settings.listAllSettings, {});
+        return res.status(200).json({
+          deleted: true,
+          contractStatuses: (settings.contractStatuses || []).map(mapStatusRow),
+        });
       }
     }
 

@@ -116,6 +116,18 @@ export const DEFAULT_RENTAL_PRIVACY_CONTENT = `[필수] 렌탈 개인정보 수�
 4. 동의 거부 권리 및 불이익
 - 귀하는 상기 개인정보 수집 및 이용에 대한 동의를 거부할 권리가 있습니다. 단, 필수 정보 수집에 동의하지 않으실 경우 렌탈 신청 및 계약 체결이 불가능합니다.`;
 
+export const DEFAULT_STAGES = [
+  { name: '신규접수', color: 'blue', sort_order: 1 },
+  { name: '상담중', color: 'purple', sort_order: 2 },
+  { name: '가견적요청', color: 'orange', sort_order: 3 },
+  { name: '견적안내', color: 'blue', sort_order: 4 },
+  { name: '실측예정', color: 'green', sort_order: 5 },
+  { name: '최종견적', color: 'purple', sort_order: 6 },
+  { name: '계약진행', color: 'green', sort_order: 7 },
+  { name: '시공완료', color: 'gray', sort_order: 8 },
+  { name: '보류', color: 'gray', sort_order: 9 }
+];
+
 export const DEFAULT_CONTRACT_STATUSES = [
   { name: '계약체결', color: 'blue', sort_order: 1 },
   { name: '미수납', color: 'red', sort_order: 2 },
@@ -135,6 +147,23 @@ export function ensureDefaultProducts() {
   insertProduct.run('KCC 홈씨씨 창호', 'PROD_WINDOW', '우리 집에 맞는 창호 교체, 상담부터 시공까지.', '창호', '/landing/');
   insertProduct.run('KCC 홈씨씨 키친', 'PROD_KITCHEN', '생활의 중심이 되는 주방, 맞춤 리모델링 상담.', '주방', '');
   insertProduct.run('KCC 홈씨씨 욕실', 'PROD_BATH', '매일의 편안함을 만드는 욕실 리모델링.', '욕실', '');
+}
+
+export function ensureDefaultStages() {
+  const rows = db.prepare('SELECT id, name, color FROM system_stages').all();
+  const hasLegacySeed = rows.length === 11 && rows.some(r => r.name === '실측완료') && rows.every(r => !r.color || r.color === 'blue');
+  if (hasLegacySeed) {
+    db.exec('DELETE FROM system_stages');
+  }
+  const cnt = db.prepare('SELECT COUNT(*) as cnt FROM system_stages').get()?.cnt || 0;
+  if (cnt > 0) return;
+  const insertStage = db.prepare(`
+    INSERT OR IGNORE INTO system_stages (name, color, sort_order, is_active)
+    VALUES (?, ?, ?, 1)
+  `);
+  for (const st of DEFAULT_STAGES) {
+    insertStage.run(st.name, st.color, st.sort_order);
+  }
 }
 
 export function ensureDefaultContractStatuses() {
@@ -583,8 +612,16 @@ export function initDatabase() {
     db.exec("ALTER TABLE consent_forms ADD COLUMN fields_config TEXT");
   }
 
+  // Migrate system_stages columns
+  const stageCols = db.prepare("PRAGMA table_info(system_stages)").all().map(c => c.name);
+  if (!stageCols.includes('color')) {
+    db.exec("ALTER TABLE system_stages ADD COLUMN color TEXT NOT NULL DEFAULT 'blue'");
+    db.exec("DELETE FROM system_stages");
+  }
+
   // Ensure approved rental consent forms exist if consent_forms table has data
   ensureDefaultProducts();
+  ensureDefaultStages();
   ensureDefaultContractStatuses();
   const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get().cnt;
   if (userCount > 0) {

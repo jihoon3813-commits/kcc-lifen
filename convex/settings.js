@@ -47,8 +47,9 @@ export const setSetting = mutation({
 export const listAllSettings = query({
   args: {},
   handler: async (ctx) => {
-    const [labels, contractStatuses, consentForms, appSettings] = await Promise.all([
+    const [labels, stages, contractStatuses, consentForms, appSettings] = await Promise.all([
       ctx.db.query("systemLabels").collect(),
+      ctx.db.query("systemStages").collect(),
       ctx.db.query("systemContractStatuses").collect(),
       ctx.db.query("consentForms").collect(),
       ctx.db.query("appSettings").collect(),
@@ -66,6 +67,7 @@ export const listAllSettings = query({
     );
     return {
       labels: labels.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+      stages: stages.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
       contractStatuses: contractStatuses.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
       consentForms: resolvedForms,
       appSettings,
@@ -73,16 +75,158 @@ export const listAllSettings = query({
   },
 });
 
-export const upsertContractStatus = mutation({
+export const upsertStage = mutation({
   args: {
-    name: v.string(),
+    idOrName: v.optional(v.string()),
+    name: v.optional(v.string()),
     color: v.optional(v.string()),
     sortOrder: v.optional(v.number()),
+    direction: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const all = (await ctx.db.query("systemStages").collect()).sort(
+      (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)
+    );
+
+    if (args.idOrName && (args.direction === "up" || args.direction === "down")) {
+      const idx = all.findIndex(
+        (s) => String(s._id) === args.idOrName || s.name === args.idOrName
+      );
+      const swapIdx = args.direction === "up" ? idx - 1 : idx + 1;
+      if (idx !== -1 && swapIdx >= 0 && swapIdx < all.length) {
+        for (let i = 0; i < all.length; i++) {
+          let order = i + 1;
+          if (i === idx) order = swapIdx + 1;
+          else if (i === swapIdx) order = idx + 1;
+          await ctx.db.patch(all[i]._id, { sortOrder: order });
+        }
+      }
+      return args.idOrName;
+    }
+
+    const nextName = (args.name || "").trim();
+    if (!nextName) return null;
+
+    if (args.idOrName) {
+      const target = all.find(
+        (s) => String(s._id) === args.idOrName || s.name === args.idOrName
+      );
+      if (target) {
+        const oldName = target.name;
+        await ctx.db.patch(target._id, {
+          name: nextName,
+          color: args.color ?? target.color ?? "blue",
+          sortOrder: args.sortOrder ?? target.sortOrder,
+        });
+        if (oldName !== nextName) {
+          const projects = await ctx.db.query("projects").collect();
+          for (const p of projects) {
+            if (p.status === oldName) {
+              await ctx.db.patch(p._id, {
+                status: nextName,
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          }
+        }
+        return target._id;
+      }
+    }
+
+    const existing = await ctx.db
+      .query("systemStages")
+      .withIndex("by_name", (q) => q.eq("name", nextName))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        color: args.color ?? existing.color ?? "blue",
+        sortOrder: args.sortOrder ?? existing.sortOrder,
+      });
+      return existing._id;
+    }
+    return await ctx.db.insert("systemStages", {
+      name: nextName,
+      color: args.color || "blue",
+      sortOrder: args.sortOrder ?? all.length + 1,
+    });
+  },
+});
+
+export const deleteStage = mutation({
+  args: { idOrName: v.string() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db.query("systemStages").collect();
+    if (all.length <= 1) return { deleted: false, reason: "min_limit" };
+    const target = all.find(
+      (s) => String(s._id) === args.idOrName || s.name === args.idOrName
+    );
+    if (!target) return { deleted: false };
+    await ctx.db.delete(target._id);
+    return { deleted: true, deletedName: target.name };
+  },
+});
+
+export const upsertContractStatus = mutation({
+  args: {
+    idOrName: v.optional(v.string()),
+    name: v.optional(v.string()),
+    color: v.optional(v.string()),
+    sortOrder: v.optional(v.number()),
+    direction: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const all = (await ctx.db.query("systemContractStatuses").collect()).sort(
+      (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)
+    );
+
+    if (args.idOrName && (args.direction === "up" || args.direction === "down")) {
+      const idx = all.findIndex(
+        (s) => String(s._id) === args.idOrName || s.name === args.idOrName
+      );
+      const swapIdx = args.direction === "up" ? idx - 1 : idx + 1;
+      if (idx !== -1 && swapIdx >= 0 && swapIdx < all.length) {
+        for (let i = 0; i < all.length; i++) {
+          let order = i + 1;
+          if (i === idx) order = swapIdx + 1;
+          else if (i === swapIdx) order = idx + 1;
+          await ctx.db.patch(all[i]._id, { sortOrder: order });
+        }
+      }
+      return args.idOrName;
+    }
+
+    const nextName = (args.name || "").trim();
+    if (!nextName) return null;
+
+    if (args.idOrName) {
+      const target = all.find(
+        (s) => String(s._id) === args.idOrName || s.name === args.idOrName
+      );
+      if (target) {
+        const oldName = target.name;
+        await ctx.db.patch(target._id, {
+          name: nextName,
+          color: args.color ?? target.color,
+          sortOrder: args.sortOrder ?? target.sortOrder,
+        });
+        if (oldName !== nextName) {
+          const contracts = await ctx.db.query("contracts").collect();
+          for (const c of contracts) {
+            if (c.status === oldName) {
+              await ctx.db.patch(c._id, {
+                status: nextName,
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          }
+        }
+        return target._id;
+      }
+    }
+
     const existing = await ctx.db
       .query("systemContractStatuses")
-      .withIndex("by_name", (q) => q.eq("name", args.name))
+      .withIndex("by_name", (q) => q.eq("name", nextName))
       .first();
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -91,9 +235,8 @@ export const upsertContractStatus = mutation({
       });
       return existing._id;
     }
-    const all = await ctx.db.query("systemContractStatuses").collect();
     return await ctx.db.insert("systemContractStatuses", {
-      name: args.name,
+      name: nextName,
       color: args.color || "#2563eb",
       sortOrder: args.sortOrder ?? all.length + 1,
     });

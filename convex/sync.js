@@ -232,7 +232,7 @@ export const batchSyncConsentForms = mutation({
 export const batchSyncSystemSettings = mutation({
   args: {
     labels: v.array(v.object({ name: v.string(), color: v.string(), sortOrder: v.number() })),
-    stages: v.array(v.object({ name: v.string(), sortOrder: v.number() })),
+    stages: v.array(v.object({ name: v.string(), color: v.optional(v.string()), sortOrder: v.number() })),
     statuses: v.array(v.object({ name: v.string(), color: v.string(), sortOrder: v.number() })),
   },
   handler: async (ctx, args) => {

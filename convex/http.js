@@ -165,4 +165,154 @@ http.route({
   }),
 });
 
+// 5. Daangn Lead Form Webhook (당근마켓 > 상담리드 자동 등록)
+http.route({
+  path: "/api/landing/daangn-lead",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }),
+});
+
+http.route({
+  path: "/api/landing/daangn-lead",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    try {
+      const body = await req.json();
+      const rawRows = Array.isArray(body?.rows)
+        ? body.rows
+        : Array.isArray(body)
+          ? body
+          : body?.row && typeof body.row === "object"
+            ? [body.row]
+            : [body || {}];
+
+      const existingData = await ctx.runQuery(api.crm.listCustomersData, {});
+      const existingPhones = new Set(
+        (existingData?.projects || []).map((p) => String(p.customerPhone || "").replace(/\D/g, ""))
+      );
+
+      const inserted = [];
+      const skipped = [];
+
+      for (const r of rawRows) {
+        let obj = r || {};
+        if (Array.isArray(r?.headers) && Array.isArray(r?.values)) {
+          obj = {};
+          r.headers.forEach((h, idx) => {
+            obj[String(h || `col_${idx + 1}`).trim()] = r.values[idx] ?? "";
+          });
+        }
+
+        const rawPhone =
+          obj.phone || obj["연락처"] || obj["전화번호"] || obj["휴대폰"] || obj["휴대전화"] || "";
+        let digits = String(rawPhone).replace(/\D/g, "");
+        if (digits.startsWith("82") && digits.length >= 11) digits = "0" + digits.slice(2);
+        else if (digits.startsWith("10") && (digits.length === 9 || digits.length === 10)) digits = "0" + digits;
+
+        if (!/^01[016789]\d{7,8}$/.test(digits)) continue;
+
+        const cleanPhone =
+          digits.length === 11
+            ? `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+            : `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+
+        if (existingPhones.has(digits)) {
+          skipped.push({ phone: cleanPhone, reason: "already_exists" });
+          continue;
+        }
+        existingPhones.add(digits);
+
+        const cleanName = String(
+          obj.name || obj["이름"] || obj["성함"] || obj["고객명"] || "당근상담고객"
+        ).trim();
+        const cleanAddress = String(
+          obj.address || obj.region || obj["지역"] || obj["주소"] || obj["설치지역"] || obj["시공지역"] || "지역 미기재 (상담 확인)"
+        ).trim();
+        const cleanNote = String(
+          obj.note || obj.size || obj["평수"] || obj["평형"] || obj["문의사항"] || obj["메모"] || ""
+        ).trim();
+        const cleanProduct = String(obj.product || obj["상품"] || "창호").trim() || "창호";
+
+        const created = await ctx.runMutation(api.crm.createCustomerProject, {
+          name: cleanName,
+          phone: cleanPhone,
+          address: cleanAddress,
+          product: cleanProduct,
+          owner: "미배정",
+          partner: "직영",
+          orgId: 1,
+          source: "당근마켓",
+          adCampaign: "상담리드",
+          note: cleanNote,
+          authorName: "당근 리드폼",
+        });
+
+        inserted.push({
+          projectId: created?.projectId,
+          name: cleanName,
+          phone: cleanPhone,
+          address: cleanAddress,
+          note: cleanNote,
+        });
+
+        const webhookUrl =
+          "https://discordapp.com/api/webhooks/1570707391845240925/iOsaiN4YEZLrVRIlNNN1k1fZvIKTmm3j9IGdQnKGSXVTnRV4K999UeSKbWXYYK0YEV6R";
+        try {
+          await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              embeds: [
+                {
+                  title: "👤 [고객관리] 당근마켓 > 상담리드 자동 접수",
+                  color: 0xea580c,
+                  fields: [
+                    { name: "고객명", value: cleanName, inline: true },
+                    { name: "연락처", value: cleanPhone, inline: true },
+                    { name: "접수번호", value: created?.projectId ? `#${created.projectId}` : "-", inline: true },
+                    { name: "관심 상품", value: cleanProduct, inline: true },
+                    { name: "유입 경로(채널)", value: "당근마켓 (상담리드)", inline: true },
+                    { name: "소속 / 파트너", value: "직영", inline: true },
+                    { name: "설치 지역 / 주소", value: cleanAddress || "-", inline: false },
+                    ...(cleanNote ? [{ name: "메모", value: cleanNote, inline: false }] : []),
+                  ],
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            }),
+            signal: AbortSignal.timeout(2500),
+          });
+        } catch (hookErr) {
+          console.warn("Convex HTTP Daangn Discord webhook error:", hookErr);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          insertedCount: inserted.length,
+          skippedCount: skipped.length,
+          inserted,
+          skipped,
+        }),
+        {
+          status: inserted.length > 0 ? 201 : 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    } catch (err) {
+      console.error("Convex HTTP Daangn webhook error:", err);
+      return new Response(
+        JSON.stringify({ error: "당근 리드폼 자동 등록 처리 중 오류가 발생했습니다." }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
+
 export default http;

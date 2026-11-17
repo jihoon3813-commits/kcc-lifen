@@ -225,12 +225,12 @@ async function syncAll() {
 
   // 6. System Settings (라벨, 단계, 계약상태) 동기화
   const labelRows = db.prepare(`SELECT id, name, color FROM system_labels ORDER BY id`).all();
-  const stageRows = db.prepare(`SELECT id, name, sort_order as sortOrder FROM system_stages ORDER BY sort_order`).all();
+  const stageRows = db.prepare(`SELECT id, name, color, sort_order as sortOrder FROM system_stages ORDER BY sort_order`).all();
   const statusRows = db.prepare(`SELECT id, name, color, sort_order as sortOrder FROM system_contract_statuses ORDER BY sort_order`).all();
 
   await client.mutation(api.sync.batchSyncSystemSettings, {
     labels: labelRows.map((l, idx) => ({ name: l.name, color: l.color || '#3b82f6', sortOrder: idx + 1 })),
-    stages: stageRows.map((s, idx) => ({ name: s.name, sortOrder: Number(s.sortOrder || idx + 1) })),
+    stages: stageRows.map((s, idx) => ({ name: s.name, color: s.color || 'blue', sortOrder: Number(s.sortOrder || idx + 1) })),
     statuses: statusRows.map((st, idx) => ({ name: st.name, color: st.color || '#64748b', sortOrder: Number(st.sortOrder || idx + 1) })),
   });
   console.log(`✓ [System Settings] Synced: Labels(${labelRows.length}), Stages(${stageRows.length}), ContractStatuses(${statusRows.length})`);

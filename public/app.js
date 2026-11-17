@@ -17,6 +17,18 @@ function formatShortKstClient(isoStr) {
   return `${mm}.${dd} ${hh}:${mi}`;
 }
 const now=()=>formatShortKstClient(new Date().toISOString());
+const DEFAULT_STAGES = [
+  { id: 1, name: '신규접수', color: 'blue', sort_order: 1 },
+  { id: 2, name: '상담중', color: 'purple', sort_order: 2 },
+  { id: 3, name: '가견적요청', color: 'orange', sort_order: 3 },
+  { id: 4, name: '견적안내', color: 'blue', sort_order: 4 },
+  { id: 5, name: '실측예정', color: 'green', sort_order: 5 },
+  { id: 6, name: '최종견적', color: 'purple', sort_order: 6 },
+  { id: 7, name: '계약진행', color: 'green', sort_order: 7 },
+  { id: 8, name: '시공완료', color: 'gray', sort_order: 8 },
+  { id: 9, name: '보류', color: 'gray', sort_order: 9 }
+];
+
 const DEFAULT_CONTRACT_STATUSES = [
   { id: 1, name: '계약체결', color: 'blue', sort_order: 1 },
   { id: 2, name: '미수납', color: 'orange', sort_order: 2 },
@@ -277,7 +289,7 @@ const PRESERVED_RENTAL_FORM_FIELDS = [
 
 const DEFAULT_LANDING_LINKS = [];
 
-const initial=()=>({customers:[],partners:[],users:[{id:1,username:'admin',name:'김지훈',phone:'010-1111-2222',role:'hq_admin',org:'라이프앤조이',email:'admin@example.com',allowed_menus:[...ALL_MENU_KEYS],active:true}],labels:[{name:'일반',color:'#7194dd'},{name:'긴급',color:'#e88485'},{name:'체크',color:'#c39b56'},{name:'완료',color:'#74b6a1'}],contractStatuses:DEFAULT_CONTRACT_STATUSES.map(x=>({...x})),notes:{},history:{},quotes:[],applications:[],contracts:[],products:[{id:1,name:'KCC 홈씨씨 창호',category:'창호',desc:'우리 집에 맞는 창호 교체, 상담부터 시공까지.',url:'/landing/',icon:'window',color:'#edf3f9',views:0,active:true},{id:2,name:'KCC 홈씨씨 키친',category:'주방',desc:'생활의 중심이 되는 주방, 맞춤 리모델링 상담.',url:'',icon:'kitchen',color:'#f4f1ec',views:0,active:true},{id:3,name:'KCC 홈씨씨 욕실',category:'욕실',desc:'매일의 편안함을 만드는 욕실 리모델링.',url:'',icon:'bath',color:'#edf4f1',views:0,active:false}],
+const initial=()=>({customers:[],partners:[],users:[{id:1,username:'admin',name:'김지훈',phone:'010-1111-2222',role:'hq_admin',org:'라이프앤조이',email:'admin@example.com',allowed_menus:[...ALL_MENU_KEYS],active:true}],labels:[{name:'일반',color:'#7194dd'},{name:'긴급',color:'#e88485'},{name:'체크',color:'#c39b56'},{name:'완료',color:'#74b6a1'}],stages:DEFAULT_STAGES.map(x=>({...x})),contractStatuses:DEFAULT_CONTRACT_STATUSES.map(x=>({...x})),notes:{},history:{},quotes:[],applications:[],contracts:[],products:[{id:1,name:'KCC 홈씨씨 창호',category:'창호',desc:'우리 집에 맞는 창호 교체, 상담부터 시공까지.',url:'/landing/',icon:'window',color:'#edf3f9',views:0,active:true},{id:2,name:'KCC 홈씨씨 키친',category:'주방',desc:'생활의 중심이 되는 주방, 맞춤 리모델링 상담.',url:'',icon:'kitchen',color:'#f4f1ec',views:0,active:true},{id:3,name:'KCC 홈씨씨 욕실',category:'욕실',desc:'매일의 편안함을 만드는 욕실 리모델링.',url:'',icon:'bath',color:'#edf4f1',views:0,active:false}],
 landingLinks:[],analytics:null,
 forms:[{id:'rental_privacy',name:'(렌탈) 개인정보 동의서',version:7,pdfPath:'/uploads/forms/form_1794469868135_ctjfux.pdf',fileName:'BSON_제휴영업팀 신용정보동의서_에디터용.pdf',text:DEFAULT_RENTAL_PRIVACY_CONTENT,fieldsConfig:JSON.parse(JSON.stringify(PRESERVED_RENTAL_FORM_FIELDS))}]});
 try{localStorage.removeItem('homecc_crm_v3_demo')}catch{}
@@ -296,6 +308,9 @@ if(Array.isArray(db.forms)){
       f.fieldsConfig = normalizeFormFields(f.fieldsConfig);
     });
   }
+}
+if (!Array.isArray(db.stages) || !db.stages.length || typeof db.stages[0] !== 'object') {
+  db.stages = DEFAULT_STAGES.map(x => ({ ...x }));
 }
 if (!Array.isArray(db.contractStatuses) || !db.contractStatuses.length) {
   db.contractStatuses = DEFAULT_CONTRACT_STATUSES.map(x => ({ ...x }));
@@ -646,13 +661,14 @@ async function syncFromServer() {
         return;
       }
     }
-    const [cRes, pRes, kRes, aRes, prRes, lRes, csRes, uRes, rRes, fRes, anRes, qpRes, payRes] = await Promise.all([
+    const [cRes, pRes, kRes, aRes, prRes, lRes, stRes, csRes, uRes, rRes, fRes, anRes, qpRes, payRes] = await Promise.all([
       apiFetch('/api/customers'),
       apiFetch('/api/partners'),
       apiFetch('/api/contracts'),
       apiFetch('/api/rentals'),
       apiFetch('/api/products'),
       apiFetch('/api/settings/labels'),
+      apiFetch('/api/settings/stages'),
       apiFetch('/api/settings/contract-statuses'),
       apiFetch('/api/auth/users'),
       apiFetch('/api/auth/roster'),
@@ -695,6 +711,16 @@ async function syncFromServer() {
       const data = await lRes.json();
       db.labels = data.labels;
     }
+    if (stRes && stRes.ok) {
+      const data = await stRes.json();
+      if (Array.isArray(data.stages) && data.stages.length) {
+        db.stages = data.stages.map((s, idx) =>
+          typeof s === 'string'
+            ? { id: idx + 1, name: s, color: DEFAULT_STAGES.find(d => d.name === s)?.color || 'blue', sort_order: idx + 1 }
+            : { ...s, id: s.id ?? (idx + 1), color: s.color || DEFAULT_STAGES.find(d => d.name === s.name)?.color || 'blue', sort_order: s.sort_order ?? s.sortOrder ?? (idx + 1) }
+        );
+      }
+    }
     if (csRes.ok) {
       const data = await csRes.json();
       if (Array.isArray(data.contractStatuses) && data.contractStatuses.length) {
@@ -735,9 +761,32 @@ async function syncFromServer() {
     }
     save();
     render();
+    triggerBackgroundDaangnSheetSync();
   } catch (err) {
     console.warn('API sync warning:', err);
   }
+}
+
+let _lastDaangnAutoSyncAt = 0;
+async function triggerBackgroundDaangnSheetSync() {
+  const now = Date.now();
+  if (now - _lastDaangnAutoSyncAt < 60000) return;
+  _lastDaangnAutoSyncAt = now;
+  try {
+    const res = await apiFetch('/api/landing/daangn-lead', { method: 'GET' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data.insertedCount > 0) {
+      const cRes = await apiFetch('/api/customers');
+      if (cRes.ok) {
+        const cData = await cRes.json();
+        applyCustomersFromServer(cData.customers);
+        save();
+        render();
+        toast(`당근마켓 > 상담리드 신규 고객 ${data.insertedCount}명이 자동 등록되었습니다.`);
+      }
+    }
+  } catch {}
 }
 
 async function refreshAnalytics(period = statsPeriod) {
@@ -1333,7 +1382,21 @@ let page='customers', navSyncing=false, navSyncSeq=0, customerTab='all', quoteTa
 let quoteConsultPhone = (()=>{try{return localStorage.getItem('kcc_quote_consult_phone')||'';}catch{return '';}})();
 let quoteConsultManagerName = (()=>{try{return localStorage.getItem('kcc_quote_consult_manager')||'';}catch{return '';}})();
 const menus=[['customers','고객관리','users'],['quotes','견적관리','file'],['contracts','계약관리','contract'],['products','상품관리','box'],['partners','파트너관리','building'],['stats','통계관리','chart'],['settings','설정','settings']];
-const stages=['신규접수','상담중','가견적요청','견적안내','실측예정','최종견적','계약진행','시공완료','보류'];
+function getStages() {
+  if (Array.isArray(db.stages) && db.stages.length) {
+    return db.stages
+      .map((s, idx) =>
+        typeof s === 'string'
+          ? { id: idx + 1, name: s, color: DEFAULT_STAGES.find(d => d.name === s)?.color || 'blue', sort_order: idx + 1 }
+          : { ...s, id: s.id ?? (idx + 1), color: s.color || DEFAULT_STAGES.find(d => d.name === s.name)?.color || 'blue', sort_order: s.sort_order ?? s.sortOrder ?? (idx + 1) }
+      )
+      .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || (Number(a.id) || 0) - (Number(b.id) || 0));
+  }
+  return DEFAULT_STAGES.map(x => ({ ...x }));
+}
+function getStageNames() {
+  return getStages().map(s => s.name);
+}
 function getContractStatuses() {
   if (Array.isArray(db.contractStatuses) && db.contractStatuses.length) {
     return [...db.contractStatuses].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || (Number(a.id) || 0) - (Number(b.id) || 0));
@@ -1344,6 +1407,8 @@ function getContractStatusNames() {
   return getContractStatuses().map(s => s.name);
 }
 const stageColor = s => {
+  const customStage = getStages().find(st => st.name === s);
+  if (customStage) return customStage.color === 'blue' ? '' : (customStage.color || '');
   const custom = getContractStatuses().find(st => st.name === s);
   if (custom) return custom.color === 'blue' ? '' : (custom.color || '');
   return ({'신규접수':'','상담중':'purple','가견적요청':'orange','견적안내':'','실측예정':'green','최종견적':'purple','계약진행':'green','계약완료':'green','시공완료':'gray','보류':'gray','접수완료':'','서류검토':'orange','서류보완':'red','보완요청':'red','심사중':'purple','승인':'green','약정완료':'green','반려':'gray','부결':'red','약정대기':'orange','선금완료':'','수납완료':'green','초기납입완료':'green','결제완료':'green','결제대기':'orange','취소됨':'gray'}[s]||'');
@@ -1629,7 +1694,7 @@ function filteredCustomers() {
     return b.date.localeCompare(a.date) || b.id - a.id;
   });
 }
-function customerRows(){const list=filteredCustomers();return list.length?list.map(c=>{const ll=findCustomerLandingLink(c);const ch=getCustomerChannel(c);const camp=c.adCampaign||ll?.name||'';const act=getCustomerActivityState(c);const stripCls=act.kind==='updated'?' is-updated-24h':(act.kind==='new'?' is-new-24h':'');const stripBadge=act.kind==='updated'?'<span class="cust-strip-badge is-updated" title="최근 24시간 이내 수정">수정</span>':(act.kind==='new'?'<span class="cust-strip-badge is-new" title="최근 24시간 이내 신규 등록">신규</span>':'');return `<article class="customer-row${stripCls}" data-action="customer" data-id="${c.id}" tabindex="0" aria-label="${esc(c.name)} 고객 상세"><input type="checkbox" data-select="${c.id}" ${selected.has(c.id)?'checked':''} aria-label="${c.name} 선택"><div><div class="row-top">${stripBadge}${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span class="row-code">No. ${c.id}</span><span class="row-code">${c.date.slice(5).replace('-','.')}</span></div><div class="name-line">${badge(c.product,c.product==='주방'?'purple':c.product==='욕실'?'green':'')}<b>${esc(c.name)}</b><span>${esc(c.phone)}</span></div><div class="row-address">${icon('pin')}${esc(c.address)}</div><div class="row-meta"><span class="ch-pill ${channelTone(ch)}">${esc(ch)}</span>${camp?`<span class="ch-campaign-label" title="유입 광고 캠페인/링크명">${esc(camp)}</span>`:''}<span>· ${esc(c.partner)}</span>${c.measure?`<span>· 실측 ${c.measure.slice(5)}</span>`:''}</div></div><div class="row-activity"><div class="line"><span class="tag">상담</span><div><p>${c.note?esc(c.note):'<span style="color:var(--muted)">등록된 상담 이력이 없습니다.</span>'}</p><small>${esc(c.noteMeta?.date||formatShortKstClient(c.createdAt)||(c.date?c.date.slice(5).replace('-','.'):''))} · ${esc(c.noteMeta?.by||c.owner)}</small></div></div><div class="line feedback"><span class="tag feedback">피드백</span><p>${c.feedback?esc(c.feedback):'<span style="color:var(--muted)">등록된 피드백이 없습니다.</span>'}</p></div></div><div class="row-end"><div class="row-owner"><span class="mini-avatar">${c.owner==='미배정'?'–':esc(c.owner.slice(-2))}</span>${esc(c.owner)}</div><div class="row-links">${c.quote?(c.roughQuote&&c.finalQuote?`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="가견적">가견적 ↗</button><button class="link-chip" style="background:#eef8f4;border-color:#a8dac6;color:#1f6853" data-action="preview" data-id="${c.id}" data-type="최종견적">최종견적 ↗</button>`:`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="${esc(c.quoteType||'가견적')}">${esc(c.quoteType||'가견적')} ↗</button>`):`<button class="link-chip muted" data-action="new-quote" data-id="${c.id}">견적 작성</button>`}${c.quote?`<button class="link-chip" style="background:#fffbeb;border-color:#f2d675;color:#855a00" data-action="send-quote" data-id="${c.id}">문자·카톡</button>`:''}<button class="link-chip" data-action="customer" data-id="${c.id}">상세보기</button></div><div class="row-bottom">${c.quote?(c.viewed?'● 고객 열람 완료':'○ 아직 열람하지 않음')+(c.dispatchCount?` · 발송 ${c.dispatchCount}회`:''):'견적 발행 전'}</div></div></article>`}).join(''):`<div class="empty">${icon('search')}<strong>조건에 맞는 고객이 없습니다.</strong>검색어나 필터를 변경해 주세요.</div>`}
+function customerRows(){const list=filteredCustomers();return list.length?list.map(c=>{const ll=findCustomerLandingLink(c);const ch=getCustomerChannel(c);const camp=c.adCampaign||ll?.name||'';const act=getCustomerActivityState(c);const stripCls=act.kind==='updated'?' is-updated-24h':(act.kind==='new'?' is-new-24h':'');const stripBadge=act.kind==='updated'?'<span class="cust-strip-badge is-updated" title="최근 24시간 이내 수정">수정</span>':(act.kind==='new'?'<span class="cust-strip-badge is-new" title="최근 24시간 이내 신규 등록">신규</span>':'');return `<article class="customer-row${stripCls}" data-action="customer" data-id="${c.id}" tabindex="0" aria-label="${esc(c.name)} 고객 상세"><input type="checkbox" data-select="${c.id}" ${selected.has(c.id)?'checked':''} aria-label="${c.name} 선택"><div><div class="row-top">${stripBadge}${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span class="row-code">No. ${c.id}</span><span class="row-code">${c.date.slice(5).replace('-','.')}</span></div><div class="name-line">${badge(c.product,c.product==='주방'?'purple':c.product==='욕실'?'green':'')}<b>${esc(c.name)}</b><span>${esc(c.phone)}</span></div><div class="row-address">${icon('pin')}${esc(c.address)}</div><div class="row-meta"><span class="ch-pill ${channelTone(ch)}">${esc(ch)}</span>${camp?`<span style="color:#94a3b8;font-size:11px;font-weight:700">&gt;</span><span class="ch-campaign-label" title="유입 광고 캠페인/링크명">${esc(camp)}</span>`:''}<span>· ${esc(c.partner)}</span>${c.measure?`<span>· 실측 ${c.measure.slice(5)}</span>`:''}</div></div><div class="row-activity"><div class="line"><span class="tag">상담</span><div><p>${c.note?esc(c.note):'<span style="color:var(--muted)">등록된 상담 이력이 없습니다.</span>'}</p><small>${esc(c.noteMeta?.date||formatShortKstClient(c.createdAt)||(c.date?c.date.slice(5).replace('-','.'):''))} · ${esc(c.noteMeta?.by||c.owner)}</small></div></div><div class="line feedback"><span class="tag feedback">피드백</span><p>${c.feedback?esc(c.feedback):'<span style="color:var(--muted)">등록된 피드백이 없습니다.</span>'}</p></div></div><div class="row-end"><div class="row-owner"><span class="mini-avatar">${c.owner==='미배정'?'–':esc(c.owner.slice(-2))}</span>${esc(c.owner)}</div><div class="row-links">${c.quote?(c.roughQuote&&c.finalQuote?`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="가견적">가견적 ↗</button><button class="link-chip" style="background:#eef8f4;border-color:#a8dac6;color:#1f6853" data-action="preview" data-id="${c.id}" data-type="최종견적">최종견적 ↗</button>`:`<button class="link-chip" data-action="preview" data-id="${c.id}" data-type="${esc(c.quoteType||'가견적')}">${esc(c.quoteType||'가견적')} ↗</button>`):`<button class="link-chip muted" data-action="new-quote" data-id="${c.id}">견적 작성</button>`}${c.quote?`<button class="link-chip" style="background:#fffbeb;border-color:#f2d675;color:#855a00" data-action="send-quote" data-id="${c.id}">문자·카톡</button>`:''}<button class="link-chip" data-action="customer" data-id="${c.id}">상세보기</button></div><div class="row-bottom">${c.quote?(c.viewed?'● 고객 열람 완료':'○ 아직 열람하지 않음')+(c.dispatchCount?` · 발송 ${c.dispatchCount}회`:''):'견적 발행 전'}</div></div></article>`}).join(''):`<div class="empty">${icon('search')}<strong>조건에 맞는 고객이 없습니다.</strong>검색어나 필터를 변경해 주세요.</div>`}
 function customersPage(){
   const c = visibleCustomers();
   const channelOptions = getChannelFilterOptions();
@@ -1637,7 +1702,7 @@ function customersPage(){
   const linkFilterBanner = linkFilter ? `<div class="active-link-filter-bar"><div>${icon('link')}<span>선택된 광고링크 유입 고객만 보는 중:</span> <span class="ch-pill ${channelTone(activeLinkObj?.channel || sourceFilter)}">${esc(activeLinkObj?.channel || sourceFilter || '광고링크')}</span> <b>${esc(activeLinkObj?.name || ('링크 #' + linkFilter))}</b></div><button type="button" class="btn sm" data-action="clear-link-filter">${icon('close')}필터 해제 (전체 보기)</button></div>` : '';
   const filteredList = filteredCustomers();
   const allCustSelected = filteredList.length > 0 && filteredList.every(x => selected.has(x.id));
-  return pageHead('고객관리','고객의 첫 문의부터 계약까지, 한눈에 관리하세요.',btn('새로고침','refresh-data','refresh','secondary')+btn('일정 보기','calendar','calendar','secondary')+btn('고객 등록','new-customer','plus','primary'),'CUSTOMER MANAGEMENT')+`<div class="metrics">${metric('전체 고객',c.length,'건','현재 등록된 전체 공사건','users','','filter-all')}${metric('견적 요청 대기',c.filter(x=>x.status==='가견적요청').length,'건','<span class="accent">원본 견적 수령</span>이 필요해요','file','orange','filter-stage','data-value="가견적요청"')}${metric('실측 예정',c.filter(x=>x.status==='실측예정').length,'건','담당팀과 방문 일정을 확인하세요','calendar','purple','filter-stage','data-value="실측예정"')}${metric('계약 진행',c.filter(x=>x.status==='계약진행').length,'건','서류 검토와 수납 상태 확인','contract','green','filter-stage','data-value="계약진행"')}</div><section class="panel"><div class="tabs">${[['all','전체 고객'],['mine','내 담당 고객'],['unassigned','미배정'],['unread','견적 미열람']].map(([v,l])=>`<button class="tab ${customerTab===v?'active':''}" data-action="customer-tab" data-value="${v}">${l}${v==='all'?`<span class="count">${c.length}</span>`:''}</button>`).join('')}</div><div class="filters"><div class="search-field">${icon('search')}<input class="input" id="customer-search" value="${esc(query)}" placeholder="고객명, 연락처, 주소, 광고채널 검색" aria-label="고객 검색"></div><select class="select" id="filter-period" aria-label="등록 기간"><option value="all" ${periodFilter==='all'?'selected':''}>등록 기간 전체</option><option value="today" ${periodFilter==='today'?'selected':''}>오늘</option><option value="7" ${periodFilter==='7'?'selected':''}>최근 7일</option></select><select class="select" id="filter-product" aria-label="상품군">${options(['창호','주방','욕실'],productFilter,'상품군 전체')}</select><select class="select" id="filter-stage" aria-label="진행구분">${options(stages,stageFilter,'진행구분 전체')}</select><select class="select" id="filter-source" aria-label="유입채널">${options(channelOptions,sourceFilter,'유입채널 전체')}</select>${role==='본사 관리자'?`<select class="select" id="filter-partner" aria-label="소속 파트너">${options(['직영',...db.partners.map(p=>p.name)],partnerFilter,'파트너 전체')}</select>`:''}<button class="icon-btn" data-action="reset-filters" title="필터 초기화" aria-label="필터 초기화">${icon('refresh')}</button></div>${linkFilterBanner}<div class="toolbar"><span id="list-count" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="customers" ${allCustSelected?'checked':''}> 전체 선택</label><span>검색 결과 <strong>${filteredList.length}</strong>건</span>${selected.size?`· <button type="button" data-action="assign" style="color:var(--blue)">${selected.size}명 담당자 배정</button> · ${btn(`선택 삭제 (${selected.size})`,'delete-selected','trash','sm danger')}`:''}</span><div class="actions">${btn(selected.size?`선택 엑셀 (${selected.size})`:'엑셀용 CSV','export','download','sm')}<select class="sort" id="sort-order" aria-label="정렬 순서"><option value="new" ${sortOrder==='new'?'selected':''}>최근 등록순</option><option value="old" ${sortOrder==='old'?'selected':''}>고객번호 낮은순</option></select></div></div><div class="customers" id="customer-rows">${customerRows()}</div><div class="pagination"><span>전체 결과를 한 페이지에 표시합니다.</span><div class="pages"><button class="active" aria-label="현재 1페이지">1</button></div></div></section>`;
+  return pageHead('고객관리','고객의 첫 문의부터 계약까지, 한눈에 관리하세요.',btn('새로고침','refresh-data','refresh','secondary')+btn('당근 리드 연동','open-daangn-sync','link','secondary')+btn('일정 보기','calendar','calendar','secondary')+btn('고객 등록','new-customer','plus','primary'),'CUSTOMER MANAGEMENT')+`<div class="metrics">${metric('전체 고객',c.length,'건','현재 등록된 전체 공사건','users','','filter-all')}${metric('견적 요청 대기',c.filter(x=>x.status==='가견적요청').length,'건','<span class="accent">원본 견적 수령</span>이 필요해요','file','orange','filter-stage','data-value="가견적요청"')}${metric('실측 예정',c.filter(x=>x.status==='실측예정').length,'건','담당팀과 방문 일정을 확인하세요','calendar','purple','filter-stage','data-value="실측예정"')}${metric('계약 진행',c.filter(x=>x.status==='계약진행').length,'건','서류 검토와 수납 상태 확인','contract','green','filter-stage','data-value="계약진행"')}</div><section class="panel"><div class="tabs">${[['all','전체 고객'],['mine','내 담당 고객'],['unassigned','미배정'],['unread','견적 미열람']].map(([v,l])=>`<button class="tab ${customerTab===v?'active':''}" data-action="customer-tab" data-value="${v}">${l}${v==='all'?`<span class="count">${c.length}</span>`:''}</button>`).join('')}</div><div class="filters"><div class="search-field">${icon('search')}<input class="input" id="customer-search" value="${esc(query)}" placeholder="고객명, 연락처, 주소, 광고채널 검색" aria-label="고객 검색"></div><select class="select" id="filter-period" aria-label="등록 기간"><option value="all" ${periodFilter==='all'?'selected':''}>등록 기간 전체</option><option value="today" ${periodFilter==='today'?'selected':''}>오늘</option><option value="7" ${periodFilter==='7'?'selected':''}>최근 7일</option></select><select class="select" id="filter-product" aria-label="상품군">${options(['창호','주방','욕실'],productFilter,'상품군 전체')}</select><select class="select" id="filter-stage" aria-label="진행구분">${options(getStageNames(),stageFilter,'진행구분 전체')}</select><select class="select" id="filter-source" aria-label="유입채널">${options(channelOptions,sourceFilter,'유입채널 전체')}</select>${role==='본사 관리자'?`<select class="select" id="filter-partner" aria-label="소속 파트너">${options(['직영',...db.partners.map(p=>p.name)],partnerFilter,'파트너 전체')}</select>`:''}<button class="icon-btn" data-action="reset-filters" title="필터 초기화" aria-label="필터 초기화">${icon('refresh')}</button></div>${linkFilterBanner}<div class="toolbar"><span id="list-count" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="customers" ${allCustSelected?'checked':''}> 전체 선택</label><span>검색 결과 <strong>${filteredList.length}</strong>건</span>${selected.size?`· <button type="button" data-action="assign" style="color:var(--blue)">${selected.size}명 담당자 배정</button> · ${btn(`선택 삭제 (${selected.size})`,'delete-selected','trash','sm danger')}`:''}</span><div class="actions">${btn(selected.size?`선택 엑셀 (${selected.size})`:'엑셀용 CSV','export','download','sm')}<select class="sort" id="sort-order" aria-label="정렬 순서"><option value="new" ${sortOrder==='new'?'selected':''}>최근 등록순</option><option value="old" ${sortOrder==='old'?'selected':''}>고객번호 낮은순</option></select></div></div><div class="customers" id="customer-rows">${customerRows()}</div><div class="pagination"><span>전체 결과를 한 페이지에 표시합니다.</span><div class="pages"><button class="active" aria-label="현재 1페이지">1</button></div></div></section>`;
 }
 function renderQuotePreviewButtons(c, sizeCls = 'sm soft') {
   if (!c || !c.quote) return '';
@@ -3290,6 +3355,73 @@ function openUserDialog(userId = null) {
   );
 }
 
+function renderStagesSettingsPanel() {
+  const list = getStages();
+  const colorLabelMap = Object.fromEntries(BADGE_COLOR_OPTIONS.map(([k, lbl]) => [k, lbl]));
+  const rowsHtml = list.map((st, idx) => {
+    const usedCnt = (db.customers || []).filter(c => c.status === st.name).length;
+    return `<div class="settings-row">
+      <div class="status-order-btns">
+        <button type="button" class="status-order-btn" data-action="move-stage" data-id="${st.id}" data-dir="up" ${idx === 0 ? 'disabled' : ''} title="위로 이동">▲</button>
+        <button type="button" class="status-order-btn" data-action="move-stage" data-id="${st.id}" data-dir="down" ${idx === list.length - 1 ? 'disabled' : ''} title="아래로 이동">▼</button>
+      </div>
+      <div class="avatar" style="width:28px;height:28px">${String(idx + 1).padStart(2, '0')}</div>
+      <div class="grow">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <b>${esc(st.name)}</b>
+          ${badge(st.name, st.color === 'blue' ? '' : st.color)}
+        </div>
+        <small>배지 색상: ${esc(colorLabelMap[st.color] || '파랑')} · 현재 적용된 고객 <b>${usedCnt}</b>건</small>
+      </div>
+      <div class="actions">
+        ${btn('수정', 'edit-stage', 'edit', 'sm', `data-id="${st.id}"`)}
+        ${btn('삭제', 'delete-stage', 'trash', 'sm', `data-id="${st.id}"`)}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="panel-head">
+      <div>
+        <h3>진행구분 상태값 관리</h3>
+        <p>고객관리 및 고객 상세에서 사용하는 진행구분 상태값을 직접 추가·수정·순서 변경·삭제할 수 있습니다.</p>
+      </div>
+      ${btn('진행구분 추가', 'new-stage', 'plus', 'sm primary')}
+    </div>
+    <div class="panel-pad">
+      <div class="notice-text" style="margin-bottom:14px">진행구분 이름을 수정하면 기존 고객에 지정된 동일 진행구분도 함께 변경됩니다. 최소 1개의 진행구분은 유지됩니다.</div>
+      ${rowsHtml}
+    </div>`;
+}
+
+function openStageDialog(stageId = null) {
+  const list = getStages();
+  const st = stageId !== null ? list.find(x => String(x.id) === String(stageId)) : null;
+  const isEdit = Boolean(st);
+  const curColor = st?.color || 'blue';
+  const colorPickerHtml = `<div class="field">
+    <label>배지 색상 선택</label>
+    <div class="badge-color-options" id="stage-color-picker">
+      ${BADGE_COLOR_OPTIONS.map(([val, lbl, hex]) => `
+        <label class="badge-color-opt ${curColor === val ? 'is-selected' : ''}">
+          <input type="radio" name="color" value="${val}" ${curColor === val ? 'checked' : ''}>
+          <span class="color-dot" style="background:${hex};width:10px;height:10px"></span>
+          <span>${lbl}</span>
+        </label>
+      `).join('')}
+    </div>
+  </div>`;
+
+  formDialog(
+    isEdit ? '진행구분 상태값 수정' : '진행구분 상태값 추가',
+    `${field('진행구분명', 'name', st?.name || '', 'text', true)}
+     ${colorPickerHtml}
+     <div class="notice-text">${isEdit ? '진행구분명을 변경하면 해당 진행구분을 사용 중인 고객 건의 진행구분도 자동 업데이트됩니다.' : '새 진행구분은 고객관리 필터 및 고객 상세의 진행구분 변경 목록에 즉시 반영됩니다.'}</div>`,
+    'stage',
+    '고객관리 > 진행구분 설정',
+    isEdit ? `data-id="${st.id}"` : ''
+  );
+}
+
 function renderContractStatusesSettingsPanel() {
   const list = getContractStatuses();
   const colorLabelMap = Object.fromEntries(BADGE_COLOR_OPTIONS.map(([k, lbl]) => [k, lbl]));
@@ -3330,7 +3462,7 @@ function renderContractStatusesSettingsPanel() {
 
 function openContractStatusDialog(statusId = null) {
   const list = getContractStatuses();
-  const st = statusId !== null ? list.find(x => Number(x.id) === Number(statusId)) : null;
+  const st = statusId !== null ? list.find(x => String(x.id) === String(statusId)) : null;
   const isEdit = Boolean(st);
   const curColor = st?.color || 'blue';
   const colorPickerHtml = `<div class="field">
@@ -4758,7 +4890,7 @@ function settingsPage(){
   ];
   let content='';
   if(settingsTab==='labels')content=`<div class="panel-head"><div><h3>진행라벨 관리</h3><p>고객의 특성을 표시하는 라벨입니다. 업무 단계와 별도로 관리합니다.</p></div>${btn('라벨 추가','new-label','plus','sm primary')}</div><div class="panel-pad">${db.labels.map(l=>`<div class="settings-row"><span class="color-dot" style="background:${l.color}"></span><div class="grow"><b>${esc(l.name)}</b><small>고객 목록과 상세 화면에 표시</small></div>${badge(l.name,'gray')}</div>`).join('')}</div>`;
-  if(settingsTab==='stages')content=`<div class="panel-head"><div><h3>진행구분</h3><p>상담·견적·실측·계약의 업무 흐름을 표시합니다.</p></div></div><div class="panel-pad">${stages.map((s,i)=>`<div class="settings-row"><div class="avatar" style="width:28px;height:28px">${String(i+1).padStart(2,'0')}</div><div class="grow"><b>${s}</b><small>${i<5?'상담·견적 담당':'계약·운영 담당'} · 과거 이력 보존</small></div>${badge(s)}</div>`).join('')}</div>`;
+  if(settingsTab==='stages')content=renderStagesSettingsPanel();
   if(settingsTab==='contract-statuses')content=renderContractStatusesSettingsPanel();
   if(settingsTab==='forms')content=renderFormsSettingsPanel();
   if(settingsTab==='users')content=renderUsersSettingsPanel();
@@ -5060,7 +5192,7 @@ const quoteSideShortcutBtn = canManageQuotes()
   : (isPartnerUser() ? btn('본사 견적 요청', 'request-quote', 'plus', 'primary sm block', `data-id="${id}"`) : '');
 const displayCustCh = getCustomerChannel(c);
 const chDatalist = `<datalist id="ad-channel-presets">${AD_CHANNEL_PRESETS.map(p => `<option value="${esc(p)}"></option>`).join('')}<option value="직접등록"></option></datalist>`;
-const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${canManageQuotes()?`<button type="button" class="link-chip" style="background:#eef4ff;color:#2753a8;border-color:#c6d8f8" data-action="new-quote" data-id="${id}">+ 견적등록</button>`:''}<button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',stages,c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 관리자','detail-owner',getHqOwnerOptions(c.owner),c.owner)}<div class="field"><label for="detail-source" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">유입경로 (채널) <span class="ch-pill ${channelTone(displayCustCh)}">${esc(displayCustCh)}</span></label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${quoteSideShortcutBtn}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,canViewQuotesMenu)}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,canViewQuotesMenu)}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${custContracts.length?btn('계약관리에서 보기','go-customer-contracts','external','soft block',`data-id="${id}"`):''}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history">${renderCustomerHistoryHtml(c,displayCustCh)}</aside></div>`;
+const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${canManageQuotes()?`<button type="button" class="link-chip" style="background:#eef4ff;color:#2753a8;border-color:#c6d8f8" data-action="new-quote" data-id="${id}">+ 견적등록</button>`:''}<button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',[...new Set([...getStageNames(),c.status].filter(Boolean))],c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 관리자','detail-owner',getHqOwnerOptions(c.owner),c.owner)}<div class="field"><label for="detail-source" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">유입경로 (채널) <span class="ch-pill ${channelTone(displayCustCh)}">${esc(displayCustCh)}</span></label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${quoteSideShortcutBtn}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,canViewQuotesMenu)}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,canViewQuotesMenu)}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${custContracts.length?btn('계약관리에서 보기','go-customer-contracts','external','soft block',`data-id="${id}"`):''}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history">${renderCustomerHistoryHtml(c,displayCustCh)}</aside></div>`;
 const detailFooter = `<small>고객 상태: ${badge(c.status)}${custContracts.length ? ` · 계약 <b>${custContracts.length}건</b>` : ''} · ${esc(c.product)} · ${esc(c.partner)}</small>${custContracts.length ? btn('계약관리 이동', 'go-customer-contracts', 'external', 'sm soft', `data-id="${id}"`) : ''}${quoteShortcutBtn}${c.quote ? btn('모바일 견적 미리보기', 'preview', 'eye', 'sm soft', `data-id="${id}"`) : ''}${btn('닫기', 'close', '', 'sm')}`;
 openDialog(`${esc(c.name)} <span style="font-size:11px;font-weight:400;color:#91a6c9;margin-left:8px">No. ${c.id}</span>`,body,detailFooter,'wide',`${esc(c.phone)}　｜　${esc(c.address)}`,true);detailId=c.id;detailTab=tab;
 if (!wasAlreadyOpen) loadCustomerDetail(c.id);
@@ -5146,6 +5278,121 @@ async function openCustomerAddressSearch() {
 }
 
 function openNewCustomer(){const activeU=getActiveUser();const isP=isPartnerUser(activeU);formDialog('새 고객 등록',`<div class="notice-text" style="margin-bottom:20px">새 고객 및 공사건을 등록합니다. 광고채널이 있다면 함께 지정해 주세요.</div><div class="field-grid">${field('고객명','name','','text',true)}<div class="field"><label for="phone">연락처 <span>*</span></label><input class="input" id="phone" name="phone" type="tel" value="" placeholder="예: 010-1234-5678" required></div>${selectField('상품군','product',['창호','주방','욕실'],'창호')}${selectField('담당 상담사','owner',getHqOwnerOptions(),'미배정')}${selectField('소속 파트너','partner',!isP?['직영',...db.partners.map(p=>p.name)]:[activeU.org],!isP?'직영':activeU.org)}<div class="field"><label for="source">유입채널</label><input class="input" id="source" name="source" list="new-cust-ch-list" value="직접등록"><datalist id="new-cust-ch-list">${AD_CHANNEL_PRESETS.map(p=>`<option value="${esc(p)}"></option>`).join('')}<option value="직접등록"></option></datalist></div></div>${field('광고 캠페인 / 상세경로 (선택)','adCampaign','')}<div class="field"><label for="cust-address-base">공사 주소 (검색) <span>*</span></label><div style="display:flex;gap:8px;align-items:center"><input class="input" id="cust-address-base" name="addressBase" type="text" value="" placeholder="주소 검색 버튼을 눌러 주소를 검색하거나 직접 입력하세요." required style="flex:1"><button type="button" class="btn secondary sm" data-action="search-cust-address" style="white-space:nowrap;flex-shrink:0">${icon('search','sm')} 주소 검색</button></div><div id="cust-addr-extra-info" hidden></div><div id="cust-addr-search-wrap" hidden style="margin-top:8px;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;background:#fff"><div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#334155"><span>주소 검색 (전국 도로명·지번·건물명)</span><button type="button" class="btn sm soft" data-action="close-cust-addr-search">닫기</button></div><div id="cust-addr-search-body" style="width:100%;height:360px"></div></div></div><div class="field"><label for="cust-address-detail">추가 상세 주소 (동·호수 등)</label><input class="input" id="cust-address-detail" name="addressDetail" type="text" value="" placeholder="예: 101동 1202호, 단독주택 2층 등"></div><div class="field"><label>공사 희망사항</label><textarea name="note" placeholder="공사 범위와 희망 일정을 입력하세요."></textarea></div>`,'customer','고객과 공사건이 함께 생성됩니다.')}
+
+const DAANGN_DEFAULT_SHEET_ID = '1dmgNFAeoS959uLN_nFp4TFEe0qSiAHn-3L7VfUqopf4';
+
+function getDaangnAppsScriptCode() {
+  const endpointUrl = (window.location.origin || 'https://kcc-lifen.vercel.app') + '/api/landing/daangn-lead';
+  return `// [당근마켓 > 상담리드] 구글 시트 → KCC 어드민 실시간 자동 등록 스크립트
+// 설치 방법:
+// 1. 구글 시트 상단 메뉴 [확장 프로그램] > [Apps Script] 클릭
+// 2. 기존 코드를 지우고 아래 코드를 붙여넣은 뒤 저장(Ctrl+S)
+// 3. 좌측 시계 아이콘 [트리거] > [+ 트리거 추가] 클릭:
+//    - 실행할 함수: syncDaangnLeadsToAdmin
+//    - 이벤트 소스: 스프레드시트에서 / 이벤트 유형: 변경 시 (또는 시간 기반 > 분 타이머 > 1분마다)
+// 4. 상단 [실행] 버튼을 한 번 눌러 권한 승인 시 즉시 기존 고객 및 신규 고객이 자동 연동됩니다.
+
+const WEBHOOK_URL = "${endpointUrl}";
+
+function syncDaangnLeadsToAdmin() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  const data = sheet.getDataRange().getDisplayValues();
+  if (data.length < 2) return;
+
+  const headers = data[0];
+  const rows = [];
+  for (let i = 1; i < data.length; i++) {
+    const rowValues = data[i];
+    if (rowValues.join("").trim() === "") continue;
+    const obj = {};
+    for (let c = 0; c < headers.length; c++) {
+      obj[headers[c] || ("col_" + (c + 1))] = rowValues[c];
+    }
+    rows.push(obj);
+  }
+
+  if (rows.length === 0) return;
+
+  UrlFetchApp.fetch(WEBHOOK_URL, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({ rows: rows }),
+    muteHttpExceptions: true
+  });
+}`;
+}
+
+function openDaangnSyncDialog() {
+  const sheetUrl = `https://docs.google.com/spreadsheets/d/${DAANGN_DEFAULT_SHEET_ID}/edit?gid=0#gid=0`;
+  const scriptCode = getDaangnAppsScriptCode();
+  const body = `
+    <div class="notice-text" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div>
+        구글 시트에 들어온 당근 리드폼 고객을 <span class="ch-pill ch-daangn">당근마켓</span> <b style="color:#94a3b8">&gt;</b> <span class="ch-campaign-label">상담리드</span> 구분값으로 자동 등록합니다. (중복 연락처 자동 제외 · 디스코드 알림 연동)
+      </div>
+      <a class="btn sm soft" href="${esc(sheetUrl)}" target="_blank" rel="noopener noreferrer">${icon('external','sm')} 연동된 구글 시트 열기</a>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-weight:700;font-size:13.5px;color:#0f172a;margin-bottom:6px">방법 1. 구글 시트 링크 공유로 자동 동기화 (가장 간편)</div>
+      <p style="font-size:12.5px;color:#475569;margin:0 0 12px;line-height:1.5">
+        구글 시트 우측 상단 <b>[공유]</b> 버튼 클릭 → 일반 액세스를 <b>[링크가 있는 모든 사용자 (뷰어)]</b>로 변경해 두시면, 어드민 접속 시 및 아래 버튼 클릭 시 시트의 신규 고객을 자동으로 읽어와 등록합니다.
+      </p>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button type="button" class="btn primary sm" data-action="run-daangn-sheet-sync">${icon('refresh','sm')} 지금 시트에서 신규 고객 가져오기</button>
+        <span id="daangn-sync-status" style="font-size:12.5px;color:#475569"></span>
+      </div>
+    </div>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <div style="font-weight:700;font-size:13.5px;color:#9a3412">방법 2. 시트 비공개 유지 + 24시간 실시간 푸시 (Apps Script)</div>
+        <button type="button" class="btn sm soft" data-action="copy-daangn-apps-script">${icon('copy','sm')} 스크립트 코드 복사</button>
+      </div>
+      <p style="font-size:12.5px;color:#7c2d12;margin:0 0 10px;line-height:1.5">
+        시트를 비공개로 유지하면서 당근 리드폼 고객이 시트에 추가되는 즉시 1초 만에 어드민 + 디스코드로 넣으려면, 시트 상단 <b>[확장 프로그램 &gt; Apps Script]</b>에 아래 코드를 붙여넣고 트리거(<code>변경 시</code> 또는 <code>1분마다</code>)를 추가하세요.
+      </p>
+      <textarea id="daangn-apps-script-box" class="input" readonly style="font-family:monospace;font-size:11.5px;height:170px;background:#fff;color:#334155;line-height:1.45">${esc(scriptCode)}</textarea>
+    </div>
+  `;
+  openDialog('당근마켓 > 상담리드 구글 시트 자동 연동', body, btn('닫기', 'close', '', 'sm'), 'wide');
+}
+
+async function runDaangnSheetSync() {
+  const statusEl = document.getElementById('daangn-sync-status');
+  if (statusEl) {
+    statusEl.style.color = '#2563eb';
+    statusEl.textContent = '구글 시트에서 고객 목록을 확인하는 중입니다...';
+  }
+  try {
+    const res = await apiFetch('/api/landing/daangn-lead', {
+      method: 'POST',
+      body: { action: 'sync_sheet', sheetId: DAANGN_DEFAULT_SHEET_ID, gid: '0' }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.success === false) {
+      const msg = data.error || '구글 시트 동기화 중 오류가 발생했습니다.';
+      if (statusEl) {
+        statusEl.style.color = '#dc2626';
+        statusEl.textContent = msg;
+      }
+      toast(msg);
+      return;
+    }
+    if (statusEl) {
+      statusEl.style.color = '#15803d';
+      statusEl.textContent = data.message || `신규 ${data.insertedCount || 0}건 등록 완료 (중복 ${data.skippedCount || 0}건 제외)`;
+    }
+    toast(data.message || `당근마켓 > 상담리드 동기화 완료 (신규 ${data.insertedCount || 0}건)`);
+    if (data.insertedCount > 0) {
+      await syncFromServer();
+    }
+  } catch (err) {
+    if (statusEl) {
+      statusEl.style.color = '#dc2626';
+      statusEl.textContent = '네트워크 오류가 발생했습니다.';
+    }
+    toast('당근 시트 동기화 요청 중 오류가 발생했습니다.');
+  }
+}
 
 let custPickerQuery = '';
 let custPickerFilter = 'all';
@@ -6948,7 +7195,7 @@ document.addEventListener('click',async e=>{
   const el=e.target.closest('[data-action]');
   if(!el)return;
   const a=el.dataset.action,id=el.dataset.id,v=el.dataset.value;
-switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':setMobileNav(false);break;case'refresh-data':{const seq=++navSyncSeq;navSyncing=true;render();syncFromServer().then(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();toast('최신 서버 데이터를 불러왔습니다.');}).catch(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();});break;}case'nav':{setMobileNav(false);page=el.dataset.page;selected.clear();const seq=++navSyncSeq;navSyncing=true;render();window.scrollTo(0,0);syncFromServer().then(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();if(page==='stats')refreshAnalytics();toast('최신 서버 데이터를 새로고침했습니다.');}).catch(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();});break;}case'close':closeDialog();break;case'customer':openCustomer(id);break;case'new-customer':openNewCustomer();break;case'search-cust-address':openCustomerAddressSearch();break;case'close-cust-addr-search':{const w=document.getElementById('cust-addr-search-wrap');if(w)w.hidden=true;break;}case'use-cust-addr-variant':{const inp=document.getElementById('cust-address-base');if(inp&&v){inp.value=v;const det=document.getElementById('cust-address-detail');if(det)det.focus();}break;}case'customer-tab':customerTab=v;render();break;case'filter-all':stageFilter='';customerTab='all';render();break;case'filter-stage':stageFilter=v;customerTab='all';render();break;case'reset-filters':query='';stageFilter='';productFilter='';partnerFilter='';sourceFilter='';linkFilter='';periodFilter='all';customerTab='all';render();break;case'clear-link-filter':linkFilter='';render();break;case'go-products-links':page='products';render();window.scrollTo(0,0);break;case'product-link-cat':productLinkCatFilter=v||'all';render();break;case'jump-link-customers':{
+switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':setMobileNav(false);break;case'refresh-data':{const seq=++navSyncSeq;navSyncing=true;render();syncFromServer().then(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();toast('최신 서버 데이터를 불러왔습니다.');}).catch(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();});break;}case'nav':{setMobileNav(false);page=el.dataset.page;selected.clear();const seq=++navSyncSeq;navSyncing=true;render();window.scrollTo(0,0);syncFromServer().then(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();if(page==='stats')refreshAnalytics();toast('최신 서버 데이터를 새로고침했습니다.');}).catch(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();});break;}case'close':closeDialog();break;case'customer':openCustomer(id);break;case'new-customer':openNewCustomer();break;case'open-daangn-sync':openDaangnSyncDialog();break;case'run-daangn-sheet-sync':runDaangnSheetSync();break;case'copy-daangn-apps-script':{const code=getDaangnAppsScriptCode();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(code).then(()=>toast('Apps Script 코드가 클립보드에 복사되었습니다.'));}else{const ta=document.getElementById('daangn-apps-script-box');if(ta){ta.select();document.execCommand('copy');toast('Apps Script 코드가 복사되었습니다.');}}break;}case'search-cust-address':openCustomerAddressSearch();break;case'close-cust-addr-search':{const w=document.getElementById('cust-addr-search-wrap');if(w)w.hidden=true;break;}case'use-cust-addr-variant':{const inp=document.getElementById('cust-address-base');if(inp&&v){inp.value=v;const det=document.getElementById('cust-address-detail');if(det)det.focus();}break;}case'customer-tab':customerTab=v;render();break;case'filter-all':stageFilter='';customerTab='all';render();break;case'filter-stage':stageFilter=v;customerTab='all';render();break;case'reset-filters':query='';stageFilter='';productFilter='';partnerFilter='';sourceFilter='';linkFilter='';periodFilter='all';customerTab='all';render();break;case'clear-link-filter':linkFilter='';render();break;case'go-products-links':page='products';render();window.scrollTo(0,0);break;case'product-link-cat':productLinkCatFilter=v||'all';render();break;case'jump-link-customers':{
   const targetLink = (db.landingLinks || []).find(ll => Number(ll.id) === Number(id));
   linkFilter = String(id || '');
   sourceFilter = targetLink?.channel || '';
@@ -7687,6 +7934,64 @@ case'save-contract-status':{
     toast(`계약·수납 상태가 [${nextSt}](으)로 변경되었습니다.`);
     break;
   }
+case'new-stage':openStageDialog(null);break;
+case'edit-stage':openStageDialog(id);break;
+case'move-stage':{
+    const dir = el.dataset.dir;
+    if (!dir) break;
+    try {
+      const res = await apiFetch('/api/settings/stages/' + id, {
+        method: 'PATCH',
+        body: { direction: dir }
+      });
+      if (res.ok) {
+        const resData = await res.json();
+        if (Array.isArray(resData.stages)) db.stages = resData.stages;
+        save();
+        render();
+        break;
+      }
+    } catch {}
+    const list = getStages();
+    const idx = list.findIndex(x => String(x.id) === String(id));
+    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+    if (idx !== -1 && swapIdx >= 0 && swapIdx < list.length) {
+      const tmp = list[idx].sort_order;
+      list[idx].sort_order = list[swapIdx].sort_order;
+      list[swapIdx].sort_order = tmp;
+      db.stages = list;
+      save();
+      render();
+    }
+    break;
+  }
+case'delete-stage':{
+    const list = getStages();
+    if (list.length <= 1) {
+      toast('최소 1개 이상의 진행구분 상태값은 유지해야 합니다.');
+      break;
+    }
+    const target = list.find(x => String(x.id) === String(id));
+    if (!target) break;
+    try {
+      const res = await apiFetch('/api/settings/stages/' + id, { method: 'DELETE' });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(resData.error || '진행구분 삭제에 실패했습니다.');
+        break;
+      }
+      if (Array.isArray(resData.stages)) db.stages = resData.stages;
+      save();
+      render();
+      toast(`[${target.name}] 진행구분을 삭제했습니다.`);
+      break;
+    } catch {}
+    db.stages = list.filter(x => String(x.id) !== String(id));
+    save();
+    render();
+    toast(`[${target.name}] 진행구분을 삭제했습니다.`);
+    break;
+  }
 case'new-contract-status':openContractStatusDialog(null);break;
 case'edit-contract-status':openContractStatusDialog(id);break;
 case'move-contract-status':{
@@ -7706,7 +8011,7 @@ case'move-contract-status':{
       }
     } catch {}
     const list = getContractStatuses();
-    const idx = list.findIndex(x => Number(x.id) === Number(id));
+    const idx = list.findIndex(x => String(x.id) === String(id));
     const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
     if (idx !== -1 && swapIdx >= 0 && swapIdx < list.length) {
       const tmp = list[idx].sort_order;
@@ -7724,7 +8029,7 @@ case'delete-contract-status':{
       toast('최소 1개 이상의 계약·수납 상태값은 유지해야 합니다.');
       break;
     }
-    const target = list.find(x => Number(x.id) === Number(id));
+    const target = list.find(x => String(x.id) === String(id));
     if (!target) break;
     try {
       const res = await apiFetch('/api/settings/contract-statuses/' + id, { method: 'DELETE' });
@@ -7739,7 +8044,7 @@ case'delete-contract-status':{
       toast(`[${target.name}] 상태값을 삭제했습니다.`);
       break;
     } catch {}
-    db.contractStatuses = list.filter(x => Number(x.id) !== Number(id));
+    db.contractStatuses = list.filter(x => String(x.id) !== String(id));
     save();
     render();
     toast(`[${target.name}] 상태값을 삭제했습니다.`);
@@ -8304,7 +8609,7 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('focusout',e=>{if(e.target.dataset?.money&&!e.target.value.trim())e.target.value='0'});
 function parseCSV(text){const rows=[];let row=[],cell='',inside=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(inside&&text[i+1]==='"'){cell+='"';i++}else inside=!inside}else if(c===','&&!inside){row.push(cell);cell=''}else if((c==='\n'||c==='\r')&&!inside){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(v=>v.trim()))rows.push(row);row=[];cell=''}else cell+=c}row.push(cell);if(row.some(v=>v.trim()))rows.push(row);return rows}
-document.addEventListener('change',async e=>{const el=e.target,id=el.id;if(el.name==='color'&&el.closest('#contract-status-color-picker')){$$('#contract-status-color-picker .badge-color-opt').forEach(lbl=>{lbl.classList.toggle('is-selected',Boolean($('input[name="color"]',lbl)?.checked))});return}if(id==='contract-form-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const qEl=$('#contract-quote-total');if(selC&&qEl){const nextAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;qEl.value=num(nextAmt);const presetBox=$('#quote-price-presets-box');if(presetBox)presetBox.innerHTML=renderQuotePricePresetsHtml(selC,nextAmt);const presetEl=$('#rental-monthly-preset');if(presetEl)presetEl.value=nextAmt>10000000?'222000':'111000';syncContractFormUI(true,'customer');}return}if(el.closest('#edit-form[data-submit="contract"], #edit-form[data-submit="edit-contract-payment"]')){if(el.name==='cardOption'){syncContractFormUI(true,'card-option');return}if(el.name==='cashOption'||el.id==='rental-monthly-preset'){syncContractFormUI(true,el.name||el.id);return}if(['cashPaid','cardInstallmentMonths','rentalUpfrontMethod','rentalCashPaid'].includes(el.name)){syncContractFormUI(false,el.name);return}}if(id==='pay-link-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const f=el.closest('form');if(selC&&f){const nInp=$('input[name="customerName"]',f);const pInp=$('input[name="customerPhone"]',f);const aInp=$('input[name="amount"]',f);if(nInp)nInp.value=selC.name||'';if(pInp)pInp.value=selC.phone||'';if(aInp){const qAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;aInp.value=num(qAmt);}}return}if(el.name==='allowed_menu'){syncDialogMenuCards();return}if(id==='user-role-select'){const form=el.closest('#user-perm-form');if(form&&form.dataset.mode==='create'){const def=getDefaultMenusByRole(el.value);$$('input[name="allowed_menu"][type="checkbox"]',form).forEach(inp=>{inp.checked=inp.dataset.locked==='1'?true:def.includes(inp.value)});syncDialogMenuCards()}return}if(el.dataset.selectAll){
+document.addEventListener('change',async e=>{const el=e.target,id=el.id;if(el.name==='color'&&el.closest('.badge-color-options')){const picker=el.closest('.badge-color-options');$$('.badge-color-opt',picker).forEach(lbl=>{lbl.classList.toggle('is-selected',Boolean($('input[name="color"]',lbl)?.checked))});return}if(id==='contract-form-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const qEl=$('#contract-quote-total');if(selC&&qEl){const nextAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;qEl.value=num(nextAmt);const presetBox=$('#quote-price-presets-box');if(presetBox)presetBox.innerHTML=renderQuotePricePresetsHtml(selC,nextAmt);const presetEl=$('#rental-monthly-preset');if(presetEl)presetEl.value=nextAmt>10000000?'222000':'111000';syncContractFormUI(true,'customer');}return}if(el.closest('#edit-form[data-submit="contract"], #edit-form[data-submit="edit-contract-payment"]')){if(el.name==='cardOption'){syncContractFormUI(true,'card-option');return}if(el.name==='cashOption'||el.id==='rental-monthly-preset'){syncContractFormUI(true,el.name||el.id);return}if(['cashPaid','cardInstallmentMonths','rentalUpfrontMethod','rentalCashPaid'].includes(el.name)){syncContractFormUI(false,el.name);return}}if(id==='pay-link-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const f=el.closest('form');if(selC&&f){const nInp=$('input[name="customerName"]',f);const pInp=$('input[name="customerPhone"]',f);const aInp=$('input[name="amount"]',f);if(nInp)nInp.value=selC.name||'';if(pInp)pInp.value=selC.phone||'';if(aInp){const qAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;aInp.value=num(qAmt);}}return}if(el.name==='allowed_menu'){syncDialogMenuCards();return}if(id==='user-role-select'){const form=el.closest('#user-perm-form');if(form&&form.dataset.mode==='create'){const def=getDefaultMenusByRole(el.value);$$('input[name="allowed_menu"][type="checkbox"]',form).forEach(inp=>{inp.checked=inp.dataset.locked==='1'?true:def.includes(inp.value)});syncDialogMenuCards()}return}if(el.dataset.selectAll){
   const scope=el.dataset.selectAll;
   const cs=visibleCustomers();
   let targetIds=[];
@@ -9129,6 +9434,57 @@ case'clone-link':{
     break;
   }
 case'label':if(db.labels.some(l=>l.name===d.name.trim())){toast('이미 등록된 라벨입니다.');return}db.labels.push({name:d.name.trim(),color:d.color});save();closeDialog();render();toast('라벨을 추가했습니다.');break;
+case'stage':{
+    const stName = (d.name || '').trim();
+    const stColor = (d.color || 'blue').trim();
+    if (!stName) {
+      toast('진행구분명을 입력해 주세요.');
+      return;
+    }
+    const isEdit = Boolean(id);
+    try {
+      const url = isEdit ? ('/api/settings/stages/' + id) : '/api/settings/stages';
+      const method = isEdit ? 'PATCH' : 'POST';
+      const res = await apiFetch(url, { method, body: { name: stName, color: stColor } });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(resData.error || '진행구분 저장에 실패했습니다.');
+        return;
+      }
+      await syncFromServer();
+      closeDialog();
+      render();
+      toast(isEdit ? `진행구분 [${stName}]이(가) 수정되었습니다.` : `새 진행구분 [${stName}]이(가) 추가되었습니다.`);
+      break;
+    } catch {}
+
+    const list = getStages();
+    if (list.some(x => x.name === stName && String(x.id) !== String(id))) {
+      toast('이미 동일한 이름의 진행구분이 있습니다.');
+      return;
+    }
+    if (isEdit) {
+      const target = list.find(x => String(x.id) === String(id));
+      if (target) {
+        const oldName = target.name;
+        target.name = stName;
+        target.color = stColor;
+        if (oldName !== stName) {
+          (db.customers || []).forEach(c => { if (c.status === oldName) c.status = stName; });
+        }
+      }
+      db.stages = list;
+    } else {
+      const nextId = Math.max(...list.map(x => Number(x.id) || 0), 0) + 1;
+      const nextOrder = Math.max(...list.map(x => Number(x.sort_order) || 0), 0) + 1;
+      db.stages = [...list, { id: nextId, name: stName, color: stColor, sort_order: nextOrder }];
+    }
+    save();
+    closeDialog();
+    render();
+    toast(isEdit ? `진행구분 [${stName}]이(가) 수정되었습니다.` : `새 진행구분 [${stName}]이(가) 추가되었습니다.`);
+    break;
+  }
 case'contract-status':{
     const stName = (d.name || '').trim();
     const stColor = (d.color || 'blue').trim();
@@ -9154,12 +9510,12 @@ case'contract-status':{
     } catch {}
 
     const list = getContractStatuses();
-    if (list.some(x => x.name === stName && Number(x.id) !== Number(id))) {
+    if (list.some(x => x.name === stName && String(x.id) !== String(id))) {
       toast('이미 동일한 이름의 상태값이 있습니다.');
       return;
     }
     if (isEdit) {
-      const target = list.find(x => Number(x.id) === Number(id));
+      const target = list.find(x => String(x.id) === String(id));
       if (target) {
         const oldName = target.name;
         target.name = stName;

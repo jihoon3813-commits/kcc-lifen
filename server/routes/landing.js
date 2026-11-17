@@ -1,6 +1,13 @@
 import express from 'express';
 import { convexClient, api } from '../convex.js';
 import { notifyNewCustomer } from '../../api/_lib/discordHelper.js';
+import {
+  DEFAULT_DAANGN_SHEET_ID,
+  DEFAULT_DAANGN_GID,
+  fetchGoogleSheetRows,
+  parseCsvToRowObjects,
+  syncDaangnRowsToConvex,
+} from '../../api/_lib/daangnLeadHelper.js';
 
 const router = express.Router();
 
@@ -123,6 +130,79 @@ router.get('/info', async (req, res) => {
   } catch (err) {
     console.error('[Convex] Landing info error:', err);
     res.status(500).json({ error: '랜딩 정보 조회 실패' });
+  }
+});
+
+// 4. Daangn Lead Form Google Sheets auto-sync & webhook -> Convex Production (당근마켓 > 상담리드)
+router.get('/daangn-lead', async (req, res) => {
+  try {
+    const sheetId = req.query?.sheetId || DEFAULT_DAANGN_SHEET_ID;
+    const gid = req.query?.gid || DEFAULT_DAANGN_GID;
+    const rows = await fetchGoogleSheetRows(sheetId, gid);
+    const result = await syncDaangnRowsToConvex(convexClient, rows);
+    res.json(result);
+  } catch (err) {
+    console.error('[Convex] Daangn lead GET sync error:', err);
+    res.status(err.status || 500).json({
+      success: false,
+      code: err.code || 'SYNC_ERROR',
+      error: err.message || '당근 리드폼 시트 동기화 실패',
+    });
+  }
+});
+
+router.post('/daangn-lead', async (req, res) => {
+  try {
+    const body = req.body || {};
+
+    if (
+      body.action === 'sync_sheet' ||
+      (!body.rows && !body.row && !body.headers && !body.csv && !body.phone && !body['연락처'] && !body['전화번호'])
+    ) {
+      const sheetId = body.sheetId || req.query?.sheetId || DEFAULT_DAANGN_SHEET_ID;
+      const gid = body.gid || req.query?.gid || DEFAULT_DAANGN_GID;
+      const rows = await fetchGoogleSheetRows(sheetId, gid);
+      const result = await syncDaangnRowsToConvex(convexClient, rows, {
+        partner: body.partner,
+        owner: body.owner,
+      });
+      return res.json(result);
+    }
+
+    if (typeof body.csv === 'string' && body.csv.trim()) {
+      const rows = parseCsvToRowObjects(body.csv);
+      const result = await syncDaangnRowsToConvex(convexClient, rows, {
+        partner: body.partner,
+        owner: body.owner,
+      });
+      return res.json(result);
+    }
+
+    let rawRows = [];
+    if (Array.isArray(body.rows)) {
+      rawRows = body.rows;
+    } else if (Array.isArray(body)) {
+      rawRows = body;
+    } else if (body.row && typeof body.row === 'object') {
+      rawRows = [body.row];
+    } else if (Array.isArray(body.headers) && Array.isArray(body.values)) {
+      rawRows = [{ headers: body.headers, values: body.values }];
+    } else {
+      rawRows = [body];
+    }
+
+    const result = await syncDaangnRowsToConvex(convexClient, rawRows, {
+      partner: body.partner,
+      owner: body.owner,
+    });
+    res.status(result.insertedCount > 0 ? 201 : 200).json(result);
+  } catch (err) {
+    console.error('[Convex] Daangn lead POST sync error:', err);
+    res.status(err.status || 500).json({
+      success: false,
+      code: err.code || 'SYNC_ERROR',
+      error: err.message || '당근 리드폼 동기화 처리 중 오류가 발생했습니다.',
+    });
   }
 });
 

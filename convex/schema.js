@@ -216,6 +216,7 @@ export default defineSchema({
   // 13. 진행구분 관리
   systemStages: defineTable({
     name: v.string(),
+    color: v.optional(v.string()),
     sortOrder: v.number(),
   }).index("by_name", ["name"]),
 

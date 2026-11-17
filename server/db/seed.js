@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { db, initDatabase, ensureApprovedRentalTerms, ensureDefaultContractStatuses, ensureDefaultLandingLinks, hydrateLegacyRentalApplication } from './index.js';
+import { db, initDatabase, ensureApprovedRentalTerms, ensureDefaultStages, ensureDefaultContractStatuses, ensureDefaultLandingLinks, hydrateLegacyRentalApplication } from './index.js';
 import { getDefaultMenusForRole } from '../utils/menuPermissions.js';
 
 export function seedDatabase() {
@@ -52,9 +52,7 @@ export function seedDatabase() {
   insertLabel.run('완료', '#74b6a1');
 
   // Stages
-  const stages = ['신규접수', '상담중', '가견적요청', '견적안내', '실측예정', '실측완료', '계약진행', '계약완료', '시공예정', '시공완료', '보류'];
-  const insertStage = db.prepare('INSERT OR IGNORE INTO system_stages (name, sort_order, is_active) VALUES (?, ?, 1)');
-  stages.forEach((st, idx) => insertStage.run(st, idx + 1));
+  ensureDefaultStages();
 
   // Contract & Payment Statuses
   ensureDefaultContractStatuses();

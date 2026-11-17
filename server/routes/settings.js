@@ -57,15 +57,124 @@ router.post('/labels', requireAuth, requireMenu('settings'), (req, res) => {
   }
 });
 
-// 2. Get Stages
+// 2. Stages (진행구분) CRUD
+const ALLOWED_BADGE_COLORS = ['blue', 'orange', 'green', 'purple', 'red', 'gray', 'dark'];
+
 router.get('/stages', requireAuth, (req, res) => {
-  const stages = db.prepare('SELECT name FROM system_stages WHERE is_active = 1 ORDER BY sort_order ASC').all();
-  res.json({ stages: stages.map(s => s.name) });
+  const rows = db.prepare(`
+    SELECT id, name, color, sort_order
+    FROM system_stages
+    WHERE is_active = 1
+    ORDER BY sort_order ASC, id ASC
+  `).all();
+  res.json({ stages: rows });
+});
+
+router.post('/stages', requireAuth, requireMenu('settings'), (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  const rawColor = String(req.body?.color || 'blue').trim();
+  const color = ALLOWED_BADGE_COLORS.includes(rawColor) ? rawColor : 'blue';
+
+  if (!name) {
+    return res.status(400).json({ error: '진행구분명을 입력해 주세요.' });
+  }
+
+  const dup = db.prepare('SELECT id, is_active FROM system_stages WHERE name = ?').get(name);
+  if (dup) {
+    if (!dup.is_active) {
+      db.prepare('UPDATE system_stages SET is_active = 1, color = ? WHERE id = ?').run(color, dup.id);
+      const revived = db.prepare('SELECT id, name, color, sort_order FROM system_stages WHERE id = ?').get(dup.id);
+      const rows = db.prepare('SELECT id, name, color, sort_order FROM system_stages WHERE is_active = 1 ORDER BY sort_order ASC, id ASC').all();
+      return res.status(201).json({ stageItem: revived, stages: rows, message: '진행구분이 복원되었습니다.' });
+    }
+    return res.status(400).json({ error: '이미 존재하는 진행구분명입니다.' });
+  }
+
+  const maxRow = db.prepare('SELECT MAX(sort_order) as max_sort FROM system_stages').get();
+  const nextSort = (maxRow?.max_sort || 0) + 1;
+
+  const result = db.prepare(`
+    INSERT INTO system_stages (name, color, sort_order, is_active)
+    VALUES (?, ?, ?, 1)
+  `).run(name, color, nextSort);
+
+  const created = db.prepare('SELECT id, name, color, sort_order FROM system_stages WHERE id = ?').get(result.lastInsertRowid);
+  const rows = db.prepare('SELECT id, name, color, sort_order FROM system_stages WHERE is_active = 1 ORDER BY sort_order ASC, id ASC').all();
+  res.status(201).json({ stageItem: created, stages: rows, message: '진행구분이 추가되었습니다.' });
+});
+
+router.patch('/stages/:id', requireAuth, requireMenu('settings'), (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const current = db.prepare('SELECT * FROM system_stages WHERE id = ? AND is_active = 1').get(id);
+  if (!current) {
+    return res.status(404).json({ error: '수정할 진행구분을 찾을 수 없습니다.' });
+  }
+
+  const { direction } = req.body || {};
+  if (direction === 'up' || direction === 'down') {
+    const all = db.prepare('SELECT id, sort_order FROM system_stages WHERE is_active = 1 ORDER BY sort_order ASC, id ASC').all();
+    const idx = all.findIndex(r => r.id === id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (idx !== -1 && swapIdx >= 0 && swapIdx < all.length) {
+      const tx = db.transaction(() => {
+        all.forEach((r, i) => {
+          db.prepare('UPDATE system_stages SET sort_order = ? WHERE id = ?').run(i + 1, r.id);
+        });
+        db.prepare('UPDATE system_stages SET sort_order = ? WHERE id = ?').run(swapIdx + 1, all[idx].id);
+        db.prepare('UPDATE system_stages SET sort_order = ? WHERE id = ?').run(idx + 1, all[swapIdx].id);
+      });
+      tx();
+    }
+    const rows = db.prepare('SELECT id, name, color, sort_order FROM system_stages WHERE is_active = 1 ORDER BY sort_order ASC, id ASC').all();
+    return res.json({ stages: rows, message: '순서가 변경되었습니다.' });
+  }
+
+  const nextName = req.body?.name !== undefined ? String(req.body.name).trim() : current.name;
+  const rawColor = req.body?.color !== undefined ? String(req.body.color).trim() : current.color;
+  const nextColor = ALLOWED_BADGE_COLORS.includes(rawColor) ? rawColor : current.color;
+
+  if (!nextName) {
+    return res.status(400).json({ error: '진행구분명을 입력해 주세요.' });
+  }
+
+  if (nextName !== current.name) {
+    const dup = db.prepare('SELECT id FROM system_stages WHERE name = ? AND id != ?').get(nextName, id);
+    if (dup) {
+      return res.status(400).json({ error: '이미 존재하는 진행구분명입니다.' });
+    }
+  }
+
+  const updateTx = db.transaction(() => {
+    db.prepare('UPDATE system_stages SET name = ?, color = ? WHERE id = ?').run(nextName, nextColor, id);
+    if (nextName !== current.name) {
+      db.prepare('UPDATE projects SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE status = ?').run(nextName, current.name);
+    }
+  });
+  updateTx();
+
+  const updated = db.prepare('SELECT id, name, color, sort_order FROM system_stages WHERE id = ?').get(id);
+  const rows = db.prepare('SELECT id, name, color, sort_order FROM system_stages WHERE is_active = 1 ORDER BY sort_order ASC, id ASC').all();
+  res.json({ stageItem: updated, stages: rows, previousName: current.name, message: '진행구분이 수정되었습니다.' });
+});
+
+router.delete('/stages/:id', requireAuth, requireMenu('settings'), (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const current = db.prepare('SELECT * FROM system_stages WHERE id = ? AND is_active = 1').get(id);
+  if (!current) {
+    return res.status(404).json({ error: '삭제할 진행구분을 찾을 수 없습니다.' });
+  }
+
+  const activeCount = db.prepare('SELECT COUNT(*) as cnt FROM system_stages WHERE is_active = 1').get()?.cnt || 0;
+  if (activeCount <= 1) {
+    return res.status(400).json({ error: '최소 1개 이상의 진행구분이 유지되어야 합니다.' });
+  }
+
+  db.prepare('DELETE FROM system_stages WHERE id = ?').run(id);
+  const rows = db.prepare('SELECT id, name, color, sort_order FROM system_stages WHERE is_active = 1 ORDER BY sort_order ASC, id ASC').all();
+  res.json({ success: true, deletedName: current.name, stages: rows, message: '진행구분이 삭제되었습니다.' });
 });
 
 // 2b. Contract & Payment Statuses CRUD
-const ALLOWED_BADGE_COLORS = ['blue', 'orange', 'green', 'purple', 'red', 'gray', 'dark'];
-
 router.get('/contract-statuses', requireAuth, (req, res) => {
   const rows = db.prepare(`
     SELECT id, name, color, sort_order
@@ -173,7 +282,8 @@ router.delete('/contract-statuses/:id', requireAuth, requireMenu('settings'), (r
   }
 
   db.prepare('DELETE FROM system_contract_statuses WHERE id = ?').run(id);
-  res.json({ success: true, deletedName: current.name, message: '계약·수납 상태가 삭제되었습니다.' });
+  const rows = db.prepare('SELECT id, name, color, sort_order FROM system_contract_statuses WHERE is_active = 1 ORDER BY sort_order ASC, id ASC').all();
+  res.json({ success: true, deletedName: current.name, contractStatuses: rows, message: '계약·수납 상태가 삭제되었습니다.' });
 });
 
 const STANDARD_RENTAL_FIELD_LABELS = {
