@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
     try {
       let data = await convexClient.query(api.crm.listProductsAndLinks, {});
-      if (!data?.products?.length || !data.products.some((p) => p.code === "PROD_GREEN")) {
+      if (!data?.products?.length || !data.products.some((p) => p.code === "PROD_GREEN" && p.category === "그린리모델링")) {
         await ensureDefaultProductsInConvex(convexClient, api, data?.products || []);
         data = await convexClient.query(api.crm.listProductsAndLinks, {});
       }

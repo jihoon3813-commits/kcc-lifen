@@ -12,6 +12,7 @@ export const submitConsultation = mutation({
     size: v.optional(v.string()),
     scope: v.optional(v.string()),
     purpose: v.optional(v.string()),
+    product: v.optional(v.string()),
     partner: v.optional(v.string()),
     ch: v.optional(v.string()),
     utm_source: v.optional(v.string()),
@@ -136,14 +137,21 @@ export const submitConsultation = mutation({
     }
     const noteText = noteLines.join("\n");
 
+    const isGreen =
+      args.product === "그린리모델링" ||
+      cleanCh === "green_remodeling" ||
+      String(matchedLink?.targetUrl || "").includes("/green") ||
+      String(args.scope || "").includes("[그린리모델링]");
+    const productCategory = args.product ? String(args.product).trim() : (isGreen ? "그린리모델링" : "창호");
+
     // 1-4. projects 테이블 삽입
     await ctx.db.insert("projects", {
       projectId: nextProjectId,
       customerName: cleanName,
       customerPhone: cleanPhone,
       customerAddress: fullAddress,
-      title: `${cleanName} 고객 창호 ${isMeasure ? "실측예약" : "렌탈상담"}`,
-      product: "창호",
+      title: `${cleanName} 고객 ${productCategory === "그린리모델링" ? "그린리모델링 상담" : `창호 ${isMeasure ? "실측예약" : "렌탈상담"}`}`,
+      product: productCategory,
       status: "신규접수",
       label: isMeasure ? "실측요청" : "상담요청",
       source: matchedLink?.code || cleanCh || channel,
@@ -172,7 +180,7 @@ export const submitConsultation = mutation({
       name: cleanName,
       phone: cleanPhone,
       address: fullAddress,
-      product: "창호",
+      product: productCategory,
       status: "신규접수",
       source: channelDisplay,
       createdAt: now,

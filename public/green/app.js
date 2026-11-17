@@ -178,6 +178,7 @@
       name:String(data.get('name')||'').trim(),
       phone:String(data.get('phone')||'').trim(),
       region:String(data.get('region')||'').trim(),
+      product:'그린리모델링',
       scope:scopeValue,
       purpose:'cost',
       ch:currentCh||'green_remodeling',

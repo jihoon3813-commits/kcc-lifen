@@ -99,18 +99,15 @@ export function formatProductsAndLinks(data, user) {
   });
 
   const formattedProducts = products.map((p) => {
-    const isGreen = p.code === "PROD_GREEN" || String(p.url || "").includes("/green");
+    const isGreen = p.code === "PROD_GREEN" || p.category === "그린리모델링" || String(p.url || "").includes("/green");
     const views = events.filter(
       (ev) =>
         (ev.eventType === "page_view" || ev.eventType === "view") &&
         ev.productName === p.name
     ).length;
-    const linkCount = formattedLinks.filter((ll) => {
-      if (Number(ll.productId) === Number(p.prodId)) return true;
-      if (ll.productCategory !== p.category) return false;
-      const linkIsGreen = String(ll.targetUrl || "").includes("/green");
-      return isGreen ? linkIsGreen : !linkIsGreen;
-    }).length;
+    const linkCount = formattedLinks.filter(
+      (ll) => Number(ll.productId) === Number(p.prodId) || ll.productCategory === p.category
+    ).length;
 
     return {
       id: p.prodId,
@@ -165,7 +162,7 @@ export const DEFAULT_PRODUCTS = [
     prodId: 4,
     name: "KCC 홈씨씨 그린리모델링",
     code: "PROD_GREEN",
-    category: "창호",
+    category: "그린리모델링",
     description: "정부 이자지원 창호 교체, 조건 확인부터 상담까지.",
     url: "/green",
     active: true,
@@ -173,10 +170,13 @@ export const DEFAULT_PRODUCTS = [
 ];
 
 export async function ensureDefaultProductsInConvex(convexClient, api, existingProducts = []) {
-  const existingCodes = new Set((existingProducts || []).map((p) => p.code));
+  const byCode = new Map((existingProducts || []).map((p) => [p.code, p]));
   for (const prod of DEFAULT_PRODUCTS) {
-    if (!existingCodes.has(prod.code)) {
+    const existing = byCode.get(prod.code);
+    if (!existing) {
       await convexClient.mutation(api.crm.upsertProduct, prod);
+    } else if (prod.code === "PROD_GREEN" && existing.category !== "그린리모델링") {
+      await convexClient.mutation(api.crm.upsertProduct, { ...prod, prodId: existing.prodId });
     }
   }
 }

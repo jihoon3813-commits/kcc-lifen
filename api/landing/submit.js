@@ -29,7 +29,7 @@ export default async function handler(req, res) {
 
   const {
     name, phone, region, district, apartment,
-    size, scope, purpose, partner, ch,
+    size, scope, purpose, product, partner, ch,
     utm_source, utm_medium, utm_campaign
   } = body || {};
 
@@ -58,6 +58,7 @@ export default async function handler(req, res) {
       size: size ? String(size).trim() : undefined,
       scope: scope ? String(scope).trim() : undefined,
       purpose: purpose ? String(purpose) : "cost",
+      product: product ? String(product).trim() : undefined,
       partner: partner ? String(partner) : undefined,
       ch: ch ? String(ch) : undefined,
       utm_source: utm_source ? String(utm_source) : undefined,
@@ -69,13 +70,14 @@ export default async function handler(req, res) {
       const addrParts = [cleanRegion, district, apartment, size ? `${size}평` : ""]
         .map((s) => String(s || "").trim())
         .filter(Boolean);
+      const isGreen = product === "그린리모델링" || ch === "green_remodeling" || String(scope || "").includes("[그린리모델링]");
       await notifyNewCustomer({
-        category: purpose === "measure" ? "무료 방문실측 예약" : "월 납입금 견적상담",
+        category: purpose === "measure" ? "무료 방문실측 예약" : (isGreen ? "그린리모델링 상담" : "월 납입금 견적상담"),
         receiptId: result?.receiptId,
         customerName: result?.customerName || cleanName,
         phone: String(phone || ""),
         address: addrParts.join(" "),
-        product: scope ? String(scope).trim() : "창호",
+        product: scope ? String(scope).trim() : (isGreen ? "그린리모델링" : "창호"),
         channel: result?.channel || ch || utm_source || "기본 랜딩(직접유입)",
         partner: result?.partnerName || partner || "직영",
       });
