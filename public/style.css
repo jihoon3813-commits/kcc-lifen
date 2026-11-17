@@ -4797,3 +4797,57 @@ tr.quote-inquiry-detail-row > td {
     font-size: 12px;
   }
 }
+
+@keyframes kcc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes kcc-refresh-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+.topbar {
+  position: relative;
+}
+.nav-refresh-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  border: 1px solid #bfd7ff;
+  color: #1d63c4;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.nav-refresh-pill svg,
+.is-refreshing svg {
+  animation: kcc-spin 0.8s linear infinite;
+}
+.nav-refresh-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2.5px;
+  overflow: hidden;
+  background: #e5edfb;
+  pointer-events: none;
+}
+.nav-refresh-bar::after {
+  content: "";
+  display: block;
+  width: 35%;
+  height: 100%;
+  background: #2f80ed;
+  border-radius: 999px;
+  animation: kcc-refresh-bar 0.9s ease-in-out infinite;
+}
