@@ -1,5 +1,38 @@
 (() => {
   const $ = s => document.querySelector(s);
+  const metaPixelId = $('meta[name="meta-pixel-id"]')?.content.trim();
+  const trackedReceipts = new Set();
+  let metaInitialized = false;
+
+  function trackStoredLead(receipt) {
+    if (!/^\d+$/.test(metaPixelId) || receipt?.success !== true ||
+        receipt.alreadySubmitted || !Number.isSafeInteger(receipt.receiptId) ||
+        receipt.receiptId <= 0 || trackedReceipts.has(receipt.receiptId)) return;
+
+    if (!window.fbq) {
+      function fbq() {
+        if (fbq.callMethod) fbq.callMethod.apply(fbq, arguments);
+        else fbq.queue.push(arguments);
+      }
+      fbq.queue = [];
+      fbq.push = fbq;
+      fbq.loaded = true;
+      fbq.version = '2.0';
+      window.fbq = fbq;
+      window._fbq = window._fbq || fbq;
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = 'https://connect.facebook.net/en_US/fbevents.js';
+      document.head.appendChild(script);
+    }
+    if (!metaInitialized) {
+      window.fbq('set', 'autoConfig', false, metaPixelId);
+      window.fbq('init', metaPixelId);
+      metaInitialized = true;
+    }
+    window.fbq('trackSingle', metaPixelId, 'Lead', {}, {eventID: `green-lead-${receipt.receiptId}`});
+    trackedReceipts.add(receipt.receiptId);
+  }
   const menuButton = $('.menu-toggle');
   const mobileMenu = $('#mobile-menu');
   menuButton.addEventListener('click', () => {
@@ -157,6 +190,7 @@
     e.preventDefault();
     if(!form.reportValidity())return;
     const submitBtn=$('#submit-btn');
+    if(submitBtn?.disabled) return;
     const submitLabel=$('#submit-label');
     const origLabel=submitLabel?submitLabel.textContent:'무료 상담 신청하기';
     if(submitBtn) submitBtn.disabled=true;
@@ -190,6 +224,7 @@
 
     let resData=null;
     let submitSuccess=false;
+    let receiptStored=false;
     try {
       try {
         const res=await fetch('/api/landing/submit',{
@@ -200,6 +235,7 @@
         if(res.ok){
           resData=await res.json().catch(()=>null);
           if(resData&&(resData.success||resData.receiptId)) submitSuccess=true;
+          receiptStored = resData?.persisted === true;
         }
       } catch {}
 
@@ -213,6 +249,8 @@
           if(cloudRes.ok){
             resData=await cloudRes.json().catch(()=>null);
             if(resData&&(resData.success||resData.receiptId)) submitSuccess=true;
+            // The direct Convex endpoint returns success only after committing the mutation.
+            receiptStored = resData?.success === true;
           }
         } catch {}
       }
@@ -246,6 +284,9 @@
       const list=$('#form-result-details');list.replaceChildren();
       rows.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;list.append(dt,dd);});
       form.hidden=true;result.hidden=false;result.scrollIntoView({behavior:'smooth',block:'start'});
+      if (receiptStored && !isPreviewMode) {
+        try { trackStoredLead(resData); } catch (error) { console.warn('Meta Lead tracking failed', error); }
+      }
     } finally {
       if(submitBtn) submitBtn.disabled=false;
       if(submitLabel) submitLabel.textContent=origLabel;
