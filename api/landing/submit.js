@@ -95,7 +95,7 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(201).json(result);
+    return res.status(201).json({ ...result, persisted: true });
   } catch (err) {
     console.error("Vercel Serverless submit error:", err);
     // Fallback receipt in case of temporary cloud error
