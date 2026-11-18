@@ -1136,9 +1136,13 @@ function quoteSideRow(label, qType, qMeta, url, editAction, id, canEditLink = ca
       (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 9px">' + icon('edit') + '</button>' : '') +
     '</div>';
   }
+  if (canEditLink) {
+    return '<button class="btn sm block" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 외부 링크 직접 등록">' +
+      icon('link') + label + ' 링크 등록' +
+    '</button>';
+  }
   return '<div style="display:flex;align-items:center;gap:5px">' +
     '<span class="btn sm" style="flex:1;opacity:0.5;cursor:default;pointer-events:none;background:#f8fafc;color:#94a3b8;border-color:#e2e8f0">' + label + ' 미발행</span>' +
-    (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 외부 링크 직접 등록" style="padding:6px 8px">' + icon('link') + '</button>' : '') +
   '</div>';
 }
 
@@ -5101,7 +5105,7 @@ if(tab==='quotes')content=`
           ${c.roughQuote?btn('가견적 미리보기','preview','eye','sm soft',`data-id="${id}" data-type="가견적"`):''}
           ${c.roughQuote?btn('가견적 발송','send-quote','send','sm primary',`data-id="${id}" data-type="가견적"`):''}
           ${canManageQuotes()?btn(c.roughQuote?'가견적 재작성':'가견적 작성','new-quote','plus','sm',`data-id="${id}" data-type="가견적"`):''}
-          ${(c.roughQuote||c.roughQuoteUrl)?btn('링크','rough-quote-link','link','sm',`data-id="${id}"`):''}
+          ${(canManageQuotes()||c.roughQuote||c.roughQuoteUrl)?btn((c.roughQuote||c.roughQuoteUrl)?'링크':'링크 등록','rough-quote-link','link','sm',`data-id="${id}"`):''}
         </div>
       </div>
       <div class="quote-stage-card is-final">
@@ -5112,7 +5116,7 @@ if(tab==='quotes')content=`
           ${c.finalQuote?btn('최종견적 미리보기','preview','eye','sm soft',`data-id="${id}" data-type="최종견적"`):''}
           ${c.finalQuote?btn('최종견적 발송','send-quote','send','sm primary',`data-id="${id}" data-type="최종견적"`):''}
           ${canManageQuotes()?btn(c.finalQuote?'최종견적 수정':'최종견적 작성','new-quote','plus','sm',`data-id="${id}" data-type="최종견적"`):''}
-          ${(c.finalQuote||c.finalQuoteUrl)?btn('링크','final-quote-link','link','sm',`data-id="${id}"`):''}
+          ${(canManageQuotes()||c.finalQuote||c.finalQuoteUrl)?btn((c.finalQuote||c.finalQuoteUrl)?'링크':'링크 등록','final-quote-link','link','sm',`data-id="${id}"`):''}
         </div>
       </div>
     </div>
