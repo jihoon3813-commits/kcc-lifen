@@ -127,7 +127,7 @@ router.post('/submit', async (req, res) => {
       });
     }
 
-    res.status(result.alreadySubmitted ? 200 : 201).json(result);
+    res.status(result.alreadySubmitted ? 200 : 201).json({ ...result, persisted: true });
   } catch (err) {
     console.error('[Convex] Landing submit error:', err);
     res.status(500).json({ error: '상담 접수 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' });
