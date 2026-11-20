@@ -411,11 +411,14 @@ export const createProjectQuote = mutation({
       let nextStatus = project.status;
       if (
         args.quoteType === "최종견적" &&
-        ["신규접수", "상담중", "가견적요청", "견적안내", "실측예정", "실측완료"].includes(project.status)
+        ["신규접수", "상담중", "가견적요청", "가견적 생성함", "견적안내", "실측예정", "실측완료", "최종견적"].includes(project.status)
       ) {
-        nextStatus = "최종견적";
-      } else if (["신규접수", "가견적요청"].includes(project.status)) {
-        nextStatus = "견적안내";
+        nextStatus = "최종견적 생성함";
+      } else if (
+        args.quoteType !== "최종견적" &&
+        ["신규접수", "상담중", "가견적요청", "견적안내"].includes(project.status)
+      ) {
+        nextStatus = "가견적 생성함";
       }
 
       const patch = {

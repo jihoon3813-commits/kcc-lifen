@@ -237,10 +237,26 @@ export const updateProject = mutation({
     if (args.roughQuoteUrl !== undefined) {
       patch.roughQuoteUrl = args.roughQuoteUrl || undefined;
       logDetails.push(args.roughQuoteUrl ? "가견적 링크 등록·수정" : "가견적 링크 제거");
+      if (
+        args.roughQuoteUrl &&
+        args.status === undefined &&
+        ["신규접수", "상담중", "가견적요청", "견적안내"].includes(project.status)
+      ) {
+        patch.status = "가견적 생성함";
+        logDetails.push(`진행구분 자동변경: ${project.status} → 가견적 생성함`);
+      }
     }
     if (args.finalQuoteUrl !== undefined) {
       patch.finalQuoteUrl = args.finalQuoteUrl || undefined;
       logDetails.push(args.finalQuoteUrl ? "최종견적 링크 등록·수정" : "최종견적 링크 제거");
+      if (
+        args.finalQuoteUrl &&
+        args.status === undefined &&
+        ["신규접수", "상담중", "가견적요청", "가견적 생성함", "견적안내", "실측예정", "실측완료", "최종견적"].includes(project.status)
+      ) {
+        patch.status = "최종견적 생성함";
+        logDetails.push(`진행구분 자동변경: ${project.status} → 최종견적 생성함`);
+      }
     }
     if (args.drawing !== undefined) {
       patch.drawingUrl = args.drawing || undefined;

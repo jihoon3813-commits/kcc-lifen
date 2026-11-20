@@ -628,7 +628,7 @@ function applyCustomersFromServer(list) {
   });
 }
 
-const PRE_CONTRACT_STAGES = new Set(['신규접수', '상담중', '가견적요청', '견적안내', '실측예정', '최종견적']);
+const PRE_CONTRACT_STAGES = new Set(['신규접수', '상담중', '가견적요청', '가견적 생성함', '견적안내', '실측예정', '최종견적', '최종견적 생성함']);
 const _autoPromotedContractCustomerIds = new Set();
 
 function syncContractLinkedCustomerStatuses() {
@@ -1123,7 +1123,7 @@ function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUr
     '※ 열람 시 고객님 본인 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.';
 }
 
-function quoteLinkSideRow(label, url, editAction, id, canEditLink = isHqAdminUser()) {
+function quoteLinkSideRow(label, url, editAction, id, canEditLink = true) {
   const externalUrl = String(url || '').trim();
   if (externalUrl) {
     return '<div style="display:flex;gap:6px">' +
@@ -1424,7 +1424,7 @@ const stageColor = s => {
   if (customStage) return customStage.color === 'blue' ? '' : (customStage.color || '');
   const custom = getContractStatuses().find(st => st.name === s);
   if (custom) return custom.color === 'blue' ? '' : (custom.color || '');
-  return ({'신규접수':'','상담중':'purple','가견적요청':'orange','견적안내':'','실측예정':'green','최종견적':'purple','계약진행':'green','계약완료':'green','시공완료':'gray','보류':'gray','접수완료':'','서류검토':'orange','서류보완':'red','보완요청':'red','심사중':'purple','승인':'green','약정완료':'green','반려':'gray','부결':'red','약정대기':'orange','선금완료':'','수납완료':'green','초기납입완료':'green','결제완료':'green','결제대기':'orange','취소됨':'gray'}[s]||'');
+  return ({'신규접수':'','상담중':'purple','가견적요청':'orange','가견적 생성함':'','견적안내':'','실측예정':'green','최종견적':'purple','최종견적 생성함':'purple','계약진행':'green','계약완료':'green','시공완료':'gray','보류':'gray','접수완료':'','서류검토':'orange','서류보완':'red','보완요청':'red','심사중':'purple','승인':'green','약정완료':'green','반려':'gray','부결':'red','약정대기':'orange','선금완료':'','수납완료':'green','초기납입완료':'green','결제완료':'green','결제대기':'orange','취소됨':'gray'}[s]||'');
 };
 const badge=(text,color=stageColor(text))=>`<span class="badge ${color}">${esc(text)}</span>`;
 const btn=(label,action,ic='',kind='',data='')=>`<button class="btn ${kind}" data-action="${action}" ${data}>${ic?icon(ic):''}${label}</button>`;
@@ -5226,7 +5226,7 @@ if(tab==='quotes')content=`
         <div class="qs-actions">
           ${c.roughQuote?btn('가견적 미리보기','preview','eye','sm soft',`data-id="${id}" data-type="가견적"`):''}
           ${c.roughQuote?btn('가견적 발송','send-quote','send','sm primary',`data-id="${id}" data-type="가견적"`):''}
-          ${isHqAdminUser()?btn((c.roughQuoteUrl)?'링크':'링크 등록','rough-quote-link','link','sm',`data-id="${id}"`):''}
+          ${btn((c.roughQuoteUrl)?'링크':'링크 등록','rough-quote-link','link','sm',`data-id="${id}"`)}
         </div>
       </div>
       <div class="quote-stage-card is-final">
@@ -5236,7 +5236,7 @@ if(tab==='quotes')content=`
         <div class="qs-actions">
           ${c.finalQuote?btn('최종견적 미리보기','preview','eye','sm soft',`data-id="${id}" data-type="최종견적"`):''}
           ${c.finalQuote?btn('최종견적 발송','send-quote','send','sm primary',`data-id="${id}" data-type="최종견적"`):''}
-          ${isHqAdminUser()?btn((c.finalQuoteUrl)?'링크':'링크 등록','final-quote-link','link','sm',`data-id="${id}"`):''}
+          ${btn((c.finalQuoteUrl)?'링크':'링크 등록','final-quote-link','link','sm',`data-id="${id}"`)}
         </div>
       </div>
     </div>
@@ -5325,7 +5325,7 @@ if (existingDetail && detailId === c.id) {
   return;
 }
 
-const canEditQuoteLinks = isHqAdminUser();
+const canEditQuoteLinks = true;
 const adminQuoteEditorSideBtn = isHqAdminUser() ? btn('견적등록 바로가기', 'go-quote-editor', 'plus', 'primary sm block', `data-id="${id}"`) : '';
 const adminQuoteEditorFooterBtn = isHqAdminUser() ? btn('견적등록 바로가기', 'go-quote-editor', 'plus', 'sm soft', `data-id="${id}"`) : '';
 const quoteShortcutBtn = isPartnerUser() ? btn('본사 견적 요청', 'request-quote', 'plus', 'soft sm', `data-id="${id}"`) : '';
@@ -7735,7 +7735,7 @@ case'publish-quote':{
         c.quote = t.total;
         c.token = qData.access_token;
         c.quoteType = qData.quote_type || editor.type;
-        c.status = editor.type === '최종견적' ? '최종견적' : '견적안내';
+        c.status = editor.type === '최종견적' ? '최종견적 생성함' : '가견적 생성함';
         audit(c.id, '견적서 v' + qData.version + ' 발행 · 최종 ' + won(t.total) + ' (공급원가 ' + won(t.supplyCost) + ', 마진금액 ' + won(t.profit) + ')');
         save();
         await syncFromServer();
@@ -8560,14 +8560,11 @@ case'user-menus-default':{
 case'switch-user-view':{
     const targetUsername = el.dataset.username;
     if (!targetUsername) break;
-    setMobileNav(false);
-    query='';stageFilter='';partnerFilter='';selected.clear();customerTab='all';
-    closeDialog();
-    await apiSwitchRole(targetUsername);
-    await syncFromServer();
-    render();
-    const switched = getActiveUser();
-    toast(`${switched.name} (${switched.role_label}) 화면으로 전환했습니다. 허용 메뉴 ${getUserAllowedMenuKeys(switched).length}개가 표시됩니다.`);
+    const targetUrl = new URL(location.href);
+    targetUrl.search = '';
+    targetUrl.searchParams.set('switch_user', targetUsername);
+    window.open(targetUrl.toString(), '_blank', 'noopener');
+    toast('새 창에서 해당 사용자 화면을 열었습니다.');
     break;
   }
 case'dlg-menu-all':{
@@ -8933,14 +8930,18 @@ case'rough-quote-link':{
     const url=normalizeURL(d.url);
     if(!validateURL(url)){toast('올바른 http 또는 https 링크를 입력해 주세요.');return}
     try { const res = await apiFetch('/api/customers/' + id, { method: 'PATCH', body: { roughQuoteUrl: url } }); if (res.ok) await syncFromServer(); } catch {}
-    c.roughQuoteUrl=url;audit(id,url?'가견적 링크 등록·수정':'가견적 링크 제거');openCustomer(id,detailTab||'notes');toast(url?'가견적 링크를 저장했습니다.':'가견적 링크를 제거했습니다.');break;
+    c.roughQuoteUrl=url;
+    if(url && ['신규접수','상담중','가견적요청','견적안내'].includes(c.status)){c.status='가견적 생성함';}
+    audit(id,url?'가견적 링크 등록·수정':'가견적 링크 제거');openCustomer(id,detailTab||'notes');toast(url?'가견적 링크를 저장했습니다.':'가견적 링크를 제거했습니다.');break;
   }
   case'final-quote-link':{
     const c=accessibleC(id);
     const url=normalizeURL(d.url);
     if(!validateURL(url)){toast('올바른 http 또는 https 링크를 입력해 주세요.');return}
     try { const res = await apiFetch('/api/customers/' + id, { method: 'PATCH', body: { finalQuoteUrl: url } }); if (res.ok) await syncFromServer(); } catch {}
-    c.finalQuoteUrl=url;audit(id,url?'최종견적 링크 등록·수정':'최종견적 링크 제거');openCustomer(id,detailTab||'notes');toast(url?'최종견적 링크를 저장했습니다.':'최종견적 링크를 제거했습니다.');break;
+    c.finalQuoteUrl=url;
+    if(url && ['신규접수','상담중','가견적요청','가견적 생성함','견적안내','실측예정','실측완료','최종견적'].includes(c.status)){c.status='최종견적 생성함';}
+    audit(id,url?'최종견적 링크 등록·수정':'최종견적 링크 제거');openCustomer(id,detailTab||'notes');toast(url?'최종견적 링크를 저장했습니다.':'최종견적 링크를 제거했습니다.');break;
   }
   case'drawing':{
     const c=accessibleC(id);
@@ -9906,7 +9907,7 @@ const params=new URLSearchParams(location.search);if(params.has('demo_quote')){c
       render();
       startRealtimeSync();
       const u = getActiveUser();
-      toast(`[${u.org}] 파트너 어드민 새 창으로 접속했습니다.`);
+      toast(isPartnerUser(u) ? `[${u.org}] 파트너 어드민 새 창으로 접속했습니다.` : `[${u.name} (${u.role_label})] 화면 새 창으로 접속했습니다.`);
     })();
   } else {
     if (!authToken) {
