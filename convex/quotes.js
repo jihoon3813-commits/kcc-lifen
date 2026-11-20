@@ -405,8 +405,6 @@ export const createProjectQuote = mutation({
       });
     }
 
-    const publicUrl = `/quote.html?token=${args.accessToken}`;
-
     if (args.isPublish) {
       let nextStatus = project.status;
       if (
@@ -421,16 +419,10 @@ export const createProjectQuote = mutation({
         nextStatus = "가견적 생성함";
       }
 
-      const patch = {
+      await ctx.db.patch(project._id, {
         status: nextStatus,
         updatedAt: now,
-      };
-      if (args.quoteType === "최종견적") {
-        patch.finalQuoteUrl = publicUrl;
-      } else {
-        patch.roughQuoteUrl = publicUrl;
-      }
-      await ctx.db.patch(project._id, patch);
+      });
     }
 
     await ctx.db.insert("auditLogs", {

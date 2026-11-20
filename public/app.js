@@ -1124,7 +1124,8 @@ function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUr
 }
 
 function quoteLinkSideRow(label, url, editAction, id, canEditLink = true) {
-  const externalUrl = String(url || '').trim();
+  const rawUrl = String(url || '').trim();
+  const externalUrl = rawUrl.startsWith('/quote.html?token=') ? '' : rawUrl;
   if (externalUrl) {
     return '<div style="display:flex;gap:6px">' +
       '<a class="btn soft sm" href="' + esc(externalUrl) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + label + ' 링크보기</a>' +
