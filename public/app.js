@@ -482,6 +482,10 @@ function isPartnerUser(u = getActiveUser()) {
   return Boolean(u && (u.role === 'partner' || u.org_type === 'partner'));
 }
 
+function isHqAdminUser(u = getActiveUser()) {
+  return Boolean(u && !isPartnerUser(u) && (u.role === 'hq_admin' || u.username === 'admin'));
+}
+
 function canManageQuotes(u = getActiveUser()) {
   if (isPartnerUser(u)) return false;
   return getUserAllowedMenuKeys(u).includes('quotes');
@@ -1119,31 +1123,43 @@ function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUr
     '※ 열람 시 고객님 본인 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.';
 }
 
-function quoteSideRow(label, qType, qMeta, url, editAction, id, canEditLink = !isPartnerUser()) {
-  const effectiveUrl = qMeta?.url || (qMeta?.token ? `/quote.html?token=${encodeURIComponent(qMeta.token)}` : '') || url || '';
+function quoteSideRow(label, qType, qMeta, url, editAction, id, canEditLink = isHqAdminUser()) {
+  const rows = [];
+  const externalUrl = String(url || '').trim();
+  const mobileUrl = qMeta ? (qMeta.url || (qMeta.token ? `/quote.html?token=${encodeURIComponent(qMeta.token)}` : '')) : '';
+
+  if (externalUrl) {
+    rows.push(
+      '<div style="display:flex;gap:6px">' +
+        '<a class="btn soft sm" href="' + esc(externalUrl) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + label + ' 링크보기</a>' +
+        (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 9px">' + icon('edit') + '</button>' : '') +
+      '</div>'
+    );
+  } else if (canEditLink) {
+    rows.push(
+      '<button class="btn sm block" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 외부 링크 직접 등록">' +
+        icon('link') + label + ' 링크 등록' +
+      '</button>'
+    );
+  }
+
   if (qMeta) {
-    return '<div style="display:flex;gap:5px">' +
-      '<button class="btn soft sm" type="button" data-action="preview" data-id="' + id + '" data-type="' + qType + '" style="flex:1">' +
-        icon('eye') + label + ' 미리보기' +
-      '</button>' +
-      (effectiveUrl ? '<a class="btn sm" href="' + esc(effectiveUrl) + '" target="_blank" rel="noopener noreferrer" title="' + label + ' 새창 열기" style="padding:6px 8px">' + icon('external') + '</a>' : '') +
-      (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 8px">' + icon('edit') + '</button>' : '') +
+    rows.push(
+      '<div style="display:flex;gap:5px">' +
+        (mobileUrl
+          ? '<a class="btn soft sm" href="' + esc(mobileUrl) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + '모바일 ' + label + ' 링크</a>' +
+            '<button class="btn sm" type="button" data-action="preview" data-id="' + id + '" data-type="' + qType + '" title="모바일 ' + label + ' 미리보기" style="padding:6px 9px">' + icon('eye') + '</button>'
+          : '<button class="btn soft sm" type="button" data-action="preview" data-id="' + id + '" data-type="' + qType + '" style="flex:1">' + icon('eye') + '모바일 ' + label + ' 미리보기</button>') +
+      '</div>'
+    );
+  }
+
+  if (!rows.length) {
+    return '<div style="display:flex;align-items:center;gap:5px">' +
+      '<span class="btn sm" style="flex:1;opacity:0.5;cursor:default;pointer-events:none;background:#f8fafc;color:#94a3b8;border-color:#e2e8f0">' + label + ' 미발행</span>' +
     '</div>';
   }
-  if (effectiveUrl) {
-    return '<div style="display:flex;gap:6px">' +
-      '<a class="btn soft sm" href="' + esc(effectiveUrl) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + label + ' 바로가기</a>' +
-      (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 9px">' + icon('edit') + '</button>' : '') +
-    '</div>';
-  }
-  if (canEditLink) {
-    return '<button class="btn sm block" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 외부 링크 직접 등록">' +
-      icon('link') + label + ' 링크 등록' +
-    '</button>';
-  }
-  return '<div style="display:flex;align-items:center;gap:5px">' +
-    '<span class="btn sm" style="flex:1;opacity:0.5;cursor:default;pointer-events:none;background:#f8fafc;color:#94a3b8;border-color:#e2e8f0">' + label + ' 미발행</span>' +
-  '</div>';
+  return rows.join('');
 }
 
 function buildPreviewBannerHtml(c, qDraft, selectedType) {
@@ -5216,7 +5232,7 @@ if(tab==='quotes')content=`
         <div class="qs-actions">
           ${c.roughQuote?btn('가견적 미리보기','preview','eye','sm soft',`data-id="${id}" data-type="가견적"`):''}
           ${c.roughQuote?btn('가견적 발송','send-quote','send','sm primary',`data-id="${id}" data-type="가견적"`):''}
-          ${(!isPartnerUser()||c.roughQuote||c.roughQuoteUrl)?btn((c.roughQuote||c.roughQuoteUrl)?'링크':'링크 등록','rough-quote-link','link','sm',`data-id="${id}"`):''}
+          ${isHqAdminUser()?btn((c.roughQuoteUrl)?'링크':'링크 등록','rough-quote-link','link','sm',`data-id="${id}"`):''}
         </div>
       </div>
       <div class="quote-stage-card is-final">
@@ -5226,7 +5242,7 @@ if(tab==='quotes')content=`
         <div class="qs-actions">
           ${c.finalQuote?btn('최종견적 미리보기','preview','eye','sm soft',`data-id="${id}" data-type="최종견적"`):''}
           ${c.finalQuote?btn('최종견적 발송','send-quote','send','sm primary',`data-id="${id}" data-type="최종견적"`):''}
-          ${(!isPartnerUser()||c.finalQuote||c.finalQuoteUrl)?btn((c.finalQuote||c.finalQuoteUrl)?'링크':'링크 등록','final-quote-link','link','sm',`data-id="${id}"`):''}
+          ${isHqAdminUser()?btn((c.finalQuoteUrl)?'링크':'링크 등록','final-quote-link','link','sm',`data-id="${id}"`):''}
         </div>
       </div>
     </div>
@@ -5314,7 +5330,7 @@ if (existingDetail && detailId === c.id) {
   return;
 }
 
-const canEditQuoteLinks = !isPartnerUser();
+const canEditQuoteLinks = isHqAdminUser();
 const quoteShortcutBtn = isPartnerUser() ? btn('본사 견적 요청', 'request-quote', 'plus', 'soft sm', `data-id="${id}"`) : '';
 const quoteSideShortcutBtn = isPartnerUser() ? btn('본사 견적 요청', 'request-quote', 'plus', 'primary sm block', `data-id="${id}"`) : '';
 const displayCustCh = getCustomerChannel(c);
