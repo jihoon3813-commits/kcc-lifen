@@ -1123,43 +1123,37 @@ function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUr
     '※ 열람 시 고객님 본인 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.';
 }
 
-function quoteSideRow(label, qType, qMeta, url, editAction, id, canEditLink = isHqAdminUser()) {
-  const rows = [];
+function quoteLinkSideRow(label, url, editAction, id, canEditLink = isHqAdminUser()) {
   const externalUrl = String(url || '').trim();
-  const mobileUrl = qMeta ? (qMeta.url || (qMeta.token ? `/quote.html?token=${encodeURIComponent(qMeta.token)}` : '')) : '';
-
   if (externalUrl) {
-    rows.push(
-      '<div style="display:flex;gap:6px">' +
-        '<a class="btn soft sm" href="' + esc(externalUrl) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + label + ' 링크보기</a>' +
-        (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 9px">' + icon('edit') + '</button>' : '') +
-      '</div>'
-    );
-  } else if (canEditLink) {
-    rows.push(
-      '<button class="btn sm block" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 외부 링크 직접 등록">' +
-        icon('link') + label + ' 링크 등록' +
-      '</button>'
-    );
-  }
-
-  if (qMeta) {
-    rows.push(
-      '<div style="display:flex;gap:5px">' +
-        (mobileUrl
-          ? '<a class="btn soft sm" href="' + esc(mobileUrl) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + '모바일 ' + label + ' 링크</a>' +
-            '<button class="btn sm" type="button" data-action="preview" data-id="' + id + '" data-type="' + qType + '" title="모바일 ' + label + ' 미리보기" style="padding:6px 9px">' + icon('eye') + '</button>'
-          : '<button class="btn soft sm" type="button" data-action="preview" data-id="' + id + '" data-type="' + qType + '" style="flex:1">' + icon('eye') + '모바일 ' + label + ' 미리보기</button>') +
-      '</div>'
-    );
-  }
-
-  if (!rows.length) {
-    return '<div style="display:flex;align-items:center;gap:5px">' +
-      '<span class="btn sm" style="flex:1;opacity:0.5;cursor:default;pointer-events:none;background:#f8fafc;color:#94a3b8;border-color:#e2e8f0">' + label + ' 미발행</span>' +
+    return '<div style="display:flex;gap:6px">' +
+      '<a class="btn soft sm" href="' + esc(externalUrl) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + label + ' 링크보기</a>' +
+      (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 9px">' + icon('edit') + '</button>' : '') +
     '</div>';
   }
-  return rows.join('');
+  if (canEditLink) {
+    return '<button class="btn sm block" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 외부 링크 직접 등록">' +
+      icon('link') + label + ' 링크 등록' +
+    '</button>';
+  }
+  return '<div style="display:flex;align-items:center;gap:5px">' +
+    '<span class="btn sm" style="flex:1;opacity:0.5;cursor:default;pointer-events:none;background:#f8fafc;color:#94a3b8;border-color:#e2e8f0">' + label + ' 링크 미등록</span>' +
+  '</div>';
+}
+
+function mobileQuoteSideRow(label, qType, qMeta, id) {
+  const mobileUrl = qMeta ? (qMeta.url || (qMeta.token ? `/quote.html?token=${encodeURIComponent(qMeta.token)}` : '')) : '';
+  if (qMeta) {
+    return '<div style="display:flex;gap:5px">' +
+      (mobileUrl
+        ? '<a class="btn soft sm" href="' + esc(mobileUrl) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + '모바일 ' + label + ' 바로가기</a>' +
+          '<button class="btn sm" type="button" data-action="preview" data-id="' + id + '" data-type="' + qType + '" title="모바일 ' + label + ' 미리보기" style="padding:6px 9px">' + icon('eye') + '</button>'
+        : '<button class="btn soft sm" type="button" data-action="preview" data-id="' + id + '" data-type="' + qType + '" style="flex:1">' + icon('eye') + '모바일 ' + label + ' 미리보기</button>') +
+    '</div>';
+  }
+  return '<div style="display:flex;align-items:center;gap:5px">' +
+    '<span class="btn sm" style="flex:1;opacity:0.5;cursor:default;pointer-events:none;background:#f8fafc;color:#94a3b8;border-color:#e2e8f0">모바일 ' + label + ' 미발행</span>' +
+  '</div>';
 }
 
 function buildPreviewBannerHtml(c, qDraft, selectedType) {
@@ -5335,7 +5329,7 @@ const quoteShortcutBtn = isPartnerUser() ? btn('본사 견적 요청', 'request-
 const quoteSideShortcutBtn = isPartnerUser() ? btn('본사 견적 요청', 'request-quote', 'plus', 'primary sm block', `data-id="${id}"`) : '';
 const displayCustCh = getCustomerChannel(c);
 const chDatalist = `<datalist id="ad-channel-presets">${AD_CHANNEL_PRESETS.map(p => `<option value="${esc(p)}"></option>`).join('')}<option value="직접등록"></option></datalist>`;
-const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}${renderCustomerDetailTabBadgeHtml(c,v)}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',[...new Set([...getStageNames(),c.status].filter(Boolean))],c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 관리자','detail-owner',getHqOwnerOptions(c.owner),c.owner)}<div class="field"><label for="detail-source" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">유입경로 (채널) <span class="ch-pill ${channelTone(displayCustCh)}">${esc(displayCustCh)}</span></label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${quoteSideShortcutBtn}${quoteSideRow('가견적','가견적',c.roughQuote,c.roughQuoteUrl,'rough-quote-link',id,canEditQuoteLinks)}${quoteSideRow('최종견적','최종견적',c.finalQuote,c.finalQuoteUrl,'final-quote-link',id,canEditQuoteLinks)}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${custContracts.length?btn('계약관리에서 보기','go-customer-contracts','external','soft block',`data-id="${id}"`):''}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}${renderCustomerDetailTabBadgeHtml(c,v)}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history">${renderCustomerHistoryHtml(c,displayCustCh)}</aside></div>`;
+const body=`<div class="customer-detail" data-detail-tab="${tab}"><div class="mobile-cust-strip">${badge(c.status)}${c.label!=='일반'?badge(c.label,c.label==='긴급'?'red':c.label==='완료'?'green':'orange'):''}<span>담당 ${esc(c.owner)}</span>${c.measure?`<span>· 실측 ${esc(c.measure.slice(5))}</span>`:''}<div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button type="button" class="link-chip" data-action="detail-tab" data-value="${tab==='manage'?'notes':'manage'}" data-id="${id}">${tab==='manage'?'상담이력 보기':'상태·링크 변경'}</button></div></div><div class="tabs mobile-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료'],['manage','상태·링크'],['history','히스토리']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}${renderCustomerDetailTabBadgeHtml(c,v)}</button>`).join('')}</div><aside class="detail-side"><div class="detail-box"><h4>${icon('settings')}상태 및 담당자</h4>${selectField('진행구분','detail-status',[...new Set([...getStageNames(),c.status].filter(Boolean))],c.status)}${selectField('진행라벨','detail-label',db.labels.map(l=>l.name),c.label)}${selectField('담당 관리자','detail-owner',getHqOwnerOptions(c.owner),c.owner)}<div class="field"><label for="detail-source" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">유입경로 (채널) <span class="ch-pill ${channelTone(displayCustCh)}">${esc(displayCustCh)}</span></label><input class="input" id="detail-source" name="detail-source" list="ad-channel-presets" value="${esc(displayCustCh)}">${chDatalist}</div>${field('유입 광고캠페인 / 링크명','detail-ad-campaign',c.adCampaign||'')}</div><div class="detail-box"><h4>${icon('calendar')}일정 관리</h4>${field('실측 예정일','detail-measure',c.measure,'date')}${field('시공 예정일','detail-build',c.build,'date')}</div><div class="detail-box links"><h4>${icon('link')}견적 링크 · 내관도</h4><div style="display:flex;flex-direction:column;gap:8px">${quoteLinkSideRow('가견적',c.roughQuoteUrl,'rough-quote-link',id,canEditQuoteLinks)}${quoteLinkSideRow('최종견적',c.finalQuoteUrl,'final-quote-link',id,canEditQuoteLinks)}${linkRow('내관도',c.drawing,'drawing',id,'내관도 관리')}</div></div><div class="detail-box links"><h4>${icon('file')}모바일 견적서</h4><div style="display:flex;flex-direction:column;gap:8px">${quoteSideShortcutBtn}${mobileQuoteSideRow('가견적','가견적',c.roughQuote,id)}${mobileQuoteSideRow('최종견적','최종견적',c.finalQuote,id)}</div></div><div class="cust-side-actions">${btn('변경사항 저장','save-customer','check','primary block',`data-id="${id}"`)}${custContracts.length?btn('계약관리에서 보기','go-customer-contracts','external','soft block',`data-id="${id}"`):''}</div></aside><section class="detail-center"><div class="tabs desktop-detail-tabs">${[['notes','상담이력'],['feedback','피드백'],['quotes','견적'],['contract','계약·결제'],['files','공사자료']].map(([v,l])=>`<button class="tab ${tab===v?'active':''}" data-action="detail-tab" data-value="${v}" data-id="${id}">${l}${renderCustomerDetailTabBadgeHtml(c,v)}</button>`).join('')}</div><div class="detail-content">${content}</div>${['notes','feedback'].includes(tab)?`<form class="note-compose" data-submit="note" data-id="${id}" data-type="${tab}"><div class="compose-top"><span>작성자 ${esc(getActiveUser().name)}</span><label><input type="checkbox" name="important"> 중요</label></div><div class="compose-box"><textarea name="note" placeholder="${tab==='notes'?'상담 내용과 다음 진행사항을 기록하세요.':'영업지원팀 피드백을 기록하세요.'}" aria-label="상담 내용" required></textarea><button type="submit" class="btn primary" aria-label="기록 등록">${icon('send')}</button></div></form>`:''}</section><aside class="detail-history">${renderCustomerHistoryHtml(c,displayCustCh)}</aside></div>`;
 const detailFooter = `<small>고객 상태: ${badge(c.status)}${custContracts.length ? ` · 계약 <b>${custContracts.length}건</b>` : ''} · ${esc(c.product)} · ${esc(c.partner)}</small>${custContracts.length ? btn('계약관리 이동', 'go-customer-contracts', 'external', 'sm soft', `data-id="${id}"`) : ''}${quoteShortcutBtn}${c.quote ? btn('모바일 견적 미리보기', 'preview', 'eye', 'sm soft', `data-id="${id}"`) : ''}${btn('닫기', 'close', '', 'sm')}`;
 openDialog(`${esc(c.name)} <span style="font-size:11px;font-weight:400;color:#91a6c9;margin-left:8px">No. ${c.id}</span>`,body,detailFooter,'wide',`${esc(c.phone)}　｜　${esc(c.address)}`,true);detailId=c.id;detailTab=tab;
 if (!wasAlreadyOpen) loadCustomerDetail(c.id);
