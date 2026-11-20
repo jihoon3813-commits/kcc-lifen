@@ -469,16 +469,217 @@ function tryParseOfficialKccSheet(rawRows) {
 }
 
 /**
+ * Evaluate simple arithmetic / range Excel formulas when SheetJS encounters
+ * formula cells exported without cached values (e.g. KCC ERP exports).
+ */
+function hydrateUncachedFormulas(sheet) {
+  if (!sheet || !XLSX?.utils?.decode_cell) return;
+
+  const memo = new Map();
+  const visiting = new Set();
+
+  const evalCell = (addr) => {
+    const cleanAddr = addr.replace(/\$/g, '').toUpperCase();
+    if (memo.has(cleanAddr)) return memo.get(cleanAddr);
+    const cell = sheet[cleanAddr];
+    if (!cell) return 0;
+
+    // Use existing numeric cached value if present and not an uncached stub
+    if (cell.t === 'n' && typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+      memo.set(cleanAddr, cell.v);
+      return cell.v;
+    }
+    if (cell.t !== 'z' && cell.v !== undefined && cell.v !== null && cell.v !== '') {
+      const n = Number(String(cell.v).replace(/[^\d.-]/g, ''));
+      if (Number.isFinite(n) && cell.t !== 's') {
+        memo.set(cleanAddr, n);
+        return n;
+      }
+      if (!cell.f) return 0;
+    }
+
+    if (!cell.f || visiting.has(cleanAddr)) return 0;
+    visiting.add(cleanAddr);
+    const val = evalFormulaExpr(cell.f);
+    visiting.delete(cleanAddr);
+
+    if (Number.isFinite(val)) {
+      memo.set(cleanAddr, val);
+      cell.t = 'n';
+      cell.v = val;
+      cell.w = String(val);
+      return val;
+    }
+    return 0;
+  };
+
+  const expandRange = (startRef, endRef) => {
+    const s = XLSX.utils.decode_cell(startRef.replace(/\$/g, '').toUpperCase());
+    const e = XLSX.utils.decode_cell(endRef.replace(/\$/g, '').toUpperCase());
+    const vals = [];
+    for (let r = Math.min(s.r, e.r); r <= Math.max(s.r, e.r); r++) {
+      for (let c = Math.min(s.c, e.c); c <= Math.max(s.c, e.c); c++) {
+        vals.push(evalCell(XLSX.utils.encode_cell({ r, c })));
+      }
+    }
+    return vals;
+  };
+
+  const evalFormulaExpr = (rawFormula) => {
+    const src = String(rawFormula || '').replace(/^=/, '').trim();
+    if (!src) return NaN;
+
+    let pos = 0;
+    const skipWs = () => {
+      while (pos < src.length && /\s/.test(src[pos])) pos++;
+    };
+
+    const parseExpr = () => {
+      let left = parseTerm();
+      while (true) {
+        skipWs();
+        const ch = src[pos];
+        if (ch === '+' || ch === '-') {
+          pos++;
+          const right = parseTerm();
+          left = ch === '+' ? left + right : left - right;
+        } else {
+          break;
+        }
+      }
+      return left;
+    };
+
+    const parseTerm = () => {
+      let left = parseFactor();
+      while (true) {
+        skipWs();
+        const ch = src[pos];
+        if (ch === '*' || ch === '/') {
+          pos++;
+          const right = parseFactor();
+          left = ch === '*' ? left * right : right === 0 ? 0 : left / right;
+        } else {
+          break;
+        }
+      }
+      return left;
+    };
+
+    const parseArgValues = () => {
+      const nums = [];
+      skipWs();
+      if (src[pos] === ')') {
+        pos++;
+        return nums;
+      }
+      while (pos < src.length) {
+        skipWs();
+        const rangeMatch = src.slice(pos).match(/^(\$?[A-Za-z]{1,3}\$?\d+)\s*:\s*(\$?[A-Za-z]{1,3}\$?\d+)/);
+        if (rangeMatch) {
+          pos += rangeMatch[0].length;
+          nums.push(...expandRange(rangeMatch[1], rangeMatch[2]));
+        } else {
+          nums.push(parseExpr());
+        }
+        skipWs();
+        if (src[pos] === ',') {
+          pos++;
+        } else if (src[pos] === ')') {
+          pos++;
+          break;
+        } else {
+          break;
+        }
+      }
+      return nums;
+    };
+
+    const parseFactor = () => {
+      skipWs();
+      if (src[pos] === '+') {
+        pos++;
+        return parseFactor();
+      }
+      if (src[pos] === '-') {
+        pos++;
+        return -parseFactor();
+      }
+      if (src[pos] === '(') {
+        pos++;
+        const val = parseExpr();
+        skipWs();
+        if (src[pos] === ')') pos++;
+        return val;
+      }
+
+      const funcMatch = src.slice(pos).match(/^([A-Za-z_][A-Za-z0-9_.]*)\s*\(/);
+      if (funcMatch) {
+        const fn = funcMatch[1].toUpperCase();
+        pos += funcMatch[0].length;
+        const args = parseArgValues();
+        if (fn === 'SUM') return args.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
+        if (fn === 'AVERAGE') return args.length ? args.reduce((a, b) => a + b, 0) / args.length : 0;
+        if (fn === 'MIN') return args.length ? Math.min(...args) : 0;
+        if (fn === 'MAX') return args.length ? Math.max(...args) : 0;
+        if (fn === 'ROUND') {
+          const factor = Math.pow(10, args[1] || 0);
+          return Math.round((args[0] || 0) * factor) / factor;
+        }
+        if (fn === 'ROUNDUP') {
+          const factor = Math.pow(10, args[1] || 0);
+          const v = (args[0] || 0) * factor;
+          return (v >= 0 ? Math.ceil(v) : Math.floor(v)) / factor;
+        }
+        if (fn === 'ROUNDDOWN' || fn === 'TRUNC') {
+          const factor = Math.pow(10, args[1] || 0);
+          return Math.trunc((args[0] || 0) * factor) / factor;
+        }
+        if (fn === 'INT') return Math.floor(args[0] || 0);
+        return NaN;
+      }
+
+      const cellMatch = src.slice(pos).match(/^\$?[A-Za-z]{1,3}\$?\d+/);
+      if (cellMatch) {
+        pos += cellMatch[0].length;
+        return evalCell(cellMatch[0]);
+      }
+
+      const numMatch = src.slice(pos).match(/^\d+(?:\.\d+)?/);
+      if (numMatch) {
+        pos += numMatch[0].length;
+        return Number(numMatch[0]);
+      }
+
+      return NaN;
+    };
+
+    const result = parseExpr();
+    skipWs();
+    return pos === src.length ? result : NaN;
+  };
+
+  for (const key of Object.keys(sheet)) {
+    if (key.startsWith('!')) continue;
+    const cell = sheet[key];
+    if (cell && cell.f && (cell.t === 'z' || cell.v === undefined || cell.v === null || cell.v === '')) {
+      evalCell(key);
+    }
+  }
+}
+
+/**
  * Parse KCC Estimate Excel / CSV file buffer
  */
 export function parseEstimateFile(fileBuffer, originalFilename = '') {
-  const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+  const workbook = XLSX.read(fileBuffer, { type: 'buffer', sheetStubs: true, cellFormula: true });
   const firstSheetName = workbook.SheetNames[0];
   if (!firstSheetName) {
     throw new Error('엑셀 시트를 찾을 수 없습니다.');
   }
 
   const sheet = workbook.Sheets[firstSheetName];
+  hydrateUncachedFormulas(sheet);
   const sheetRange = sheet['!ref'] ? XLSX.utils.decode_range(sheet['!ref']) : null;
   const rawRows = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
