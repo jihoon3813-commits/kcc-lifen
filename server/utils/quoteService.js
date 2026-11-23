@@ -339,7 +339,7 @@ export async function sendProjectQuoteViaConvex(
 
   const targetName = String(recipientName || data.project.customerName || '고객').trim();
   const resolvedOrigin = origin || baseOrigin;
-  const quoteUrl = `${resolvedOrigin}/quote.html?token=${quote.accessToken}`;
+  const quoteUrl = `${resolvedOrigin}/quote.html`;
   const safeQuoteType = quote.quoteType || '가견적';
   const defaultMsg =
     `[KCC홈씨씨] ${targetName} 고객님, 요청하신 ${data.project.product || '창호'} ${safeQuoteType}이 도착했습니다.\n` +

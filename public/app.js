@@ -1147,7 +1147,7 @@ function quoteLinkSideRow(label, url, editAction, id, canEditLink = true) {
 }
 
 function mobileQuoteSideRow(label, qType, qMeta, id) {
-  const mobileUrl = qMeta ? (qMeta.url || (qMeta.token ? `/quote.html?token=${encodeURIComponent(qMeta.token)}` : '')) : '';
+  const mobileUrl = qMeta ? '/quote.html' : '';
   if (qMeta) {
     return '<div style="display:flex;gap:5px">' +
       (mobileUrl
@@ -1250,8 +1250,7 @@ async function openSendQuote(id, preferredType = '') {
   else chosenMeta = finalQuote || roughQuote;
 
   const qType = chosenMeta?.quote_type || previewData?.quote?.quote_type || c.quoteType || '가견적';
-  const token = chosenMeta?.access_token || previewData?.access_token || c.token || ('tok_' + c.id + '_demo');
-  const quoteUrl = location.origin + '/quote.html?token=' + encodeURIComponent(token);
+  const quoteUrl = location.origin + '/quote.html';
   const totalPrice = chosenMeta?.total_price || previewData?.quote?.total_price || c.quote;
   const rawPhone = previewData?.customer_phone_raw || c.phone || '';
   const dispatches = previewData?.dispatches || [];
@@ -6037,9 +6036,7 @@ function openPreview(id, q = null, viewMode = 'quote', preferredType = '', quote
     iframeSrc = '/quote.html?preview=1&embed=1&projectId=' + encodeURIComponent(c.id) + '&type=' + encodeURIComponent(previewQuoteType) + qIdParam + '&view=' + encodeURIComponent(previewViewMode) + '&device=' + encodeURIComponent(previewDeviceWidth);
   }
 
-  const activeMeta = previewQuoteType === '최종견적' ? c.finalQuote : c.roughQuote;
-  const activeTok = activeMeta?.token || c.token || ('tok_' + c.id + '_demo');
-  const publicLink = '/quote.html?token=' + encodeURIComponent(activeTok);
+  const publicLink = '/quote.html';
 
   const roughLabel = q
     ? '가견적 초안'
@@ -7397,10 +7394,8 @@ case'clear-quote-phone':{
       const bannerEl = $('#preview-type-banner');
       if (bannerEl) bannerEl.outerHTML = buildPreviewBannerHtml(cCur, activeDraftPreview, previewQuoteType);
       if (!activeDraftPreview) {
-        const meta = previewQuoteType === '최종견적' ? cCur.finalQuote : cCur.roughQuote;
-        const tok = meta?.token || cCur.token || ('tok_' + cCur.id + '_demo');
         const extLink = $('#preview-open-ext');
-        if (extLink) extLink.href = '/quote.html?token=' + encodeURIComponent(tok);
+        if (extLink) extLink.href = '/quote.html';
         const copyBtn = $('#preview-copy-btn');
         if (copyBtn) {
           copyBtn.dataset.type = previewQuoteType;
@@ -7440,7 +7435,7 @@ case'clear-quote-phone':{
     sendState.quoteType = nextType;
     sendState.quoteId = targetMeta.id;
     sendState.totalPrice = targetMeta.total_price;
-    sendState.quoteUrl = location.origin + '/quote.html?token=' + encodeURIComponent(targetMeta.access_token);
+    sendState.quoteUrl = location.origin + '/quote.html';
     sendState.tpl = nextType === '최종견적' ? 'final' : 'basic';
     sendState.message = makeSendTemplate(sendState.tpl, sendState.recipientName, sendState.product, sendState.quoteType, sendState.totalPrice, sendState.quoteUrl);
     renderSendDialog();
@@ -8220,9 +8215,9 @@ case'copy-quote':{
       const reqType = el.dataset.type || '';
       const meta = reqType === '최종견적' ? c.finalQuote : (reqType === '가견적' ? c.roughQuote : null);
       const tok = meta?.token || c.token || ('tok_'+c.id+'_demo');
-      const link = location.origin + '/quote.html?token=' + encodeURIComponent(tok);
+      const link = location.origin + '/quote.html';
       copy(link);
-      toast('고객 본인확인 로그인 전용 [' + (meta?.quoteType || reqType || c.quoteType || '모바일') + '] 견적서 링크를 복사했습니다.');
+      toast('고객 본인확인 로그인 전용 모바일 견적서 공통 링크를 복사했습니다.');
     }
     break;
   }
