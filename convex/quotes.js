@@ -405,31 +405,28 @@ export const createProjectQuote = mutation({
       });
     }
 
+    let statusChangeDetail = "";
     if (args.isPublish) {
+      const postContractStatuses = ["계약진행", "계약완료", "시공완료"];
       let nextStatus = project.status;
-      if (
-        args.quoteType === "최종견적" &&
-        ["신규접수", "상담중", "가견적요청", "가견적 생성함", "견적안내", "실측예정", "실측완료", "최종견적"].includes(project.status)
-      ) {
-        nextStatus = "최종견적 생성함";
-      } else if (
-        args.quoteType !== "최종견적" &&
-        ["신규접수", "상담중", "가견적요청", "견적안내"].includes(project.status)
-      ) {
-        nextStatus = "가견적 생성함";
+      if (!postContractStatuses.includes(project.status)) {
+        nextStatus = args.quoteType === "최종견적" ? "최종견적 생성함" : "가견적 생성함";
       }
 
-      await ctx.db.patch(project._id, {
-        status: nextStatus,
-        updatedAt: now,
-      });
+      if (nextStatus !== project.status) {
+        await ctx.db.patch(project._id, {
+          status: nextStatus,
+          updatedAt: now,
+        });
+        statusChangeDetail = ` · 진행구분 자동변경: ${project.status} → ${nextStatus}`;
+      }
     }
 
     await ctx.db.insert("auditLogs", {
       projectId: args.projectId,
       userName: args.userName || "관리자",
       action: args.isPublish ? `${args.quoteType} 발행` : "가견적 임시저장",
-      detail: `견적 v${nextVer} (${quoteTitle}): 공급원가 ${args.supplyCost.toLocaleString()}원, 절삭총액 ${args.originalPrice.toLocaleString()}원, 일시불할인 ${args.discountAmount.toLocaleString()}원, 최종합계 ${args.totalPrice.toLocaleString()}원 (마진 ${args.marginAmount.toLocaleString()}원)`,
+      detail: `견적 v${nextVer} (${quoteTitle}): 공급원가 ${args.supplyCost.toLocaleString()}원, 절삭총액 ${args.originalPrice.toLocaleString()}원, 일시불할인 ${args.discountAmount.toLocaleString()}원, 최종합계 ${args.totalPrice.toLocaleString()}원 (마진 ${args.marginAmount.toLocaleString()}원)${statusChangeDetail}`,
       createdAt: now,
     });
 

@@ -7740,7 +7740,9 @@ case'publish-quote':{
         c.quote = t.total;
         c.token = qData.access_token;
         c.quoteType = qData.quote_type || editor.type;
-        c.status = editor.type === '최종견적' ? '최종견적 생성함' : '가견적 생성함';
+        if (!['계약진행', '계약완료', '시공완료'].includes(c.status)) {
+          c.status = editor.type === '최종견적' ? '최종견적 생성함' : '가견적 생성함';
+        }
         audit(c.id, '견적서 v' + qData.version + ' 발행 · 최종 ' + won(t.total) + ' (공급원가 ' + won(t.supplyCost) + ', 마진금액 ' + won(t.profit) + ')');
         save();
         await syncFromServer();
