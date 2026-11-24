@@ -1125,18 +1125,56 @@ function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUr
     '※ 열람 시 고객님 본인 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.';
 }
 
+function parseExternalQuoteLinks(raw) {
+  const s = String(raw || '').trim();
+  if (!s || s.startsWith('/quote.html?token=')) return [];
+  if (s.startsWith('[')) {
+    try {
+      const arr = JSON.parse(s);
+      if (Array.isArray(arr)) {
+        return arr
+          .map((item) => ({
+            url: String(item?.url || '').trim(),
+            memo: String(item?.memo || '').trim(),
+          }))
+          .filter((item) => item.url && !item.url.startsWith('/quote.html?token='));
+      }
+    } catch {}
+  }
+  return [{ url: s, memo: '' }];
+}
+
+function serializeExternalQuoteLinks(items) {
+  const clean = (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      url: String(item?.url || '').trim(),
+      memo: String(item?.memo || '').trim(),
+    }))
+    .filter((item) => item.url);
+  if (!clean.length) return '';
+  if (clean.length === 1 && !clean[0].memo) return clean[0].url;
+  return JSON.stringify(clean);
+}
+
 function getExternalQuoteUrl(url) {
-  const raw = String(url || '').trim();
-  return raw.startsWith('/quote.html?token=') ? '' : raw;
+  const links = parseExternalQuoteLinks(url);
+  return links[0]?.url || '';
 }
 
 function quoteLinkSideRow(label, url, editAction, id, canEditLink = true) {
-  const externalUrl = getExternalQuoteUrl(url);
-  if (externalUrl) {
-    return '<div style="display:flex;gap:6px">' +
-      '<a class="btn soft sm" href="' + esc(externalUrl) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + label + ' 링크보기</a>' +
-      (canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 9px">' + icon('edit') + '</button>' : '') +
-    '</div>';
+  const links = parseExternalQuoteLinks(url);
+  if (links.length > 0) {
+    const rowsHtml = links.map((item, idx) => {
+      const titleLabel = links.length > 1 ? `${label} 링크 ${idx + 1}` : `${label} 링크보기`;
+      return '<div style="display:flex;flex-direction:column;gap:3px">' +
+        '<div style="display:flex;gap:6px">' +
+          '<a class="btn soft sm" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer" style="flex:1">' + icon('external') + titleLabel + '</a>' +
+          (idx === 0 && canEditLink ? '<button class="btn sm" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 링크 관리" style="padding:6px 9px">' + icon('edit') + '</button>' : '') +
+        '</div>' +
+        (item.memo ? '<small style="color:var(--muted);font-size:11px;padding-left:4px;line-height:1.35">· ' + esc(item.memo) + '</small>' : '') +
+      '</div>';
+    }).join('');
+    return '<div style="display:flex;flex-direction:column;gap:6px">' + rowsHtml + '</div>';
   }
   if (canEditLink) {
     return '<button class="btn sm block" type="button" data-action="' + editAction + '" data-id="' + id + '" title="' + label + ' 외부 링크 직접 등록">' +
@@ -5087,7 +5125,52 @@ function closeDialog(){
 }
 function formDialog(title,fields,submit,subtitle='',extra=''){openDialog(title,`<form id="edit-form" data-submit="${submit}" ${extra}><div class="dialog-body">${fields}</div><div class="dialog-footer">${btn('취소','close')}<button type="submit" class="btn primary">저장하기</button></div></form>`,'','',subtitle)}
 function linkRow(label,url,action,id,emptyLabel=label+' 등록'){return url?`<div style="display:flex;gap:6px"><a class="btn soft sm" href="${esc(url)}" target="_blank" rel="noopener noreferrer" style="flex:1">${icon('external')}${label} 바로가기</a><button class="btn sm" type="button" data-action="${action}" data-id="${id}" title="${label} 링크 수정" aria-label="${label} 링크 수정" style="padding:6px 9px">${icon('edit')}</button></div>`:btn(emptyLabel,action,'link','sm block',`data-id="${id}"`)}
-function linkDialog(title,label,url,submit,id,customerName){const isQuoteLink=(label==='가견적'||label==='최종견적');const cleanUrl=isQuoteLink?getExternalQuoteUrl(url):String(url||'').trim();openDialog(title,`<form id="edit-form" data-submit="${submit}" data-id="${id}"><div class="dialog-body">${field(label+' URL','url',cleanUrl,'text')}<p class="field-hint">${isQuoteLink?`담당자가 연결할 ${label} 페이지 주소(URL)를 입력해 주세요. (모바일 견적서 링크와는 별도로 관리됩니다.)`:`이동할 ${label} 페이지 주소(URL)를 입력해 주세요.`}</p>${cleanUrl?`<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><a class="btn sm" href="${esc(cleanUrl)}" target="_blank" rel="noopener noreferrer">${icon('external')}새 탭에서 열기</a></div>`:''}</div><div class="dialog-footer"><button type="button" class="btn" data-action="customer" data-id="${id}">취소</button><button type="submit" class="btn primary">저장하기</button></div></form>`,'','',`${esc(customerName)} · ${label}`)}
+function buildQuoteLinkEntryHtml(label, item = { url: '', memo: '' }, idx = 0) {
+  const u = String(item?.url || '').trim();
+  const m = String(item?.memo || '').trim();
+  return `<div class="quote-link-entry" style="padding:12px;border:1px solid var(--line);border-radius:10px;background:#f8fafc;display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <strong style="font-size:12px;color:var(--navy)">${esc(label)} 링크 #${idx + 1}</strong>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${u ? `<a class="btn sm soft" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${icon('external')}열기</a>` : ''}
+        <button type="button" class="btn sm danger" data-action="remove-quote-link-row" title="이 링크 삭제">${icon('trash')}삭제</button>
+      </div>
+    </div>
+    <div class="field" style="margin:0"><label style="font-size:11px">URL</label><input class="input" name="quote-link-url" type="text" value="${esc(u)}" placeholder="https://..."></div>
+    <div class="field" style="margin:0"><label style="font-size:11px">메모</label><input class="input" name="quote-link-memo" type="text" value="${esc(m)}" placeholder="예: 1차 견적, 발코니 확장 포함안, 수정본 등"></div>
+  </div>`;
+}
+
+function linkDialog(title,label,url,submit,id,customerName){
+  const isQuoteLink=(label==='가견적'||label==='최종견적');
+  if (isQuoteLink) {
+    const links = parseExternalQuoteLinks(url);
+    const list = links.length ? links : [{ url: '', memo: '' }];
+    const entriesHtml = list.map((item, idx) => buildQuoteLinkEntryHtml(label, item, idx)).join('');
+    openDialog(
+      title,
+      `<form id="edit-form" data-submit="${submit}" data-id="${id}" data-link-label="${esc(label)}">
+        <div class="dialog-body">
+          <p class="field-hint" style="margin-bottom:12px">담당자가 연결할 ${esc(label)} 페이지 주소(URL)와 메모를 여러 개 추가해 관리할 수 있습니다. (모바일 견적서 링크와는 별도로 관리됩니다.)</p>
+          <div id="quote-link-entries" style="display:flex;flex-direction:column;gap:10px">${entriesHtml}</div>
+          <div style="margin-top:12px">
+            <button type="button" class="btn soft sm" data-action="add-quote-link-row">${icon('plus')}링크 추가</button>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button type="button" class="btn" data-action="customer" data-id="${id}">취소</button>
+          <button type="submit" class="btn primary">저장하기</button>
+        </div>
+      </form>`,
+      '',
+      '',
+      `${esc(customerName)} · ${label}`
+    );
+    return;
+  }
+  const cleanUrl=String(url||'').trim();
+  openDialog(title,`<form id="edit-form" data-submit="${submit}" data-id="${id}"><div class="dialog-body">${field(label+' URL','url',cleanUrl,'text')}<p class="field-hint">이동할 ${label} 페이지 주소(URL)를 입력해 주세요.</p>${cleanUrl?`<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><a class="btn sm" href="${esc(cleanUrl)}" target="_blank" rel="noopener noreferrer">${icon('external')}새 탭에서 열기</a></div>`:''}</div><div class="dialog-footer"><button type="button" class="btn" data-action="customer" data-id="${id}">취소</button><button type="submit" class="btn primary">저장하기</button></div></form>`,'','',`${esc(customerName)} · ${label}`);
+}
 const _customerDetailInFlight = new Set();
 
 function getCustomerNoteLogs(c) {
@@ -7994,8 +8077,37 @@ case'delete-selected':{
 case'calendar':{const cs=visibleCustomers().filter(c=>c.measure||c.build);openDialog('실측·시공 일정',`<div class="dialog-body">${cs.map(c=>`<div class="notification" data-action="customer" data-id="${c.id}">${icon('calendar')}<div><b>${esc(c.name)} · ${c.product}</b><small>실측 ${c.measure||'미정'}　/　시공 ${c.build||'미정'}</small></div></div>`).join('')||'<div class="empty">등록된 일정이 없습니다.</div>'}</div>`,btn('일정 등록','schedule','plus','primary'),'','공사건별 예정 일정');break}case'schedule':showSchedule(id);break;
 case'notifications':{const cs=visibleCustomers().filter(c=>c.owner==='미배정'||c.status==='가견적요청'||c.status==='실측예정');openDialog('오늘 확인할 업무',`<div class="dialog-body">${cs.map(c=>`<div class="notification" data-action="customer" data-id="${c.id}">${icon(c.status==='실측예정'?'calendar':'clock')}<div><b>${esc(c.name)} · ${c.status}</b><small>${esc(c.owner==='미배정'?'담당 상담사를 배정해 주세요.':c.note)}</small></div>${icon('chevron')}</div>`).join('')||'<div class="empty">현재 대기 업무가 없습니다.</div>'}</div>`,'','','고객별 다음 업무를 바로 확인하세요.');break}
 case'assign':{if(!selected.size){toast('고객을 먼저 선택하세요.');break}const assignList=getHqOwnerOptions().filter(n=>n!=='미배정').concat(['미배정']);formDialog('담당자 일괄 배정',selectField('담당 관리자','owner',assignList,assignList[0]||'김지훈'),'assign',`${selected.size}명의 선택 고객에 적용`);break}
-case'rough-quote-link':{const c=accessibleC(id);if(c)linkDialog('가견적 링크 관리','가견적',getExternalQuoteUrl(c.roughQuoteUrl),'rough-quote-link',id,c.name);break}
-case'final-quote-link':{const c=accessibleC(id);if(c)linkDialog('최종견적 링크 관리','최종견적',getExternalQuoteUrl(c.finalQuoteUrl),'final-quote-link',id,c.name);break}
+case'rough-quote-link':{const c=accessibleC(id);if(c)linkDialog('가견적 링크 관리','가견적',c.roughQuoteUrl,'rough-quote-link',id,c.name);break}
+case'final-quote-link':{const c=accessibleC(id);if(c)linkDialog('최종견적 링크 관리','최종견적',c.finalQuoteUrl,'final-quote-link',id,c.name);break}
+case'add-quote-link-row':{
+  const form=$('#edit-form');
+  const box=$('#quote-link-entries');
+  if(form && box){
+    const label=form.dataset.linkLabel||'견적';
+    const nextIdx=box.querySelectorAll('.quote-link-entry').length;
+    box.insertAdjacentHTML('beforeend', buildQuoteLinkEntryHtml(label, { url: '', memo: '' }, nextIdx));
+  }
+  break;
+}
+case'remove-quote-link-row':{
+  const row=el.closest('.quote-link-entry');
+  const box=$('#quote-link-entries');
+  const form=$('#edit-form');
+  if(row && box){
+    row.remove();
+    const label=form?.dataset.linkLabel||'견적';
+    const rows=box.querySelectorAll('.quote-link-entry');
+    if(!rows.length){
+      box.insertAdjacentHTML('beforeend', buildQuoteLinkEntryHtml(label, { url: '', memo: '' }, 0));
+    }else{
+      rows.forEach((r, idx)=>{
+        const titleEl=r.querySelector('strong');
+        if(titleEl) titleEl.textContent=`${label} 링크 #${idx + 1}`;
+      });
+    }
+  }
+  break;
+}
 case'drawing':{const c=accessibleC(id);if(c)linkDialog('내관도 링크 관리','내관도',c.drawing,'drawing',id,c.name);break}
 case'contract':openContract(id);break;case'cash-contract':openContract(id,true);break;case'application':openApplication(id);break;case'download-rental-doc':{const kind=el.dataset.kind;const doc=_activeRentalDocs?.[kind];const src=doc?.dataUrl||doc?.viewUrl;if(!src){toast('다운로드할 서류 파일이 없습니다.');break}const ext=getDocFileExtension(doc.mimeType,src);const label=kind==='id_card'?'신분증':'전자서명';const cust=(_activeRentalDocs?.customerName||'고객').replace(/[\\/:*?"<>|]/g,'_');const appNo=(_activeRentalDocs?.appId||'rental').replace(/[\\/:*?"<>|]/g,'_');triggerDocDownload(src,`${cust}_${appNo}_${label}_v${doc.versionNo||1}.${ext}`);break}case'find-application':{const app=db.applications.find(x=>x.cid===Number(id));if(app)openApplication(app.id);else toast('아직 접수된 렌탈 신청이 없습니다.');break}
 case'open-supplement-dialog':openSupplementDialog(id);break;
@@ -9130,21 +9242,39 @@ case'schedule':{const c=accessibleC(d.cid);if(!c)break;c.measure=d.date;c.status
 case'assign':for(const cid of selected){const c=accessibleC(cid);if(c){const prev=c.owner;c.owner=d.owner;audit(cid,`담당자 ${prev} → ${d.owner}`)}}selected.clear();closeDialog();render();toast('담당자를 배정했습니다.');break;
 case'rough-quote-link':{
     const c=accessibleC(id);
-    const url=normalizeURL(d.url);
-    if(!validateURL(url)){toast('올바른 http 또는 https 링크를 입력해 주세요.');return}
-    try { const res = await apiFetch('/api/customers/' + id, { method: 'PATCH', body: { roughQuoteUrl: url } }); if (res.ok) await syncFromServer(); } catch {}
-    c.roughQuoteUrl=url;
-    if(url && ['신규접수','상담중','가견적요청','견적안내'].includes(c.status)){c.status='가견적 생성함';}
-    audit(id,url?'가견적 링크 등록·수정':'가견적 링크 제거');openCustomer(id,detailTab||'notes');toast(url?'가견적 링크를 저장했습니다.':'가견적 링크를 제거했습니다.');break;
+    const entryEls=[...f.querySelectorAll('.quote-link-entry')];
+    const items=[];
+    for(const row of entryEls){
+      const rawU=row.querySelector('input[name="quote-link-url"]')?.value||'';
+      const rawM=row.querySelector('input[name="quote-link-memo"]')?.value||'';
+      const normU=normalizeURL(rawU);
+      if(!normU) continue;
+      if(!validateURL(normU)){toast('올바른 http 또는 https 링크를 입력해 주세요.');return}
+      items.push({ url: normU, memo: String(rawM).trim() });
+    }
+    const serialized=serializeExternalQuoteLinks(items);
+    try { const res = await apiFetch('/api/customers/' + id, { method: 'PATCH', body: { roughQuoteUrl: serialized } }); if (res.ok) await syncFromServer(); } catch {}
+    c.roughQuoteUrl=serialized;
+    if(serialized && ['신규접수','상담중','가견적요청','견적안내'].includes(c.status)){c.status='가견적 생성함';}
+    audit(id,items.length?`가견적 링크 ${items.length}건 저장`:'가견적 링크 제거');openCustomer(id,detailTab||'notes');toast(items.length?`가견적 링크 ${items.length}건을 저장했습니다.`:'가견적 링크를 제거했습니다.');break;
   }
   case'final-quote-link':{
     const c=accessibleC(id);
-    const url=normalizeURL(d.url);
-    if(!validateURL(url)){toast('올바른 http 또는 https 링크를 입력해 주세요.');return}
-    try { const res = await apiFetch('/api/customers/' + id, { method: 'PATCH', body: { finalQuoteUrl: url } }); if (res.ok) await syncFromServer(); } catch {}
-    c.finalQuoteUrl=url;
-    if(url && ['신규접수','상담중','가견적요청','가견적 생성함','견적안내','실측예정','실측완료','최종견적'].includes(c.status)){c.status='최종견적 생성함';}
-    audit(id,url?'최종견적 링크 등록·수정':'최종견적 링크 제거');openCustomer(id,detailTab||'notes');toast(url?'최종견적 링크를 저장했습니다.':'최종견적 링크를 제거했습니다.');break;
+    const entryEls=[...f.querySelectorAll('.quote-link-entry')];
+    const items=[];
+    for(const row of entryEls){
+      const rawU=row.querySelector('input[name="quote-link-url"]')?.value||'';
+      const rawM=row.querySelector('input[name="quote-link-memo"]')?.value||'';
+      const normU=normalizeURL(rawU);
+      if(!normU) continue;
+      if(!validateURL(normU)){toast('올바른 http 또는 https 링크를 입력해 주세요.');return}
+      items.push({ url: normU, memo: String(rawM).trim() });
+    }
+    const serialized=serializeExternalQuoteLinks(items);
+    try { const res = await apiFetch('/api/customers/' + id, { method: 'PATCH', body: { finalQuoteUrl: serialized } }); if (res.ok) await syncFromServer(); } catch {}
+    c.finalQuoteUrl=serialized;
+    if(serialized && ['신규접수','상담중','가견적요청','가견적 생성함','견적안내','실측예정','실측완료','최종견적'].includes(c.status)){c.status='최종견적 생성함';}
+    audit(id,items.length?`최종견적 링크 ${items.length}건 저장`:'최종견적 링크 제거');openCustomer(id,detailTab||'notes');toast(items.length?`최종견적 링크 ${items.length}건을 저장했습니다.`:'최종견적 링크를 제거했습니다.');break;
   }
   case'drawing':{
     const c=accessibleC(id);
