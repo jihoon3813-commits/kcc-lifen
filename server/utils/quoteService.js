@@ -276,10 +276,62 @@ export async function getProjectQuotePreviewFromConvex(
     sent_at: d.createdAt ? String(d.createdAt).slice(0, 16).replace('T', ' ') : '',
   }));
 
+  const isHqAdmin = !partnerOrgId && user?.role === 'hq_admin';
+  let adminEditorQuote = null;
+  if (isHqAdmin && quote) {
+    let parsedMeta = null;
+    if (quote.metaJson) {
+      try { parsedMeta = JSON.parse(quote.metaJson); } catch {}
+    }
+    const quoteItemsForVersion = (data.quoteItems || [])
+      .filter((it) => Number(it.quoteVersion) === Number(quote.version))
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map((it) => {
+        let parsedDetail = null;
+        if (it.detailJson) {
+          try { parsedDetail = JSON.parse(it.detailJson); } catch {}
+        }
+        return {
+          name: it.name || '',
+          spec: it.spec || '',
+          category: it.category || 'window',
+          detail: parsedDetail,
+          qty: Number(it.quantity) || 1,
+          price: Number(it.costUnitPrice) || 0,
+          cost_total: Number(it.costTotal) || 0,
+          margin_rate:
+            it.marginRate !== undefined && it.marginRate !== null
+              ? Number(it.marginRate)
+              : Number(quote.marginRate ?? 100),
+          sale_unit_price: Number(it.saleUnitPrice) || 0,
+          sale_total: Number(it.saleTotal) || 0,
+        };
+      });
+
+    adminEditorQuote = {
+      id: quote.version,
+      version: quote.version,
+      quote_type: quote.quoteType || '가견적',
+      title: quote.title || '',
+      memo: quote.memo || '',
+      margin_rate:
+        quote.marginRate !== undefined && quote.marginRate !== null
+          ? Number(quote.marginRate)
+          : 100,
+      discount_amount: Number(quote.discountAmount) || 0,
+      supply_cost: Number(quote.supplyCost) || 0,
+      total_cost: Number(quote.totalCost) || 0,
+      margin_amount: Number(quote.marginAmount) || 0,
+      meta: parsedMeta,
+      items: quoteItemsForVersion,
+    };
+  }
+
   return {
     status: 200,
     data: {
       quote: safeQuote,
+      ...(adminEditorQuote ? { admin_editor_quote: adminEditorQuote } : {}),
       is_simulated_type: isSimulatedType,
       requested_type: requestedType || safeQuote.quote_type,
       available_quotes: availableQuotes,

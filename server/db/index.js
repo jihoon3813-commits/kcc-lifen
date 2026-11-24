@@ -120,12 +120,14 @@ export const DEFAULT_STAGES = [
   { name: '신규접수', color: 'blue', sort_order: 1 },
   { name: '상담중', color: 'purple', sort_order: 2 },
   { name: '가견적요청', color: 'orange', sort_order: 3 },
-  { name: '견적안내', color: 'blue', sort_order: 4 },
-  { name: '실측예정', color: 'green', sort_order: 5 },
-  { name: '최종견적', color: 'purple', sort_order: 6 },
-  { name: '계약진행', color: 'green', sort_order: 7 },
-  { name: '시공완료', color: 'gray', sort_order: 8 },
-  { name: '보류', color: 'gray', sort_order: 9 }
+  { name: '가견적 생성함', color: 'green', sort_order: 4 },
+  { name: '견적안내', color: 'blue', sort_order: 5 },
+  { name: '실측예정', color: 'green', sort_order: 6 },
+  { name: '최종견적', color: 'purple', sort_order: 7 },
+  { name: '최종견적 생성함', color: 'green', sort_order: 8 },
+  { name: '계약진행', color: 'green', sort_order: 9 },
+  { name: '시공완료', color: 'gray', sort_order: 10 },
+  { name: '보류', color: 'gray', sort_order: 11 }
 ];
 
 export const DEFAULT_CONTRACT_STATUSES = [

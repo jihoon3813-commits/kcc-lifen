@@ -21,12 +21,14 @@ const DEFAULT_STAGES = [
   { id: 1, name: '신규접수', color: 'blue', sort_order: 1 },
   { id: 2, name: '상담중', color: 'purple', sort_order: 2 },
   { id: 3, name: '가견적요청', color: 'orange', sort_order: 3 },
-  { id: 4, name: '견적안내', color: 'blue', sort_order: 4 },
-  { id: 5, name: '실측예정', color: 'green', sort_order: 5 },
-  { id: 6, name: '최종견적', color: 'purple', sort_order: 6 },
-  { id: 7, name: '계약진행', color: 'green', sort_order: 7 },
-  { id: 8, name: '시공완료', color: 'gray', sort_order: 8 },
-  { id: 9, name: '보류', color: 'gray', sort_order: 9 }
+  { id: 4, name: '가견적 생성함', color: 'green', sort_order: 4 },
+  { id: 5, name: '견적안내', color: 'blue', sort_order: 5 },
+  { id: 6, name: '실측예정', color: 'green', sort_order: 6 },
+  { id: 7, name: '최종견적', color: 'purple', sort_order: 7 },
+  { id: 8, name: '최종견적 생성함', color: 'green', sort_order: 8 },
+  { id: 9, name: '계약진행', color: 'green', sort_order: 9 },
+  { id: 10, name: '시공완료', color: 'gray', sort_order: 10 },
+  { id: 11, name: '보류', color: 'gray', sort_order: 11 }
 ];
 
 const DEFAULT_CONTRACT_STATUSES = [
@@ -1890,7 +1892,7 @@ function quotesPage() {
           : ''}
         ${c.quote ? renderQuotePreviewButtons(c, 'sm soft') : ''}
         ${c.quote ? btn('문자·카톡', 'send-quote', 'send', 'sm soft', `data-id="${c.id}"`) : ''}
-        ${btn(c.quote ? '수정본' : '엑셀 등록', 'new-quote', c.quote ? 'edit' : 'upload', c.quote ? 'sm' : 'sm primary', `data-id="${c.id}"`)}
+        ${btn(c.quote ? '견적 수정' : '엑셀 등록', 'new-quote', c.quote ? 'edit' : 'upload', c.quote ? 'sm' : 'sm primary', `data-id="${c.id}"${c.quote ? ` data-type="${esc(activeType)}"${activeQ?.id ? ` data-quote-id="${activeQ.id}"` : ''}` : ''}`)}
       </div>`;
 
       return `<tr class="${strip.cls.trim()}"><td><input type="checkbox" data-select="${c.id}" ${selected.has(c.id) ? 'checked' : ''} aria-label="${esc(c.name)} 선택"></td><td class="card-primary">${custCellHtml}</td><td data-label="견적 구분 · 계약">${typeCellHtml}</td><td data-label="견적 금액 상세" class="money">${priceDetailHtml}</td><td data-label="결제조건 기준액" class="money">${autoTermHtml}</td><td data-label="열람 · 담당">${viewOwnerHtml}</td><td class="card-actions">${actionsHtml}</td></tr>` + (isExpanded ? renderQuoteInquiryDetailRow(c) : '');
@@ -5249,7 +5251,7 @@ if(tab==='quotes')content=`
       ${isHqAdminUser()?btn('견적등록 바로가기','go-quote-editor','plus','primary sm',`data-id="${id}"`):''}
       ${c.quote?btn('문자·카톡 발송창 열기','send-quote','send','sm soft',`data-id="${id}"`)+btn('대표 링크 복사','copy-quote','copy','sm',`data-id="${id}"`):''}
     </div>
-    ${(c.publishedQuotes&&c.publishedQuotes.length)?`<h4 style="margin:8px 0 10px;font-size:12px">발행 견적 버전 히스토리 (${c.publishedQuotes.length}건)</h4>`+c.publishedQuotes.map(pq=>`<div class="file-card" style="flex-wrap:wrap">${icon('file')}<div style="flex:1;min-width:160px"><b>[v${pq.version} · ${esc(pq.quoteType)}] ${esc(pq.title)}</b><small>${won(pq.totalPrice)} · 발행일 ${esc(pq.date)} · ${pq.viewed?'고객 열람완료':'미열람'}</small></div><div class="actions">${btn('미리보기','preview','eye','sm soft',`data-id="${id}" data-type="${esc(pq.quoteType)}" data-quote-id="${pq.id}"`)}${btn('발송','send-quote','send','sm',`data-id="${id}" data-type="${esc(pq.quoteType)}"`)}</div></div>`).join(''):(c.quote?'':'<div class="notice-text">아직 발행된 견적이 없습니다. 견적관리 메뉴에서 가견적 또는 최종견적을 작성하세요.</div>')}
+    ${(c.publishedQuotes&&c.publishedQuotes.length)?`<h4 style="margin:8px 0 10px;font-size:12px">발행 견적 버전 히스토리 (${c.publishedQuotes.length}건)</h4>`+c.publishedQuotes.map(pq=>`<div class="file-card" style="flex-wrap:wrap">${icon('file')}<div style="flex:1;min-width:160px"><b>[v${pq.version} · ${esc(pq.quoteType)}] ${esc(pq.title)}</b><small>${won(pq.totalPrice)} · 발행일 ${esc(pq.date)} · ${pq.viewed?'고객 열람완료':'미열람'}</small></div><div class="actions">${btn('미리보기','preview','eye','sm soft',`data-id="${id}" data-type="${esc(pq.quoteType)}" data-quote-id="${pq.id}"`)}${isHqAdminUser()?btn('견적 수정','go-quote-editor','edit','sm',`data-id="${id}" data-type="${esc(pq.quoteType)}" data-quote-id="${pq.id}"`):''}${btn('발송','send-quote','send','sm',`data-id="${id}" data-type="${esc(pq.quoteType)}"`)}</div></div>`).join(''):(c.quote?'':'<div class="notice-text">아직 발행된 견적이 없습니다. 견적관리 메뉴에서 가견적 또는 최종견적을 작성하세요.</div>')}
   `;
 if(tab==='contract')content=`${custContracts.map(k=>{
   const isRental = k.type === '렌탈';
@@ -5620,7 +5622,78 @@ function openQuoteCustomerPicker(presetType = '') {
   setTimeout(() => $('#quote-cust-picker-search')?.focus(), 40);
 }
 
-function openEditor(id, presetType = '') {
+async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
+  if (!editor || Number(editor.cid) !== Number(cid)) return false;
+  try {
+    const qs = new URLSearchParams();
+    if (targetType) qs.set('type', targetType);
+    if (targetQuoteId) qs.set('quoteId', String(targetQuoteId));
+    const queryStr = qs.toString() ? `?${qs.toString()}` : '';
+    const res = await apiFetch('/api/quotes/by-project/' + cid + '/preview' + queryStr);
+    if (!res.ok) return false;
+    const pData = await res.json();
+    if (!editor || Number(editor.cid) !== Number(cid)) return false;
+
+    const eq = pData?.admin_editor_quote;
+    if (eq && Array.isArray(eq.items) && eq.items.length) {
+      const hasExtraNon100 = eq.items.some(
+        it => it.category === 'extra' && Number(it.margin_rate) !== 100 && Number(it.margin_rate) === Number(eq.margin_rate)
+      );
+      editor.margin = Number(eq.margin_rate ?? 100);
+      editor.marginScope = hasExtraNon100 ? 'all' : 'material';
+      editor.discount = Number(eq.discount_amount) || 0;
+      editor.type = eq.quote_type || editor.type || '가견적';
+      editor.title = eq.title || editor.title;
+      editor.memo = eq.memo || '';
+      editor.meta = eq.meta || null;
+      editor.source = `기존 발행 견적 v${eq.version} (${eq.quote_type || '가견적'}) 불러옴`;
+      editor.excelGrandTotal = eq.supply_cost > 0 ? Number(eq.supply_cost) : null;
+      editor.excelSubtotal = eq.total_cost > 0 ? Number(eq.total_cost) : null;
+      editor.items = eq.items.map(it => ({
+        name: it.name,
+        spec: it.spec || '',
+        category: it.category || 'window',
+        detail: it.detail,
+        qty: Number(it.qty) || 1,
+        price: Number(it.price) || 0,
+        cost_total: Number(it.cost_total) || 0,
+        margin_rate: it.margin_rate !== undefined && it.margin_rate !== null ? Number(it.margin_rate) : (Number(eq.margin_rate) || 100)
+      }));
+      editor.loadingExisting = false;
+      renderEditor();
+      toast(`기존 [${editor.type} v${eq.version}] 견적과 마진·세부 조건을 불러왔습니다.`);
+      return true;
+    }
+
+    const qItems = pData?.quote?.items || [];
+    if (qItems.length) {
+      editor.items = qItems.map(it => ({
+        name: it.name,
+        spec: it.spec || '',
+        category: it.category || 'window',
+        detail: it.detail,
+        qty: Number(it.quantity) || 1,
+        price: Number(it.sale_unit_price) || 0,
+        cost_total: Number(it.sale_total) || 0,
+        margin_rate: 100
+      }));
+      editor.excelGrandTotal = null;
+      editor.excelSubtotal = null;
+      editor.loadingExisting = false;
+      renderEditor();
+      toast('기존 발행 견적 품목 ' + qItems.length + '건을 불러왔습니다.');
+      return true;
+    }
+  } catch (err) {
+    console.error('loadQuoteIntoEditor error:', err);
+  }
+  if (editor && Number(editor.cid) === Number(cid)) {
+    editor.loadingExisting = false;
+  }
+  return false;
+}
+
+function openEditor(id, presetType = '', presetQuoteId = null) {
   if (!canManageQuotes()) {
     if (id) {
       audit(id, '견적 작성 요청');
@@ -5641,7 +5714,8 @@ function openEditor(id, presetType = '') {
     openQuoteCustomerPicker(presetType);
     return;
   }
-  const initType = presetType || (c.roughQuote && !c.finalQuote ? '최종견적' : '가견적');
+  const hasExisting = Boolean(c.quote > 0 || c.roughQuote || c.finalQuote || presetQuoteId);
+  const initType = presetType || (c.finalQuote ? '최종견적' : (c.roughQuote ? '가견적' : '가견적'));
   editor = {
     cid: c.id,
     margin: 100,
@@ -5655,9 +5729,13 @@ function openEditor(id, presetType = '') {
     excelGrandTotal: null,
     excelSubtotal: null,
     showLivePreview: false,
+    loadingExisting: hasExisting,
     items: []
   };
   renderEditor();
+  if (hasExisting) {
+    loadQuoteIntoEditor(c.id, presetType || initType, presetQuoteId);
+  }
 }
 
 function editorTotal() {
@@ -6082,6 +6160,7 @@ function openPreview(id, q = null, viewMode = 'quote', preferredType = '', quote
     : '<small>현재 열람 중인 <b>[' + esc(previewQuoteType) + ']</b> 금액으로 바로 계약을 등록하거나 고객에게 발송할 수 있습니다.</small>' +
       '<button class="btn purple-btn" id="preview-contract-btn" data-action="new-contract" data-id="' + c.id + '" data-quote-type="' + esc(previewQuoteType) + '" data-from="preview">' + icon('contract') + esc(previewQuoteType) + ' 금액으로 계약 등록</button>' +
       '<button class="btn" id="preview-copy-btn" data-action="copy-quote" data-id="' + c.id + '" data-type="' + esc(previewQuoteType) + '">' + icon('link') + esc(previewQuoteType) + ' 링크 복사</button>' +
+      (isHqAdminUser() ? btn('견적 수정', 'go-quote-editor', 'edit', '', `data-id="${c.id}" data-type="${esc(previewQuoteType)}"`) : '') +
       '<button class="btn primary" id="preview-send-btn" data-action="send-quote" data-id="' + c.id + '" data-type="' + esc(previewQuoteType) + '">' + icon('send') + esc(previewQuoteType) + ' 문자·카톡 발송</button>' +
       btn('닫기', 'close');
 
@@ -7376,7 +7455,7 @@ case'clear-quote-phone':{
     }
   })();
   break;
-}case'new-quote':openEditor(id, el.dataset.type || '');break;
+}case'new-quote':openEditor(id, el.dataset.type || '', el.dataset.quoteId ? Number(el.dataset.quoteId) : null);break;
   case'preview':openPreview(id, null, 'quote', el.dataset.type || '', el.dataset.quoteId || null);break;
   case'editor-preview':openPreview(editor.cid, { ...editor, ...editorTotal() }, 'quote', el.dataset.type || editor.type || '가견적');break;
   case'send-quote':openSendQuote(id, el.dataset.type || '');break;
@@ -7545,33 +7624,9 @@ case'clear-quote-phone':{
   }
   case'load-existing-quote-items':{
     if (!editor) break;
-    try {
-      const res = await apiFetch('/api/quotes/by-project/' + editor.cid + '/preview');
-      if (res.ok) {
-        const pData = await res.json();
-        const qItems = pData?.quote?.items || [];
-        if (qItems.length) {
-          editor.items = qItems.map(it => ({
-            name: it.name,
-            spec: it.spec || '',
-            category: it.category || 'window',
-            detail: it.detail,
-            qty: Number(it.quantity) || 1,
-            price: Number(it.sale_unit_price) || 0,
-            cost_total: Number(it.sale_total) || 0,
-            margin_rate: 100
-          }));
-          editor.excelGrandTotal = null;
-          editor.excelSubtotal = null;
-          editor.showLivePreview = true;
-          renderEditor();
-          toast('기존 발행 견적 품목 ' + qItems.length + '건을 불러왔습니다.');
-          break;
-        }
-      }
+    const loaded = await loadQuoteIntoEditor(editor.cid, editor.type || '', null);
+    if (!loaded) {
       toast('불러올 상세 품목이 없습니다.');
-    } catch {
-      toast('기존 품목 불러오기에 실패했습니다.');
     }
     break;
   }
@@ -7735,8 +7790,9 @@ case'publish-quote':{
         c.quote = t.total;
         c.token = qData.access_token;
         c.quoteType = qData.quote_type || editor.type;
-        if (!['계약진행', '계약완료', '시공완료'].includes(c.status)) {
-          c.status = editor.type === '최종견적' ? '최종견적 생성함' : '가견적 생성함';
+        const publishedType = qData.quote_type || editor.type;
+        if (!['계약진행', '계약완료', '시공예정', '시공완료'].includes(c.status)) {
+          c.status = publishedType === '최종견적' ? '최종견적 생성함' : '가견적 생성함';
         }
         audit(c.id, '견적서 v' + qData.version + ' 발행 · 최종 ' + won(t.total) + ' (공급원가 ' + won(t.supplyCost) + ', 마진금액 ' + won(t.profit) + ')');
         save();
@@ -8058,7 +8114,7 @@ case'go-quote-editor':{
     closeDialog();
     page = 'quotes';
     render();
-    openEditor(id, el.dataset.type || '');
+    openEditor(id, el.dataset.type || '', el.dataset.quoteId ? Number(el.dataset.quoteId) : null);
     window.scrollTo(0, 0);
     break;
   }

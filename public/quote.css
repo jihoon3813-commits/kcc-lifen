@@ -670,3 +670,72 @@
     white-space: nowrap;
   }
 }
+
+/* === Green Remodeling Separate Notice === */
+.green-remodeling-notice {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #f2f8f5;
+  border: 1px solid #cfe3da;
+}
+.green-remodeling-notice .grn-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.green-remodeling-notice .grn-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #3d7770;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.green-remodeling-notice .grn-head strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c3b36;
+}
+.green-remodeling-notice p {
+  margin-top: 7px;
+  font-size: 11px;
+  line-height: 1.65;
+  color: #425f5a;
+  word-break: keep-all;
+}
+.green-remodeling-notice p b {
+  color: #1c3b36;
+  font-weight: 650;
+}
+.green-remodeling-notice .grn-link {
+  margin-top: 10px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2c625b;
+}
+.green-remodeling-notice .grn-link svg {
+  width: 14px;
+  height: 14px;
+}
+@media (max-width: 480px) {
+  .green-remodeling-notice {
+    padding: 13px 14px;
+  }
+  .green-remodeling-notice .grn-head strong {
+    font-size: 12px;
+  }
+  .green-remodeling-notice p {
+    font-size: 11px;
+  }
+  .green-remodeling-notice .grn-link {
+    font-size: 11px;
+  }
+}

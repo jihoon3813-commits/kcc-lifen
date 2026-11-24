@@ -407,7 +407,7 @@ export const createProjectQuote = mutation({
 
     let statusChangeDetail = "";
     if (args.isPublish) {
-      const postContractStatuses = ["계약진행", "계약완료", "시공완료"];
+      const postContractStatuses = ["계약진행", "계약완료", "시공예정", "시공완료"];
       let nextStatus = project.status;
       if (!postContractStatuses.includes(project.status)) {
         nextStatus = args.quoteType === "최종견적" ? "최종견적 생성함" : "가견적 생성함";
