@@ -5633,6 +5633,10 @@ async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
     if (!res.ok) return false;
     const pData = await res.json();
     if (!editor || Number(editor.cid) !== Number(cid)) return false;
+    if (targetType && pData?.is_simulated_type && !targetQuoteId) {
+      editor.loadingExisting = false;
+      return false;
+    }
 
     const eq = pData?.admin_editor_quote;
     if (eq && Array.isArray(eq.items) && eq.items.length) {
@@ -5659,6 +5663,7 @@ async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
         cost_total: Number(it.cost_total) || 0,
         margin_rate: it.margin_rate !== undefined && it.margin_rate !== null ? Number(it.margin_rate) : (Number(eq.margin_rate) || 100)
       }));
+      editor.loadedFromExisting = true;
       editor.loadingExisting = false;
       renderEditor();
       toast(`기존 [${editor.type} v${eq.version}] 견적과 마진·세부 조건을 불러왔습니다.`);
@@ -8850,7 +8855,7 @@ if(el.dataset.select){const n=Number(el.dataset.select);el.checked?selected.add(
     toast(`${selectedLabel} 화면을 새 창으로 열었습니다.`);
   }
   return;
-}if(id==='filter-product'){productFilter=el.value;render()}if(id==='filter-stage'){stageFilter=el.value;render()}if(id==='filter-partner'){partnerFilter=el.value;render()}if(id==='filter-source'){sourceFilter=el.value;linkFilter='';render()}if(id==='filter-period'){periodFilter=el.value;render()}if(id==='sort-order'){sortOrder=el.value;render()}if(id==='stats-period'){statsPeriod=el.value;render();refreshAnalytics(statsPeriod);}if(el.closest('#clone-link-form')){syncCloneLinkUrlPreview();}if(id==='quote-customer'){editor.cid=Number(el.value);renderEditor()}if(id==='quote-type'&&editor){editor.type=el.value;syncEditorLivePreview()}if(id==='quote-file'){const file=el.files[0];if(!file)return;editor.source=file.name;{
+}if(id==='filter-product'){productFilter=el.value;render()}if(id==='filter-stage'){stageFilter=el.value;render()}if(id==='filter-partner'){partnerFilter=el.value;render()}if(id==='filter-source'){sourceFilter=el.value;linkFilter='';render()}if(id==='filter-period'){periodFilter=el.value;render()}if(id==='sort-order'){sortOrder=el.value;render()}if(id==='stats-period'){statsPeriod=el.value;render();refreshAnalytics(statsPeriod);}if(el.closest('#clone-link-form')){syncCloneLinkUrlPreview();}if(id==='quote-customer'){editor.cid=Number(el.value);renderEditor()}if(id==='quote-type'&&editor){const nextType=el.value;editor.type=nextType;const qc=accessibleC(editor.cid);const hasTargetQuote=Boolean((nextType==='가견적'&&qc?.roughQuote)||(nextType==='최종견적'&&qc?.finalQuote));if(hasTargetQuote&&(editor.loadedFromExisting||!editor.items.length)){loadQuoteIntoEditor(editor.cid,nextType,null);}else{syncEditorLivePreview();}}if(id==='quote-file'){const file=el.files[0];if(!file)return;editor.source=file.name;editor.loadedFromExisting=false;{
     const upNameEl = $('#upload-name');
     if (upNameEl) upNameEl.textContent = file.name;
     const formData = new FormData();
