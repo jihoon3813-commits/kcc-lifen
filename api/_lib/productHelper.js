@@ -99,7 +99,7 @@ export function formatProductsAndLinks(data, user) {
   });
 
   const formattedProducts = products.map((p) => {
-    const isGreen = p.code === "PROD_GREEN" || p.category === "그린리모델링" || String(p.url || "").includes("/green");
+    const isGreen = p.code === "PROD_GREEN" || p.code === "PROD_GREEN_BBA" || p.category === "그린리모델링" || String(p.url || "").includes("/green");
     const views = events.filter(
       (ev) =>
         (ev.eventType === "page_view" || ev.eventType === "view") &&
@@ -165,6 +165,15 @@ export const DEFAULT_PRODUCTS = [
     category: "그린리모델링",
     description: "정부 이자지원 창호 교체, 조건 확인부터 상담까지.",
     url: "/green",
+    active: true,
+  },
+  {
+    prodId: 5,
+    name: "그린리모델링_bba",
+    code: "PROD_GREEN_BBA",
+    category: "그린리모델링",
+    description: "창호는 새롭게, 이자 부담은 가볍게 · 그린리모델링 이자지원 상세 상담.",
+    url: "/green-bba",
     active: true,
   },
 ];

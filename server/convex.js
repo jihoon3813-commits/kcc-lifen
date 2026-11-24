@@ -26,7 +26,10 @@ function getConvexUrl() {
 }
 
 const convexUrl = getConvexUrl();
+export const isProductionConvex =
+  !convexUrl.includes("pleasant-grouse-295") &&
+  (process.env.NODE_ENV === "production" || process.env.IS_PRODUCTION === "true" || convexUrl.includes("savory-hedgehog-927"));
 export const convexClient = new ConvexHttpClient(convexUrl);
 export { api };
 
-console.log(`[Convex] Initialized ConvexHttpClient for URL: ${convexUrl}`);
+console.log(`[Convex] Initialized ConvexHttpClient for URL: ${convexUrl} (mode=${isProductionConvex ? "prod" : "dev"})`);

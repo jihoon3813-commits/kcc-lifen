@@ -1,3 +1,5 @@
+import { isProductionEnv } from "./authHelper.js";
+
 export const DISCORD_WEBHOOK_URL =
   process.env.DISCORD_WEBHOOK_URL ||
   "https://discordapp.com/api/webhooks/1570707391845240925/iOsaiN4YEZLrVRIlNNN1k1fZvIKTmm3j9IGdQnKGSXVTnRV4K999UeSKbWXYYK0YEV6R";
@@ -47,12 +49,18 @@ function buildEmbed({ title, description, color, fields }) {
  * Send a payload to the configured Discord webhook without ever throwing into caller flows.
  */
 export async function sendDiscordWebhook(payload) {
-  if (!DISCORD_WEBHOOK_URL) return false;
+  const targetUrl = isProductionEnv()
+    ? DISCORD_WEBHOOK_URL
+    : process.env.DISCORD_DEV_WEBHOOK_URL || "";
+  if (!targetUrl) {
+    console.log("[Discord Webhook][DEV skipped] 운영 채널 알림 발송 차단됨");
+    return false;
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 2500);
   try {
-    const resp = await fetch(DISCORD_WEBHOOK_URL, {
+    const resp = await fetch(targetUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

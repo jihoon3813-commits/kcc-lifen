@@ -239,7 +239,9 @@
         }
       } catch {}
 
-      if(!submitSuccess){
+      const _host=String(window.location.hostname||'').toLowerCase();
+      const _isDevHost=!_host||_host==='localhost'||_host==='127.0.0.1'||_host==='::1'||_host.endsWith('.local')||/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(_host)||(_host.endsWith('.vercel.app')&&_host!=='kcc-lifen.vercel.app');
+      if(!submitSuccess&&!_isDevHost){
         try {
           const cloudRes=await fetch('https://savory-hedgehog-927.convex.site/api/landing/submit',{
             method:'POST',

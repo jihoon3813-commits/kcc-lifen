@@ -1,8 +1,5 @@
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../convex/_generated/api.js";
-
-const CONVEX_URL = process.env.CONVEX_URL || "https://savory-hedgehog-927.convex.cloud";
-const client = new ConvexHttpClient(CONVEX_URL);
+import { convexClient as client } from "../_lib/authHelper.js";
 
 function resolveEventDevice(req, bodyDevice) {
   if (bodyDevice === "모바일" || bodyDevice === "PC") return bodyDevice;

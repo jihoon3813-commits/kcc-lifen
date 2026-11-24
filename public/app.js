@@ -774,7 +774,15 @@ async function syncFromServer() {
 }
 
 let _lastDaangnAutoSyncAt = 0;
+function isProdOriginForAutoSync() {
+  const host = String(window.location.hostname || '').toLowerCase();
+  if (!host || host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.local')) return false;
+  if (/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)) return false;
+  if (host.endsWith('.vercel.app') && host !== 'kcc-lifen.vercel.app') return false;
+  return true;
+}
 async function triggerBackgroundDaangnSheetSync() {
+  if (!isProdOriginForAutoSync()) return;
   const now = Date.now();
   if (now - _lastDaangnAutoSyncAt < 60000) return;
   _lastDaangnAutoSyncAt = now;

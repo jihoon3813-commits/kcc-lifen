@@ -7,7 +7,24 @@ import {
   parseAllowedMenus,
 } from "../../server/utils/menuPermissions.js";
 
-const CONVEX_URL = process.env.CONVEX_URL || "https://savory-hedgehog-927.convex.cloud";
+export const PROD_CONVEX_URL = "https://savory-hedgehog-927.convex.cloud";
+export const DEV_CONVEX_URL = "https://pleasant-grouse-295.convex.cloud";
+
+export function isProductionEnv() {
+  const url = process.env.CONVEX_URL || "";
+  if (url.includes("pleasant-grouse-295")) return false;
+  if (process.env.VERCEL === "1") {
+    return process.env.VERCEL_ENV === "production";
+  }
+  return process.env.NODE_ENV === "production" || process.env.IS_PRODUCTION === "true";
+}
+
+export function getConvexUrl() {
+  if (process.env.CONVEX_URL) return process.env.CONVEX_URL;
+  return isProductionEnv() ? PROD_CONVEX_URL : DEV_CONVEX_URL;
+}
+
+const CONVEX_URL = getConvexUrl();
 export const convexClient = new ConvexHttpClient(CONVEX_URL);
 export const JWT_SECRET = process.env.JWT_SECRET || "kcc-homecc-crm-secret-key-2026-life-and-joy";
 export const JWT_EXPIRES_IN = "7d";

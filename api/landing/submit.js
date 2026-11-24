@@ -1,9 +1,6 @@
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../convex/_generated/api.js";
+import { convexClient as client } from "../_lib/authHelper.js";
 import { notifyNewCustomer } from "../_lib/discordHelper.js";
-
-const CONVEX_URL = process.env.CONVEX_URL || "https://savory-hedgehog-927.convex.cloud";
-const client = new ConvexHttpClient(CONVEX_URL);
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

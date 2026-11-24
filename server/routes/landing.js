@@ -1,5 +1,5 @@
 import express from 'express';
-import { convexClient, api } from '../convex.js';
+import { convexClient, api, isProductionConvex } from '../convex.js';
 import { notifyNewCustomer } from '../../api/_lib/discordHelper.js';
 import {
   DEFAULT_DAANGN_SHEET_ID,
@@ -152,6 +152,17 @@ router.get('/daangn-lead', async (req, res) => {
   try {
     const sheetId = req.query?.sheetId || DEFAULT_DAANGN_SHEET_ID;
     const gid = req.query?.gid || DEFAULT_DAANGN_GID;
+    if (!isProductionConvex && sheetId === DEFAULT_DAANGN_SHEET_ID) {
+      return res.json({
+        success: true,
+        skippedInDev: true,
+        insertedCount: 0,
+        skippedCount: 0,
+        inserted: [],
+        skipped: [],
+        message: '개발 서버에서는 운영 당근 리드 시트 자동 동기화가 비활성화되어 있습니다.',
+      });
+    }
     const rows = await fetchGoogleSheetRows(sheetId, gid);
     const result = await syncDaangnRowsToConvex(convexClient, rows);
     res.json(result);
@@ -175,6 +186,17 @@ router.post('/daangn-lead', async (req, res) => {
     ) {
       const sheetId = body.sheetId || req.query?.sheetId || DEFAULT_DAANGN_SHEET_ID;
       const gid = body.gid || req.query?.gid || DEFAULT_DAANGN_GID;
+      if (!isProductionConvex && sheetId === DEFAULT_DAANGN_SHEET_ID) {
+        return res.json({
+          success: true,
+          skippedInDev: true,
+          insertedCount: 0,
+          skippedCount: 0,
+          inserted: [],
+          skipped: [],
+          message: '개발 서버에서는 운영 당근 리드 시트 동기화가 비활성화되어 있습니다.',
+        });
+      }
       const rows = await fetchGoogleSheetRows(sheetId, gid);
       const result = await syncDaangnRowsToConvex(convexClient, rows, {
         partner: body.partner,

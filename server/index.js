@@ -105,9 +105,17 @@ if (fs.existsSync(config.publicDir)) {
     return res.sendFile(path.join(config.publicDir, 'green', 'index.html'));
   });
 
+  // /green-bba 접속 시 그린리모델링_bba 랜딩페이지로 연결
+  app.get(['/green-bba', '/green-bba/'], (req, res) => {
+    return res.sendFile(path.join(config.publicDir, 'green-bba', 'index.html'));
+  });
+
   app.use(express.static(config.publicDir));
   app.use((req, res, next) => {
     if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      if (req.path === '/green-bba' || req.path.startsWith('/green-bba/')) {
+        return res.sendFile(path.join(config.publicDir, 'green-bba', 'index.html'));
+      }
       if (req.path === '/green' || req.path.startsWith('/green/')) {
         return res.sendFile(path.join(config.publicDir, 'green', 'index.html'));
       }

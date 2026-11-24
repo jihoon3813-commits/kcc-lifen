@@ -1,4 +1,4 @@
-import { convexClient, setCors, parseBody } from "../_lib/authHelper.js";
+import { convexClient, isProductionEnv, setCors, parseBody } from "../_lib/authHelper.js";
 import {
   DEFAULT_DAANGN_SHEET_ID,
   DEFAULT_DAANGN_GID,
@@ -18,6 +18,17 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const sheetId = req.query?.sheetId || DEFAULT_DAANGN_SHEET_ID;
       const gid = req.query?.gid || DEFAULT_DAANGN_GID;
+      if (!isProductionEnv() && sheetId === DEFAULT_DAANGN_SHEET_ID) {
+        return res.status(200).json({
+          success: true,
+          skippedInDev: true,
+          insertedCount: 0,
+          skippedCount: 0,
+          inserted: [],
+          skipped: [],
+          message: "개발/프리뷰 서버에서는 운영 당근 리드 시트 자동 동기화가 비활성화되어 있습니다.",
+        });
+      }
       const rows = await fetchGoogleSheetRows(sheetId, gid);
       const result = await syncDaangnRowsToConvex(convexClient, rows);
       return res.status(200).json(result);
@@ -30,6 +41,17 @@ export default async function handler(req, res) {
       if (body.action === "sync_sheet" || (!body.rows && !body.row && !body.headers && !body.csv && !body.phone && !body["연락처"] && !body["전화번호"])) {
         const sheetId = body.sheetId || req.query?.sheetId || DEFAULT_DAANGN_SHEET_ID;
         const gid = body.gid || req.query?.gid || DEFAULT_DAANGN_GID;
+        if (!isProductionEnv() && sheetId === DEFAULT_DAANGN_SHEET_ID) {
+          return res.status(200).json({
+            success: true,
+            skippedInDev: true,
+            insertedCount: 0,
+            skippedCount: 0,
+            inserted: [],
+            skipped: [],
+            message: "개발/프리뷰 서버에서는 운영 당근 리드 시트 동기화가 비활성화되어 있습니다.",
+          });
+        }
         const rows = await fetchGoogleSheetRows(sheetId, gid);
         const result = await syncDaangnRowsToConvex(convexClient, rows, {
           partner: body.partner,
