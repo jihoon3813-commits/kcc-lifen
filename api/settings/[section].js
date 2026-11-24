@@ -18,12 +18,14 @@ const DEFAULT_STAGES = [
   { id: "1", name: "신규접수", color: "blue", sortOrder: 1, sort_order: 1 },
   { id: "2", name: "상담중", color: "purple", sortOrder: 2, sort_order: 2 },
   { id: "3", name: "가견적요청", color: "orange", sortOrder: 3, sort_order: 3 },
-  { id: "4", name: "견적안내", color: "blue", sortOrder: 4, sort_order: 4 },
-  { id: "5", name: "실측예정", color: "green", sortOrder: 5, sort_order: 5 },
-  { id: "6", name: "최종견적", color: "purple", sortOrder: 6, sort_order: 6 },
-  { id: "7", name: "계약진행", color: "green", sortOrder: 7, sort_order: 7 },
-  { id: "8", name: "시공완료", color: "gray", sortOrder: 8, sort_order: 8 },
-  { id: "9", name: "보류", color: "gray", sortOrder: 9, sort_order: 9 },
+  { id: "4", name: "가견적 생성함", color: "green", sortOrder: 4, sort_order: 4 },
+  { id: "5", name: "견적안내", color: "blue", sortOrder: 5, sort_order: 5 },
+  { id: "6", name: "실측예정", color: "green", sortOrder: 6, sort_order: 6 },
+  { id: "7", name: "최종견적", color: "purple", sortOrder: 7, sort_order: 7 },
+  { id: "8", name: "최종견적 생성함", color: "green", sortOrder: 8, sort_order: 8 },
+  { id: "9", name: "계약진행", color: "green", sortOrder: 9, sort_order: 9 },
+  { id: "10", name: "시공완료", color: "gray", sortOrder: 10, sort_order: 10 },
+  { id: "11", name: "보류", color: "gray", sortOrder: 11, sort_order: 11 },
 ];
 
 const DEFAULT_CONTRACT_STATUSES = [

@@ -405,6 +405,8 @@ export const createProjectQuote = mutation({
       });
     }
 
+    const publicUrl = `/quote.html?token=${args.accessToken}`;
+
     let statusChangeDetail = "";
     if (args.isPublish) {
       const postContractStatuses = ["계약진행", "계약완료", "시공예정", "시공완료"];
