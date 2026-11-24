@@ -2770,21 +2770,29 @@ function productsPage(){
   ` : '';
 
 function doesCustomerBelongToProduct(c, p, links = []) {
-  const linkedObj = c.landingLinkId
-    ? links.find(ll => Number(ll.id) === Number(c.landingLinkId))
-    : (c.source ? links.find(ll => ll.code && ll.code === c.source) : null);
-  if (linkedObj && linkedObj.productId) {
-    return Number(linkedObj.productId) === Number(p.id);
-  }
   const isBbaProduct = p.code === 'PROD_GREEN_BBA' || String(p.url || '').includes('/green-bba') || p.name === '그린리모델링_bba';
   const isBbaLead =
     c.source === 'green_bba' ||
     String(c.note || '').includes('[그린리모델링_bba]') ||
     String(c.title || '').includes('그린리모델링_bba') ||
     c.product === '그린리모델링_bba';
-  if (isBbaProduct) return isBbaLead;
+  if (isBbaLead) return isBbaProduct;
+
   const isGreenProduct = p.code === 'PROD_GREEN' || p.url === '/green';
-  if (isGreenProduct) return c.product === '그린리모델링' && !isBbaLead;
+  const isGreenLead =
+    c.product === '그린리모델링' ||
+    c.source === 'green_remodeling' ||
+    String(c.note || '').includes('[그린리모델링]') ||
+    String(c.title || '').includes('그린리모델링');
+  if (isGreenLead) return isGreenProduct;
+
+  const linkedObj = c.landingLinkId
+    ? links.find(ll => Number(ll.id) === Number(c.landingLinkId))
+    : (c.source ? links.find(ll => ll.code && ll.code === c.source) : null);
+  if (linkedObj && linkedObj.productId) {
+    return Number(linkedObj.productId) === Number(p.id);
+  }
+  if (isBbaProduct || isGreenProduct) return false;
   return c.product === p.category || c.product === p.name;
 }
 
