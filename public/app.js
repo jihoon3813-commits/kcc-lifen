@@ -2769,6 +2769,25 @@ function productsPage(){
     </div>
   ` : '';
 
+function doesCustomerBelongToProduct(c, p, links = []) {
+  const linkedObj = c.landingLinkId
+    ? links.find(ll => Number(ll.id) === Number(c.landingLinkId))
+    : (c.source ? links.find(ll => ll.code && ll.code === c.source) : null);
+  if (linkedObj && linkedObj.productId) {
+    return Number(linkedObj.productId) === Number(p.id);
+  }
+  const isBbaProduct = p.code === 'PROD_GREEN_BBA' || String(p.url || '').includes('/green-bba') || p.name === '그린리모델링_bba';
+  const isBbaLead =
+    c.source === 'green_bba' ||
+    String(c.note || '').includes('[그린리모델링_bba]') ||
+    String(c.title || '').includes('그린리모델링_bba') ||
+    c.product === '그린리모델링_bba';
+  if (isBbaProduct) return isBbaLead;
+  const isGreenProduct = p.code === 'PROD_GREEN' || p.url === '/green';
+  if (isGreenProduct) return c.product === '그린리모델링' && !isBbaLead;
+  return c.product === p.category || c.product === p.name;
+}
+
   return pageHead('상품관리', isPartner ? `${esc(activeU.org)} 전용 상품 링크를 확인하고 고객 유치에 활용하세요.` : '기본 랜딩페이지를 복제해 광고채널별 추적 링크를 만들고 유입 성과를 확인하세요.', headActions, 'PRODUCT & LANDING') +
     partnerLinkBanner +
     `<div class="banner">${icon('link')}<div><b>${role === '본사 관리자' ? '기본 랜딩페이지를 광고 매체별로 복제해 유입 채널을 정확히 구분합니다.' : (esc(activeU.org || '파트너') + ' 전용 광고 링크를 복제·생성해 고객 유입을 추적하세요.')}</b><br>복제된 링크로 고객이 방문·신청하면 <b>고객관리</b>와 <b>통계관리</b>에 네이버 검색광고, 당근마켓, 인스타그램 등 정확한 유입 채널과 캠페인명이 자동 기록됩니다.</div></div>` +
@@ -2778,7 +2797,9 @@ function productsPage(){
       const baseLanding = p.url ? (p.url.startsWith('/') ? window.location.origin + p.url : p.url) : (window.location.origin + '/landing/');
       const dedicatedPartnerUrl = isPartner ? (baseLanding + (baseLanding.includes('?') ? '&' : '?') + 'partner=' + encodeURIComponent(activeU.org) + '&prod=' + encodeURIComponent(p.category)) : '';
       const displayUrl = isPartner ? dedicatedPartnerUrl : (p.url ? (p.url.startsWith('/') ? window.location.origin + p.url : p.url.replace('https://', '')) : '랜딩 URL 등록 대기');
-      const prodLinksCnt = links.filter(ll => Number(ll.productId) === Number(p.id) || ll.productCategory === p.category).length;
+      const prodLinksCnt = links.filter(ll => ll.productId ? Number(ll.productId) === Number(p.id) : ll.productCategory === p.category).length;
+      const prodCustomers = visibleCustomers().filter(c => doesCustomerBelongToProduct(c, p, links));
+      const prodContractsCnt = db.contracts.filter(k => prodCustomers.some(c => c.id === k.cid)).length;
       const visualLabel = isGreen ? 'HOMECC GREEN' : `HOMECC ${p.category === '창호' ? 'WINDOW' : p.category === '주방' ? 'KITCHEN' : 'BATHROOM'}`;
       const typeBadge = isGreen
         ? `<span class="badge green" style="background:#1d4b39;color:#fff">그린리모델링 · ${esc(p.url || '/green')}</span>`
@@ -2787,7 +2808,7 @@ function productsPage(){
       const visualStyle = isGreen
         ? `background:${p.color};color:#1d4b39`
         : `background:${p.color}`;
-      return `<article class="product-card"${cardStyle}><div class="product-visual" style="${visualStyle}"><span class="visual-label">${visualLabel}</span>${icon(isGreen ? 'leaf' : p.icon, 'large-icon')}</div><div class="product-info"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${badge(p.active ? '운영중' : '준비중', p.active ? 'green' : 'gray')}${typeBadge}${badge(isPartner ? '전용 링크 활성' : `복제 광고링크 ${prodLinksCnt}개`, isPartner ? 'blue' : (prodLinksCnt > 0 ? 'purple' : 'gray'))}</div><h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><div class="product-url"><span>${esc(displayUrl)}</span><button data-action="${isPartner ? 'copy-text' : 'copy-product'}" data-text="${esc(dedicatedPartnerUrl)}" data-id="${i}" aria-label="${esc(p.name)} 링크 복사" title="링크 복사">${icon('copy')}</button></div><div class="product-stats"><div><small>방문 수</small><b>${num(p.views)}</b></div><div><small>접수 고객</small><b>${visibleCustomers().filter(c => c.product === p.category).length}</b></div><div><small>계약</small><b>${db.contracts.filter(k => visibleCustomers().some(c => c.id === k.cid && c.product === p.category)).length}</b></div></div><div class="actions">${btn('광고링크 복제', 'open-clone-link', 'copy', 'primary sm', `data-id="${i}"`)}${isLocalLanding ? `<button type="button" class="btn sm soft" data-action="preview-landing" data-id="${i}" title="${esc(p.name)} 미리보기">${icon('eye')}미리보기</button>` : ''}${role === '본사 관리자' ? btn('수정', 'edit-product', 'edit', 'sm', `data-id="${i}"`) : ''}${p.url ? `<a class="btn sm" href="${esc(isPartner ? dedicatedPartnerUrl : p.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(p.name)} 랜딩 새창 열기">${icon('external')}새창</a>` : ''}</div></div></article>`;
+      return `<article class="product-card"${cardStyle}><div class="product-visual" style="${visualStyle}"><span class="visual-label">${visualLabel}</span>${icon(isGreen ? 'leaf' : p.icon, 'large-icon')}</div><div class="product-info"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${badge(p.active ? '운영중' : '준비중', p.active ? 'green' : 'gray')}${typeBadge}${badge(isPartner ? '전용 링크 활성' : `복제 광고링크 ${prodLinksCnt}개`, isPartner ? 'blue' : (prodLinksCnt > 0 ? 'purple' : 'gray'))}</div><h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><div class="product-url"><span>${esc(displayUrl)}</span><button data-action="${isPartner ? 'copy-text' : 'copy-product'}" data-text="${esc(dedicatedPartnerUrl)}" data-id="${i}" aria-label="${esc(p.name)} 링크 복사" title="링크 복사">${icon('copy')}</button></div><div class="product-stats"><div><small>방문 수</small><b>${num(p.views)}</b></div><div><small>접수 고객</small><b>${prodCustomers.length}</b></div><div><small>계약</small><b>${prodContractsCnt}</b></div></div><div class="actions">${btn('광고링크 복제', 'open-clone-link', 'copy', 'primary sm', `data-id="${i}"`)}${isLocalLanding ? `<button type="button" class="btn sm soft" data-action="preview-landing" data-id="${i}" title="${esc(p.name)} 미리보기">${icon('eye')}미리보기</button>` : ''}${role === '본사 관리자' ? btn('수정', 'edit-product', 'edit', 'sm', `data-id="${i}"`) : ''}${p.url ? `<a class="btn sm" href="${esc(isPartner ? dedicatedPartnerUrl : p.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(p.name)} 랜딩 새창 열기">${icon('external')}새창</a>` : ''}</div></div></article>`;
     }).join('')}</div>` +
     `<section class="panel" style="margin-top:24px">
       <div class="panel-head" style="flex-wrap:wrap;gap:12px">

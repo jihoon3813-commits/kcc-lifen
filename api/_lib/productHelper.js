@@ -106,7 +106,7 @@ export function formatProductsAndLinks(data, user) {
         ev.productName === p.name
     ).length;
     const linkCount = formattedLinks.filter(
-      (ll) => Number(ll.productId) === Number(p.prodId) || ll.productCategory === p.category
+      (ll) => (ll.productId ? Number(ll.productId) === Number(p.prodId) : ll.productCategory === p.category)
     ).length;
 
     return {
