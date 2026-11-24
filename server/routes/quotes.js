@@ -99,6 +99,37 @@ router.post('/', requireAuth, checkPartnerAccess, async (req, res) => {
   }
 });
 
+// 2-1. Delete specific quote versions (keep customer & other versions)
+router.post('/bulk-delete', requireAuth, async (req, res) => {
+  try {
+    const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
+    const items = rawItems
+      .map((it) => ({
+        projectId: parseInt(it?.projectId, 10),
+        version: parseInt(it?.version, 10),
+      }))
+      .filter((it) => Number.isFinite(it.projectId) && it.projectId > 0 && Number.isFinite(it.version) && it.version > 0);
+
+    if (items.length === 0) {
+      return res.status(400).json({ error: '삭제할 견적 버전 목록이 필요합니다.' });
+    }
+
+    const result = await convexClient.mutation(api.quotes.deleteProjectQuotes, {
+      items,
+      userName: req.user?.name || '관리자',
+    });
+
+    res.json({
+      success: true,
+      deleted: result?.deleted ?? items.length,
+      deletedItems: items,
+    });
+  } catch (err) {
+    console.error('[Convex] POST /api/quotes/bulk-delete error:', err);
+    res.status(500).json({ error: '견적서 삭제 중 오류가 발생했습니다.' });
+  }
+});
+
 // 3. Preview Published Quote by Project ID (Direct from Convex)
 router.get('/by-project/:projectId/preview', requireAuth, checkPartnerAccess, async (req, res) => {
   try {

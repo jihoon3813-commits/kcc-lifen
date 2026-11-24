@@ -527,3 +527,62 @@ export const recordQuoteDispatch = mutation({
     return { ok: true, createdAt: now };
   },
 });
+
+// 특정 견적 버전만 삭제 (고객 및 다른 버전 견적서는 유지)
+export const deleteProjectQuotes = mutation({
+  args: {
+    items: v.array(
+      v.object({
+        projectId: v.number(),
+        version: v.number(),
+      })
+    ),
+    userName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+    const seen = new Set();
+    let deleted = 0;
+
+    for (const entry of args.items) {
+      const pId = Number(entry.projectId);
+      const ver = Number(entry.version);
+      if (!Number.isFinite(pId) || pId <= 0 || !Number.isFinite(ver) || ver <= 0) continue;
+      const key = `${pId}:${ver}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const quotes = await ctx.db
+        .query("quotes")
+        .withIndex("by_project", (q) => q.eq("projectId", pId))
+        .collect();
+      const targetQuotes = quotes.filter((q) => Number(q.version) === ver);
+      for (const q of targetQuotes) {
+        await ctx.db.delete(q._id);
+        deleted += 1;
+      }
+
+      const quoteItems = await ctx.db
+        .query("quoteItems")
+        .withIndex("by_project", (q) => q.eq("projectId", pId))
+        .collect();
+      for (const qi of quoteItems) {
+        if (Number(qi.quoteVersion) === ver) {
+          await ctx.db.delete(qi._id);
+        }
+      }
+
+      if (targetQuotes.length > 0) {
+        await ctx.db.insert("auditLogs", {
+          projectId: pId,
+          userName: args.userName || "관리자",
+          action: "견적서 삭제",
+          detail: `견적 v${ver} (${targetQuotes[0].quoteType || "가견적"}) 삭제`,
+          createdAt: now,
+        });
+      }
+    }
+
+    return { deleted };
+  },
+});

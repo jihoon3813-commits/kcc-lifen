@@ -1414,7 +1414,7 @@ async function openMessagingIntegrationDialog() {
   );
 }
 
-let page='customers', navSyncing=false, navSyncSeq=0, customerTab='all', quoteTab='all', contractTab='all', paymentTab='all', paymentQuery='', settingsTab='labels', role='본사 관리자', query='', stageFilter='', productFilter='', partnerFilter='', sourceFilter='', linkFilter='', periodFilter='all', sortOrder='new', productLinkCatFilter='all', productLinkQuery='', selected=new Set(), expandedQuoteInquiries=new Set(), detailId=null, detailTab='notes', editor=null, statsPeriod='30', restoreFocus=null, quotePreviewId=null;
+let page='customers', navSyncing=false, navSyncSeq=0, customerTab='all', quoteTab='all', contractTab='all', paymentTab='all', paymentQuery='', settingsTab='labels', role='본사 관리자', query='', stageFilter='', productFilter='', partnerFilter='', sourceFilter='', linkFilter='', periodFilter='all', sortOrder='new', productLinkCatFilter='all', productLinkQuery='', selected=new Set(), selectedQuotes=new Set(), expandedQuoteInquiries=new Set(), detailId=null, detailTab='notes', editor=null, statsPeriod='30', restoreFocus=null, quotePreviewId=null;
 let quoteConsultPhone = (()=>{try{return localStorage.getItem('kcc_quote_consult_phone')||'';}catch{return '';}})();
 let quoteConsultManagerName = (()=>{try{return localStorage.getItem('kcc_quote_consult_manager')||'';}catch{return '';}})();
 const menus=[['customers','고객관리','users'],['quotes','견적관리','file'],['contracts','계약관리','contract'],['products','상품관리','box'],['partners','파트너관리','building'],['stats','통계관리','chart'],['settings','설정','settings']];
@@ -1869,7 +1869,7 @@ function quotesPage() {
   const baseCustomers = quoteTab === 'inquiries' ? inquiryRows : allRows;
   const displayRows = expandQuoteListRows(baseCustomers);
   const totalPublishedCount = published.reduce((sum, c) => sum + ((Array.isArray(c.publishedQuotes) && c.publishedQuotes.length) ? c.publishedQuotes.length : 1), 0);
-  const allQuotesSelected = baseCustomers.length > 0 && baseCustomers.every(c => selected.has(c.id));
+  const allQuotesSelected = displayRows.length > 0 && displayRows.every(({ c, pq }) => selectedQuotes.has(`${c.id}:${pq ? pq.version : 0}`));
   const tabMeta = [
     ['all', '전체 견적', expandQuoteListRows(allRows).length, false],
     ['inquiries', '고객 문의', inquiryRows.length, inquiryRows.length > 0]
@@ -1881,7 +1881,7 @@ function quotesPage() {
   return pageHead('견적관리', '원본 견적을 고객에게 전달할 최적의 제안으로 완성하고, 확정 견적 금액으로 계약을 즉시 등록하세요.', quoteHeadBtns, 'ESTIMATE WORKSPACE') +
     `<div class="metrics">${metric('원본 수령 대기', ready.length, '건', 'KCC 영업지원팀 요청 건', 'clock', 'orange')}${metric('발행된 견적', totalPublishedCount, '건', `총 ${published.length}명 · 수정 버전 포함`, 'file')}${metric('고객 열람', published.filter(c => c.viewed).length, '건', '발행 이후 열람한 고객', 'eye', 'green')}${metric('견적 문의', inquiryRows.length, '건', '모바일 견적서 고객 문의', 'bell', 'purple', 'quote-tab', 'data-value="inquiries"')}</div>` +
     `<div class="banner">${icon('info')}<div><b>원본 엑셀 → 판매가 설정 → 고객견적 발행 → 계약 등록(금액 자동세팅)</b><br>가견적·최종견적을 수정 발행해도 기존 버전이 덮어쓰이지 않고 버전별로 모두 보관됩니다. 목록에서 <b>[계약 등록]</b>을 클릭하면 해당 견적 금액으로 현금·카드·렌탈(60개월) 금액이 자동 세팅됩니다.</div></div>` +
-    `<section class="panel"><div class="tabs">${tabMeta.map(([v, l, cnt, isAlert]) => `<button class="tab ${quoteTab === v ? 'active' : ''}" data-action="quote-tab" data-value="${v}">${l}${cnt > 0 ? `<span class="count${isAlert ? ' count-red' : ''}">${cnt}</span>` : ''}</button>`).join('')}</div><div class="panel-head"><div><h3>${quoteTab === 'inquiries' ? '고객 견적 문의 내역' : '견적 요청 및 발행 · 계약전환 현황'}</h3><p>${quoteTab === 'inquiries' ? '모바일 견적서에서 상담·문의를 요청한 고객 목록입니다.' : '고객별·버전별 견적 원가·공급가·할인 내역과 결제방식별 자동세팅 기준액을 상세히 확인하고 계약을 등록합니다.'}</p></div>${badge('실운영 데이터', 'blue')}</div><div class="toolbar"><span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="quotes" ${allQuotesSelected ? 'checked' : ''}> 전체 선택</label><span>목록 <strong>${displayRows.length}</strong>건</span>${selected.size ? `· ${btn(`선택 삭제 (${selected.size})`, 'delete-selected', 'trash', 'sm danger')}` : ''}</span><div class="actions">${btn(selected.size ? `선택 엑셀 (${selected.size})` : '엑셀용 CSV', 'export', 'download', 'sm')}</div></div><div class="table-wrap"><table class="mobile-card-table contract-master-table quote-master-table"><thead><tr><th style="width:36px"><input type="checkbox" data-select-all="quotes" ${allQuotesSelected ? 'checked' : ''} aria-label="견적 고객 전체 선택"></th><th style="width:21%">고객 / 견적번호</th><th style="width:13%">견적 구분 · 계약여부</th><th style="width:20%">견적 금액 상세 (VAT포함)</th><th style="width:19%">결제조건 기준액 (자동세팅)</th><th style="width:11%">열람 · 담당</th><th style="width:16%">관리 (계약등록 · 견적)</th></tr></thead><tbody>${displayRows.length ? displayRows.map(({ c, pq, isLatestOfType, hasMultipleOfType, isPrimaryCustomerRow }) => {
+    `<section class="panel"><div class="tabs">${tabMeta.map(([v, l, cnt, isAlert]) => `<button class="tab ${quoteTab === v ? 'active' : ''}" data-action="quote-tab" data-value="${v}">${l}${cnt > 0 ? `<span class="count${isAlert ? ' count-red' : ''}">${cnt}</span>` : ''}</button>`).join('')}</div><div class="panel-head"><div><h3>${quoteTab === 'inquiries' ? '고객 견적 문의 내역' : '견적 요청 및 발행 · 계약전환 현황'}</h3><p>${quoteTab === 'inquiries' ? '모바일 견적서에서 상담·문의를 요청한 고객 목록입니다.' : '고객별·버전별 견적 원가·공급가·할인 내역과 결제방식별 자동세팅 기준액을 상세히 확인하고 계약을 등록합니다.'}</p></div>${badge('실운영 데이터', 'blue')}</div><div class="toolbar"><span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="quote-versions" ${allQuotesSelected ? 'checked' : ''}> 전체 선택</label><span>목록 <strong>${displayRows.length}</strong>건</span>${selectedQuotes.size ? `· ${btn(`선택 견적 삭제 (${selectedQuotes.size})`, 'delete-selected', 'trash', 'sm danger')}` : ''}</span><div class="actions">${btn(selectedQuotes.size ? `선택 엑셀 (${selectedQuotes.size})` : '엑셀용 CSV', 'export', 'download', 'sm')}</div></div><div class="table-wrap"><table class="mobile-card-table contract-master-table quote-master-table"><thead><tr><th style="width:36px"><input type="checkbox" data-select-all="quote-versions" ${allQuotesSelected ? 'checked' : ''} aria-label="견적 전체 선택"></th><th style="width:21%">고객 / 견적번호</th><th style="width:13%">견적 구분 · 계약여부</th><th style="width:20%">견적 금액 상세 (VAT포함)</th><th style="width:19%">결제조건 기준액 (자동세팅)</th><th style="width:11%">열람 · 담당</th><th style="width:16%">관리 (계약등록 · 견적)</th></tr></thead><tbody>${displayRows.length ? displayRows.map(({ c, pq, isLatestOfType, hasMultipleOfType, isPrimaryCustomerRow }) => {
       const quoteAct = getQuoteRowActivityState(c);
       const strip = isPrimaryCustomerRow ? activityStripInfo(quoteAct) : { cls: '', badge: '' };
       const quoteStripBadge = quoteAct.kind === 'updated' ? '' : strip.badge;
@@ -1988,7 +1988,8 @@ function quotesPage() {
         ${btn(hasQuote ? '견적 수정' : '엑셀 등록', 'new-quote', hasQuote ? 'edit' : 'upload', hasQuote ? 'sm' : 'sm primary', `data-id="${c.id}"${hasQuote ? ` data-type="${esc(activeType)}"${qIdAttr}` : ''}`)}
       </div>`;
 
-      return `<tr class="${strip.cls.trim()}"><td><input type="checkbox" data-select="${c.id}" ${selected.has(c.id) ? 'checked' : ''} aria-label="${esc(c.name)} 선택"></td><td class="card-primary">${custCellHtml}</td><td data-label="견적 구분 · 계약">${typeCellHtml}</td><td data-label="견적 금액 상세" class="money">${priceDetailHtml}</td><td data-label="결제조건 기준액" class="money">${autoTermHtml}</td><td data-label="열람 · 담당">${viewOwnerHtml}</td><td class="card-actions">${actionsHtml}</td></tr>` + (isExpanded ? renderQuoteInquiryDetailRow(c) : '');
+      const rowQuoteKey = `${c.id}:${pq ? pq.version : 0}`;
+      return `<tr class="${strip.cls.trim()}"><td><input type="checkbox" data-select-quote="${rowQuoteKey}" ${selectedQuotes.has(rowQuoteKey) ? 'checked' : ''} aria-label="${esc(c.name)} ${hasQuote ? `v${activeVer}` : ''} 선택"></td><td class="card-primary">${custCellHtml}</td><td data-label="견적 구분 · 계약">${typeCellHtml}</td><td data-label="견적 금액 상세" class="money">${priceDetailHtml}</td><td data-label="결제조건 기준액" class="money">${autoTermHtml}</td><td data-label="열람 · 담당">${viewOwnerHtml}</td><td class="card-actions">${actionsHtml}</td></tr>` + (isExpanded ? renderQuoteInquiryDetailRow(c) : '');
     }).join('') : `<tr><td colspan="7"><div class="empty">${icon('file')}<strong>${quoteTab === 'inquiries' ? '접수된 견적 문의가 없습니다.' : '아직 견적 요청 또는 발행된 견적이 없습니다.'}</strong>${quoteTab === 'inquiries' ? '고객이 모바일 견적서에서 문의를 남기면 이곳에 표시됩니다.' : '고객을 등록한 뒤 원본 엑셀로 견적서를 발행해 보세요.'}</div></td></tr>`}</tbody></table></div></section>`;
 }
 function getContractSchedules(k, isRental = false, fallbackUpfront = 0) {
@@ -7518,7 +7519,7 @@ document.addEventListener('click',async e=>{
   const el=e.target.closest('[data-action]');
   if(!el)return;
   const a=el.dataset.action,id=el.dataset.id,v=el.dataset.value;
-switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':setMobileNav(false);break;case'refresh-data':{const seq=++navSyncSeq;navSyncing=true;render();syncFromServer().then(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();toast('최신 서버 데이터를 불러왔습니다.');}).catch(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();});break;}case'nav':{setMobileNav(false);page=el.dataset.page;selected.clear();const seq=++navSyncSeq;navSyncing=true;render();window.scrollTo(0,0);syncFromServer().then(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();if(page==='stats')refreshAnalytics();toast('최신 서버 데이터를 새로고침했습니다.');}).catch(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();});break;}case'close':closeDialog();break;case'customer':openCustomer(id);break;case'new-customer':openNewCustomer();break;case'open-daangn-sync':openDaangnSyncDialog();break;case'run-daangn-sheet-sync':runDaangnSheetSync();break;case'copy-daangn-apps-script':{const code=getDaangnAppsScriptCode();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(code).then(()=>toast('Apps Script 코드가 클립보드에 복사되었습니다.'));}else{const ta=document.getElementById('daangn-apps-script-box');if(ta){ta.select();document.execCommand('copy');toast('Apps Script 코드가 복사되었습니다.');}}break;}case'search-cust-address':openCustomerAddressSearch();break;case'close-cust-addr-search':{const w=document.getElementById('cust-addr-search-wrap');if(w)w.hidden=true;break;}case'use-cust-addr-variant':{const inp=document.getElementById('cust-address-base');if(inp&&v){inp.value=v;const det=document.getElementById('cust-address-detail');if(det)det.focus();}break;}case'customer-tab':customerTab=v;render();break;case'filter-all':stageFilter='';customerTab='all';render();break;case'filter-stage':stageFilter=v;customerTab='all';render();break;case'reset-filters':query='';stageFilter='';productFilter='';partnerFilter='';sourceFilter='';linkFilter='';periodFilter='all';customerTab='all';render();break;case'clear-link-filter':linkFilter='';render();break;case'go-products-links':page='products';render();window.scrollTo(0,0);break;case'product-link-cat':productLinkCatFilter=v||'all';render();break;case'jump-link-customers':{
+switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':setMobileNav(false);break;case'refresh-data':{const seq=++navSyncSeq;navSyncing=true;render();syncFromServer().then(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();toast('최신 서버 데이터를 불러왔습니다.');}).catch(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();});break;}case'nav':{setMobileNav(false);page=el.dataset.page;selected.clear();selectedQuotes.clear();const seq=++navSyncSeq;navSyncing=true;render();window.scrollTo(0,0);syncFromServer().then(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();if(page==='stats')refreshAnalytics();toast('최신 서버 데이터를 새로고침했습니다.');}).catch(()=>{if(seq!==navSyncSeq)return;navSyncing=false;render();});break;}case'close':closeDialog();break;case'customer':openCustomer(id);break;case'new-customer':openNewCustomer();break;case'open-daangn-sync':openDaangnSyncDialog();break;case'run-daangn-sheet-sync':runDaangnSheetSync();break;case'copy-daangn-apps-script':{const code=getDaangnAppsScriptCode();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(code).then(()=>toast('Apps Script 코드가 클립보드에 복사되었습니다.'));}else{const ta=document.getElementById('daangn-apps-script-box');if(ta){ta.select();document.execCommand('copy');toast('Apps Script 코드가 복사되었습니다.');}}break;}case'search-cust-address':openCustomerAddressSearch();break;case'close-cust-addr-search':{const w=document.getElementById('cust-addr-search-wrap');if(w)w.hidden=true;break;}case'use-cust-addr-variant':{const inp=document.getElementById('cust-address-base');if(inp&&v){inp.value=v;const det=document.getElementById('cust-address-detail');if(det)det.focus();}break;}case'customer-tab':customerTab=v;render();break;case'filter-all':stageFilter='';customerTab='all';render();break;case'filter-stage':stageFilter=v;customerTab='all';render();break;case'reset-filters':query='';stageFilter='';productFilter='';partnerFilter='';sourceFilter='';linkFilter='';periodFilter='all';customerTab='all';render();break;case'clear-link-filter':linkFilter='';render();break;case'go-products-links':page='products';render();window.scrollTo(0,0);break;case'product-link-cat':productLinkCatFilter=v||'all';render();break;case'jump-link-customers':{
   const targetLink = (db.landingLinks || []).find(ll => Number(ll.id) === Number(id));
   linkFilter = String(id || '');
   sourceFilter = targetLink?.channel || '';
@@ -7533,7 +7534,7 @@ switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':se
   window.scrollTo(0, 0);
   if (targetLink) toast(`[${targetLink.channel} · ${targetLink.name}] 유입 고객만 필터링하여 표시합니다.`);
   break;
-}case'detail-tab':openCustomer(id,v);break;case'quote-tab':quoteTab=v;selected.clear();render();break;case'toggle-quote-inquiry':{const numId=Number(id);if(expandedQuoteInquiries.has(numId))expandedQuoteInquiries.delete(numId);else expandedQuoteInquiries.add(numId);const keepY=window.scrollY;render();window.scrollTo(0,keepY);break}case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();break;
+}case'detail-tab':openCustomer(id,v);break;case'quote-tab':quoteTab=v;selected.clear();selectedQuotes.clear();render();break;case'toggle-quote-inquiry':{const numId=Number(id);if(expandedQuoteInquiries.has(numId))expandedQuoteInquiries.delete(numId);else expandedQuoteInquiries.add(numId);const keepY=window.scrollY;render();window.scrollTo(0,keepY);break}case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();break;
 case'clear-quote-phone':{
   (async()=>{
     try{
@@ -7910,11 +7911,14 @@ case'publish-quote':{
   }
 case'sample-csv':download('homecc-estimate-sample.csv','품목,규격,수량,원가단가\n거실 발코니 이중창,맞춤규격,1,3200000\n안방 침실 창호,맞춤규격,2,1800000\n철거 및 설치,기본시공,1,1200000');break;
 case'export':{
-  if(!selected.size){
+  const exportCidSet = page === 'quotes'
+    ? new Set([...selectedQuotes].map(k => Number(String(k).split(':')[0])).filter(n => Number.isFinite(n) && n > 0))
+    : selected;
+  if(!exportCidSet.size){
     toast('엑셀로 다운로드할 고객을 먼저 선택해 주세요.');
     break;
   }
-  const cs=visibleCustomers().filter(c=>selected.has(c.id));
+  const cs=visibleCustomers().filter(c=>exportCidSet.has(c.id));
   if(!cs.length){
     toast('선택된 고객 데이터를 찾을 수 없습니다.');
     break;
@@ -7924,6 +7928,36 @@ case'export':{
   break;
 }
 case'delete-selected':{
+  if (page === 'quotes') {
+    if (!selectedQuotes.size) {
+      toast('삭제할 견적서를 먼저 선택해 주세요.');
+      break;
+    }
+    const quoteTargets = [...selectedQuotes]
+      .map((k) => {
+        const [pStr, vStr] = String(k).split(':');
+        return { projectId: Number(pStr), version: Number(vStr) };
+      })
+      .filter((it) => Number.isFinite(it.projectId) && it.projectId > 0 && Number.isFinite(it.version) && it.version > 0);
+    if (!quoteTargets.length) {
+      toast('아직 발행된 견적이 없는 요청 건입니다. 고객 삭제는 고객관리 메뉴에서 진행해 주세요.');
+      break;
+    }
+    if (!confirm(`선택한 견적서 ${quoteTargets.length}건을 삭제하시겠습니까?\n(고객 정보와 다른 버전의 견적서는 그대로 유지됩니다.)`)) break;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/quotes/bulk-delete', { method: 'POST', body: { items: quoteTargets } });
+        const resData = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(resData.error || '견적서 삭제에 실패했습니다.');
+        selectedQuotes.clear();
+        await syncFromServer();
+        toast(`선택한 견적서 ${quoteTargets.length}건을 삭제했습니다. (고객 정보는 유지됨)`);
+      } catch (err) {
+        toast(err.message || '견적서 삭제 중 오류가 발생했습니다.');
+      }
+    })();
+    break;
+  }
   if(!selected.size){
     toast('삭제할 고객을 먼저 선택해 주세요.');
     break;
@@ -8920,6 +8954,18 @@ document.addEventListener('focusout',e=>{if(e.target.dataset?.money&&!e.target.v
 function parseCSV(text){const rows=[];let row=[],cell='',inside=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(inside&&text[i+1]==='"'){cell+='"';i++}else inside=!inside}else if(c===','&&!inside){row.push(cell);cell=''}else if((c==='\n'||c==='\r')&&!inside){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(v=>v.trim()))rows.push(row);row=[];cell=''}else cell+=c}row.push(cell);if(row.some(v=>v.trim()))rows.push(row);return rows}
 document.addEventListener('change',async e=>{const el=e.target,id=el.id;if(el.name==='color'&&el.closest('.badge-color-options')){const picker=el.closest('.badge-color-options');$$('.badge-color-opt',picker).forEach(lbl=>{lbl.classList.toggle('is-selected',Boolean($('input[name="color"]',lbl)?.checked))});return}if(id==='contract-form-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const qEl=$('#contract-quote-total');if(selC&&qEl){const nextAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;qEl.value=num(nextAmt);const presetBox=$('#quote-price-presets-box');if(presetBox)presetBox.innerHTML=renderQuotePricePresetsHtml(selC,nextAmt);const presetEl=$('#rental-monthly-preset');if(presetEl)presetEl.value=nextAmt>10000000?'222000':'111000';syncContractFormUI(true,'customer');}return}if(el.closest('#edit-form[data-submit="contract"], #edit-form[data-submit="edit-contract-payment"]')){if(el.name==='cardOption'){syncContractFormUI(true,'card-option');return}if(el.name==='cashOption'||el.id==='rental-monthly-preset'){syncContractFormUI(true,el.name||el.id);return}if(['cashPaid','cardInstallmentMonths','rentalUpfrontMethod','rentalCashPaid'].includes(el.name)){syncContractFormUI(false,el.name);return}}if(id==='pay-link-cid'&&el.tagName==='SELECT'){const selC=accessibleC(el.value);const f=el.closest('form');if(selC&&f){const nInp=$('input[name="customerName"]',f);const pInp=$('input[name="customerPhone"]',f);const aInp=$('input[name="amount"]',f);if(nInp)nInp.value=selC.name||'';if(pInp)pInp.value=selC.phone||'';if(aInp){const qAmt=selC.finalQuote?.totalPrice||selC.roughQuote?.totalPrice||selC.quote||0;aInp.value=num(qAmt);}}return}if(el.name==='allowed_menu'){syncDialogMenuCards();return}if(id==='user-role-select'){const form=el.closest('#user-perm-form');if(form&&form.dataset.mode==='create'){const def=getDefaultMenusByRole(el.value);$$('input[name="allowed_menu"][type="checkbox"]',form).forEach(inp=>{inp.checked=inp.dataset.locked==='1'?true:def.includes(inp.value)});syncDialogMenuCards()}return}if(el.dataset.selectAll){
   const scope=el.dataset.selectAll;
+  if(scope==='quote-versions'){
+    const {allRows,inquiryRows}=getQuoteRows();
+    const displayRows=expandQuoteListRows(quoteTab==='inquiries'?inquiryRows:allRows);
+    displayRows.forEach(({c,pq})=>{
+      const key=`${c.id}:${pq?pq.version:0}`;
+      el.checked?selectedQuotes.add(key):selectedQuotes.delete(key);
+    });
+    const keepY=window.scrollY;
+    render();
+    window.scrollTo(0,keepY);
+    return;
+  }
   const cs=visibleCustomers();
   let targetIds=[];
   if(scope==='customers') targetIds=filteredCustomers().map(c=>c.id);
@@ -8936,6 +8982,7 @@ document.addEventListener('change',async e=>{const el=e.target,id=el.id;if(el.na
   window.scrollTo(0,keepY);
   return;
 }
+if(el.dataset.selectQuote){const key=String(el.dataset.selectQuote);el.checked?selectedQuotes.add(key):selectedQuotes.delete(key);const keepY=window.scrollY;render();window.scrollTo(0,keepY);return}
 if(el.dataset.select){const n=Number(el.dataset.select);el.checked?selected.add(n):selected.delete(n);const keepY=window.scrollY;render();window.scrollTo(0,keepY);return}if(el.dataset.item!==undefined&&el.dataset.key==='category'&&editor){const idx=Number(el.dataset.item);if(editor.items[idx]){editor.items[idx].category=el.value==='extra'?'extra':'window';const tr=el.closest('tr');if(tr)tr.classList.toggle('is-extra',el.value==='extra');const subBar=$('#editor-subtotals-bar');if(subBar)subBar.innerHTML=editorSubtotalsBarHtml();const sumBox=$('#quote-summary');if(sumBox)sumBox.innerHTML=editorSummary();syncEditorLivePreview();}return}if(id==='role-switch'){
   const targetUser=el.value;
   const activeU=getActiveUser();
