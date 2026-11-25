@@ -51,15 +51,17 @@ body.locked{overflow:hidden}
 .bba-float-cta{position:fixed;right:20px;bottom:20px;z-index:50;display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border:none;border-radius:999px;background:var(--ink);color:#fff;font:800 15px/1 "Pretendard",sans-serif;box-shadow:0 12px 30px rgba(12,13,12,.25);cursor:pointer;transition:transform .2s ease,box-shadow .2s ease}
 .bba-float-cta:hover{transform:translateY(-2px);box-shadow:0 16px 34px rgba(12,13,12,.32)}
 .bba-float-cta span{color:var(--acc)}
-.bba-dialog{border:none;border-radius:20px;padding:0;width:min(460px,calc(100vw - 24px));max-height:90vh;background:var(--panel);color:var(--fg);box-shadow:0 24px 60px rgba(0,0,0,.28);overflow:auto;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+.bba-dialog{box-sizing:border-box;border:none;border-radius:20px;padding:0;width:min(460px,calc(100vw - 24px));max-height:92dvh;background:var(--panel);color:var(--fg);box-shadow:0 24px 60px rgba(0,0,0,.28);overflow-x:hidden;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+.bba-dialog::-webkit-scrollbar{display:none}
+.bba-dialog *{box-sizing:border-box}
 .bba-dialog::backdrop{background:rgba(12,13,12,.58);backdrop-filter:blur(4px)}
-.bba-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);font-size:12px;font-weight:800;letter-spacing:.08em;color:var(--acc-text)}
+.bba-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line);font-size:12px;font-weight:800;letter-spacing:.08em;color:var(--acc-text)}
 .bba-icon-btn{width:34px;height:34px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font-size:18px;line-height:1;cursor:pointer;display:grid;place-items:center}
-.bba-drawer-body{padding:22px 22px 26px}
+.bba-drawer-body{padding:18px 20px 22px}
 .bba-eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--acc-text);margin:0}
-.bba-drawer-body h2{font-size:24px;font-weight:800;line-height:1.3;margin:8px 0 0;letter-spacing:-.02em}
-.bba-drawer-desc{font-size:14px;line-height:1.55;color:var(--muted);margin:8px 0 14px}
-.bba-note-tag{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12px;font-weight:600;color:var(--acc-text);margin-bottom:16px}
+.bba-drawer-body h2{font-size:22px;font-weight:800;line-height:1.3;margin:6px 0 0;letter-spacing:-.02em}
+.bba-drawer-desc{font-size:13.5px;line-height:1.5;color:var(--muted);margin:6px 0 12px}
+.bba-note-tag{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--acc-text);margin-bottom:14px}
 .bba-form{display:grid;gap:10px}
 .bba-form label{font-size:13px;font-weight:700;color:var(--fg);margin-top:4px}
 .bba-form label span{color:#d94848}
@@ -68,18 +70,18 @@ body.locked{overflow:hidden}
 .bba-consent{display:flex;align-items:flex-start;gap:10px;margin:8px 0 6px;font-weight:500!important;cursor:pointer}
 .bba-consent input{margin-top:3px;width:16px;height:16px;accent-color:var(--acc-text)}
 .bba-consent small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
-.bba-submit{margin-top:6px;width:100%;padding:15px 18px;border:none;border-radius:999px;background:var(--ink);color:#fff;font:800 16px/1 "Pretendard",sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.bba-submit{box-sizing:border-box;margin-top:6px;width:100%;max-width:100%;padding:14px 18px;border:none;border-radius:999px;background:var(--ink);color:#fff;font:800 16px/1 "Pretendard",sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
 .bba-submit:disabled{opacity:.6;cursor:not-allowed}
 .bba-privacy-link{background:none;border:none;padding:0;margin-top:2px;color:var(--muted);font-size:12px;text-decoration:underline;cursor:pointer;justify-self:start}
-.bba-result{text-align:center;padding:12px 0}
-.bba-result-badge{width:48px;height:48px;border-radius:999px;background:rgba(var(--acc-rgb),.28);color:var(--acc-text);font-size:24px;font-weight:900;display:inline-grid;place-items:center;margin-bottom:10px}
-.bba-result h3{font-size:21px;font-weight:800;margin:0 0 8px}
-.bba-result p{font-size:14px;color:var(--muted);line-height:1.55;margin:0 0 16px}
-.bba-result dl{text-align:left;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:0 0 16px;display:grid;grid-template-columns:90px 1fr;gap:8px 12px;font-size:13px}
+.bba-result{text-align:center;padding:6px 0 0}
+.bba-result-badge{width:44px;height:44px;border-radius:999px;background:rgba(var(--acc-rgb),.28);color:var(--acc-text);font-size:22px;font-weight:900;display:inline-grid;place-items:center;margin-bottom:8px}
+.bba-result h3{font-size:20px;font-weight:800;margin:0 0 6px}
+.bba-result p{font-size:13.5px;color:var(--muted);line-height:1.5;margin:0 0 12px}
+.bba-result dl{text-align:left;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:0 0 12px;display:grid;grid-template-columns:86px 1fr;gap:7px 10px;font-size:13px}
 .bba-result dt{color:var(--muted);font-weight:600}
-.bba-result dd{margin:0;font-weight:700;color:var(--fg)}
-.bba-edit-btn{background:none;border:none;color:var(--acc-text);font:700 13px/1 "Pretendard",sans-serif;margin-top:12px;cursor:pointer;text-decoration:underline}
-.bba-contact{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)}
+.bba-result dd{margin:0;font-weight:700;color:var(--fg);overflow-wrap:anywhere}
+.bba-edit-btn{background:none;border:none;color:var(--acc-text);font:700 13px/1 "Pretendard",sans-serif;margin-top:10px;cursor:pointer;text-decoration:underline}
+.bba-contact{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)}
 .bba-contact a{color:var(--fg);font-weight:800;text-decoration:none}
 </style></head>
 <body>
