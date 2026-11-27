@@ -13,6 +13,14 @@ import {
   serializeConsentForm,
 } from "../_lib/formDefaults.js";
 import { fetchUrlAsDataUrl } from "../_lib/storageHelper.js";
+import {
+  MESSAGING_SETTING_KEY,
+  dispatchMessage,
+  loadRawMessagingConfig,
+  mergeMessagingConfigUpdate,
+  normalizeMessagingConfig,
+  sanitizeMessagingConfigForClient,
+} from "../../server/utils/messagingService.js";
 
 const DEFAULT_STAGES = [
   { id: "1", name: "신규접수", color: "blue", sortOrder: 1, sort_order: 1 },
@@ -369,24 +377,89 @@ export default async function handler(req, res) {
       }
     }
 
-    // 4. /api/settings/integrations & /messaging
+    // 4. /api/settings/integrations & /messaging & /messaging-test
     if (section === "integrations") {
       if (sub === "messaging" && (req.method === "PUT" || req.method === "POST")) {
         const body = parseBody(req) || {};
+        const prevRaw = await loadRawMessagingConfig(convexClient, api);
+        const merged = mergeMessagingConfigUpdate(prevRaw, body);
         await convexClient.mutation(api.settings.setSetting, {
-          key: "integrations_messaging",
-          value: JSON.stringify(body),
+          key: MESSAGING_SETTING_KEY,
+          value: JSON.stringify(merged),
         });
-        return res.status(200).json({ saved: true, message: "메시지 연동 설정이 저장되었습니다." });
+        const effective = normalizeMessagingConfig(merged, process.env);
+        const clientCfg = sanitizeMessagingConfigForClient(effective);
+        return res.status(200).json({
+          success: true,
+          saved: true,
+          messaging: clientCfg,
+          configs: { messaging: clientCfg },
+          message: "문자·알림톡 연동 설정이 저장되었습니다.",
+        });
       }
-      const setting = await convexClient.query(api.settings.getSetting, {
-        key: "integrations_messaging",
-      });
-      let messaging = {};
+      if (sub === "messaging-test" && req.method === "POST") {
+        const body = parseBody(req) || {};
+        const prevRaw = await loadRawMessagingConfig(convexClient, api);
+        const merged = body.config
+          ? normalizeMessagingConfig(mergeMessagingConfigUpdate(prevRaw, body.config), process.env)
+          : normalizeMessagingConfig(prevRaw, process.env);
+        const channel = body.channel === "sms" ? "sms" : "kakao";
+        const phone = String(body.phone || "").trim();
+        if (phone.replace(/\D/g, "").length < 10) {
+          return res.status(400).json({ error: "테스트 수신 휴대폰 번호 10~11자리를 입력해 주세요." });
+        }
+        const proto = req.headers["x-forwarded-proto"] || "https";
+        const host = req.headers["x-forwarded-host"] || req.headers.host || "";
+        const quoteUrl = host ? `${proto}://${host}/quote.html` : "/quote.html";
+        const result = await dispatchMessage(
+          merged,
+          {
+            channel,
+            to: phone,
+            recipientName: "테스트고객",
+            message:
+              String(body.message || "").trim() ||
+              `[KCC홈씨씨] 테스트고객 고객님, 문자·알림톡 발송 연동 테스트 메시지입니다.\n▼ 모바일 견적서 확인하기\n${quoteUrl}`,
+            quoteUrl,
+            projectId: 0,
+            quoteId: 0,
+            quoteType: "가견적",
+            product: "창호",
+            totalPrice: 5200000,
+            tplKey: body.tplKey || "basic",
+            sentBy: auth?.user?.name || "관리자",
+          },
+          { convexClient, api }
+        );
+        if (!result.ok) {
+          return res.status(result.status || 502).json({
+            error: result.error || "테스트 발송에 실패했습니다.",
+            provider: result.provider,
+          });
+        }
+        return res.status(200).json({
+          success: true,
+          simulated: Boolean(result.simulated),
+          provider: result.provider,
+          message: result.simulated
+            ? "실발송 활성화가 꺼져 있어 시뮬레이션 확인만 수행했습니다."
+            : result.provider === "phone_bridge"
+              ? "폰 브릿지 발송 대기열에 등록했습니다. 연결된 휴대폰 앱에서 곧 발송됩니다."
+              : `${channel === "kakao" ? "카카오 알림톡" : "문자(LMS)"} 테스트 발송을 완료했습니다. (${result.provider})`,
+        });
+      }
+      const raw = await loadRawMessagingConfig(convexClient, api);
+      const effective = normalizeMessagingConfig(raw, process.env);
+      const clientCfg = sanitizeMessagingConfigForClient(effective);
       try {
-        messaging = setting?.value ? JSON.parse(setting.value) : {};
-      } catch {}
-      return res.status(200).json({ messaging });
+        clientCfg.bridgeStatus = await convexClient.query(api.smsBridge.getBridgeStatus, {});
+      } catch {
+        clientCfg.bridgeStatus = null;
+      }
+      return res.status(200).json({
+        messaging: clientCfg,
+        configs: { messaging: clientCfg },
+      });
     }
 
     // 5. /api/settings/reset

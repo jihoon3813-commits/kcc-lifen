@@ -1121,7 +1121,7 @@ function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUr
   if (tplKey === 'final') {
     return '[KCC홈씨씨] ' + cName + ' 고객님, 현장 실측이 반영된 최종 모바일 견적서가 발행되었습니다.\n\n' +
       '■ 견적 구분: 최종견적\n' +
-      '■ 확정 견적가: ' + priceStr + ' (일시불·구독·60개월 렌탈 비교 가능)\n\n' +
+      '■ 확정 견적가: ' + priceStr + ' (일시불 할인,60개월 렌탈,그린리모델링 비교 가능)\n\n' +
       '▼ 내 모바일 견적서 확인하기\n' + quoteUrl + '\n\n' +
       '※ 고객님 성함(' + cName + ')과 휴대폰 번호 입력 후 상세 창호 사양을 확인하실 수 있습니다.';
   }
@@ -1320,6 +1320,12 @@ async function openSendQuote(id, preferredType = '', quoteId = null) {
   const rawPhone = previewData?.customer_phone_raw || c.phone || '';
   const dispatches = previewData?.dispatches || [];
   const isLiveApi = Boolean(previewData?.messaging_live);
+  const messagingStatus = previewData?.messaging_status || {
+    live: isLiveApi,
+    smsReady: isLiveApi,
+    kakaoReady: isLiveApi,
+    provider: isLiveApi ? 'webhook' : 'simulation'
+  };
   const defaultTpl = qType === '최종견적' ? 'final' : 'basic';
 
   sendState = {
@@ -1338,15 +1344,25 @@ async function openSendQuote(id, preferredType = '', quoteId = null) {
     finalQuote,
     dispatches,
     isLiveApi,
+    messagingStatus,
     message: makeSendTemplate(defaultTpl, c.name, c.product || '창호', qType, totalPrice, quoteUrl)
   };
 
   renderSendDialog();
 }
 
+function getMessagingProviderLabel(provider) {
+  if (provider === 'barobill') return '바로빌(Barobill)';
+  if (provider === 'aligo') return '알리고(Aligo)';
+  if (provider === 'phone_bridge') return '폰 브릿지(휴대폰)';
+  if (provider === 'webhook' || provider === 'kakao_webhook' || provider === 'sms_webhook') return '웹훅 API';
+  return '미연결';
+}
+
 function renderSendDialog() {
   if (!sendState) return;
   const s = sendState;
+  const ms = s.messagingStatus || {};
   const smsHref = 'sms:' + encodeURIComponent(s.recipientPhone.replace(/[^\d+]/g, '')) + '?body=' + encodeURIComponent(s.message);
 
   const logsHtml = s.dispatches.length
@@ -1354,7 +1370,9 @@ function renderSendDialog() {
         '<div class="dispatch-log-item">' +
           badge(d.channel === 'kakao' ? '알림톡' : '문자', d.channel === 'kakao' ? 'orange' : '') +
           '<div class="grow"><b>' + esc(d.recipient_name) + ' (' + esc(d.recipient_phone) + ')</b><small style="display:block;color:#8a97ab">' + esc(d.sent_at) + ' · 발송자 ' + esc(d.sent_by) + '</small></div>' +
-          badge(d.provider === 'simulation' ? '발송기록됨' : '전송완료', 'green') +
+          (d.status === 'failed'
+            ? badge('발송실패', 'red')
+            : badge(d.provider === 'simulation' ? '발송기록됨' : '실발송완료', d.provider === 'simulation' ? 'gray' : 'green')) +
         '</div>'
       ).join('')
     : '<div class="notice-text">아직 발송한 내역이 없습니다. 위에서 채널을 선택해 첫 견적 안내를 발송해보세요.</div>';
@@ -1371,6 +1389,9 @@ function renderSendDialog() {
     '<small>' + (s.finalQuote ? '클릭 시 최종견적 링크·문구로 전환' : '클릭 시 우측에 최종견적 예시 화면 표시') + '</small>' +
   '</button>';
 
+  const kakaoStateBadge = ms.kakaoReady ? badge('실발송 연결됨', 'green') : badge('연동 필요', 'gray');
+  const smsStateBadge = ms.smsReady ? badge('실발송 연결됨', 'green') : badge('연동 필요', 'gray');
+
   const body = '<div class="dialog-body"><div class="send-layout">' +
     '<section>' +
       '<div class="field"><label>1. 발송할 견적 구분 선택 (가견적 / 최종견적)</label>' +
@@ -1379,10 +1400,10 @@ function renderSendDialog() {
       '<div class="field"><label>2. 발송 수단 선택</label>' +
         '<div class="channel-cards">' +
           '<button type="button" class="channel-card kakao ' + (s.channel === 'kakao' ? 'active' : '') + '" data-action="switch-send-ch" data-value="kakao">' +
-            '<span class="ch-badge kakao">TALK</span><div><b>카카오 알림톡 · 카톡</b><small>버튼형 모바일 견적 링크 발송</small></div>' +
+            '<span class="ch-badge kakao">TALK</span><div style="flex:1"><b>카카오 알림톡 · 카톡</b><small>버튼형 모바일 견적 링크 발송</small></div>' + kakaoStateBadge +
           '</button>' +
           '<button type="button" class="channel-card sms ' + (s.channel === 'sms' ? 'active' : '') + '" data-action="switch-send-ch" data-value="sms">' +
-            '<span class="ch-badge sms">LMS</span><div><b>문자 메시지 (LMS)</b><small>장문 안내 문자 및 전용 링크 발송</small></div>' +
+            '<span class="ch-badge sms">LMS</span><div style="flex:1"><b>문자 메시지 (LMS)</b><small>장문 안내 문자 및 전용 링크 발송</small></div>' + smsStateBadge +
           '</button>' +
         '</div>' +
       '</div>' +
@@ -1424,7 +1445,16 @@ function renderSendDialog() {
     '</aside>' +
   '</div></div>';
 
-  const footer = '<small>' + (s.isLiveApi ? '● 실시간 외부 발송 API 연결됨' : '● 연동 대기(발송이력 기록 및 문구복사·미리보기 지원 · 설정>외부연동에서 실발송 API 연결 가능)') + '</small>' +
+  const activeChReady = s.channel === 'kakao' ? ms.kakaoReady : ms.smsReady;
+  const activeChProvider = s.channel === 'kakao' ? (ms.kakaoProvider || 'barobill') : (ms.smsProvider || 'aligo');
+  const statusText = activeChReady
+    ? ('● 실시간 발송 연결됨 (' + getMessagingProviderLabel(activeChProvider) + ')')
+    : (s.isLiveApi
+        ? '● 현재 채널 설정 미완료 (' + getMessagingProviderLabel(activeChProvider) + ' · 설정 확인 필요)'
+        : '● 발송 API 미연결 (이력기록·복사 모드 · 설정>외부연동에서 바로빌/알리고 키 등록)');
+
+  const footer = '<small>' + esc(statusText) + '</small>' +
+    (isHqAdminUser() ? btn('카톡·문자 연동 설정', 'open-messaging-config', 'settings', 'soft') : '') +
     btn('가견적 크게 보기', 'preview', 'eye', 'soft', 'data-id="' + s.cid + '" data-type="가견적"') +
     btn('최종견적 크게 보기', 'preview', 'eye', 'soft', 'data-id="' + s.cid + '" data-type="최종견적"') +
     btn('닫기', 'close');
@@ -1433,31 +1463,190 @@ function renderSendDialog() {
   renderSendRightPreview();
 }
 
-async function openMessagingIntegrationDialog() {
-  let cfg = { enabled: false, provider: 'webhook', senderPhone: '1588-0000', smsWebhookUrl: '', kakaoWebhookUrl: '', kakaoPfId: '', apiKey: '' };
+let messagingStatusCache = null;
+
+async function refreshMessagingStatus(shouldRender = false) {
   try {
     const res = await apiFetch('/api/settings/integrations');
     if (res.ok) {
       const data = await res.json();
-      if (data.configs?.messaging) cfg = { ...cfg, ...data.configs.messaging };
+      const msg = data.configs?.messaging || data.messaging || {};
+      messagingStatusCache = msg.status || null;
+      if (shouldRender && page === 'settings' && settingsTab === 'integrations') {
+        render();
+      }
+      return msg;
+    }
+  } catch {}
+  return null;
+}
+
+function syncMessagingProviderFields() {
+  const form = $('#edit-form[data-submit="messaging-config"]');
+  if (!form) return;
+  const kakaoProv = form.querySelector('[name="kakaoProvider"]')?.value || 'barobill';
+  const smsProv = form.querySelector('[name="smsProvider"]')?.value || 'aligo';
+  form.querySelectorAll('[data-kakao-provider]').forEach(el => {
+    const allowed = String(el.dataset.kakaoProvider || '').split(',').map(x => x.trim());
+    el.style.display = allowed.includes(kakaoProv) ? '' : 'none';
+  });
+  form.querySelectorAll('[data-sms-provider]').forEach(el => {
+    const allowed = String(el.dataset.smsProvider || '').split(',').map(x => x.trim());
+    el.style.display = allowed.includes(smsProv) ? '' : 'none';
+  });
+  const smsOpt = $('#test-msg-channel option[value="sms"]');
+  if (smsOpt) {
+    smsOpt.textContent = smsProv === 'phone_bridge' ? '문자 (폰 브릿지)' : smsProv === 'webhook' ? '문자 (웹훅)' : '문자 (알리고)';
+  }
+}
+
+async function openMessagingIntegrationDialog() {
+  let cfg = {
+    enabled: false,
+    kakaoProvider: 'barobill',
+    smsProvider: 'aligo',
+    senderPhone: '1588-0000',
+    barobillCertKey: '',
+    barobillCorpNum: '',
+    barobillUserId: '',
+    barobillYellowId: '',
+    barobillTestMode: false,
+    kakaoTemplateName: '',
+    kakaoTemplateNameMeasure: '',
+    kakaoTemplateNameFinal: '',
+    kakaoButtonName: '',
+    kakaoFailoverSms: true,
+    aligoApiKey: '',
+    aligoUserId: '',
+    aligoTestMode: false,
+    bridgeSecret: '',
+    hasBridgeSecret: false,
+    bridgeStatus: null,
+    smsWebhookUrl: '',
+    kakaoWebhookUrl: '',
+    webhookApiKey: '',
+    status: null
+  };
+  try {
+    const res = await apiFetch('/api/settings/integrations');
+    if (res.ok) {
+      const data = await res.json();
+      const loaded = data.configs?.messaging || data.messaging;
+      if (loaded) {
+        cfg = { ...cfg, ...loaded };
+        messagingStatusCache = loaded.status || null;
+      }
     }
   } catch {}
 
+  const st = cfg.status || {};
+  const statusLine = st.live
+    ? `<div class="notice-text" style="margin-bottom:12px;background:#ecfdf5;border-color:#a7f3d0;color:#065f46"><b>실발송 연결 상태:</b> 카카오(${esc(getMessagingProviderLabel(cfg.kakaoProvider))}) ${st.kakaoReady ? '준비됨' : '미완성'} · 문자(${esc(getMessagingProviderLabel(cfg.smsProvider))}) ${st.smsReady ? '준비됨' : '미완성'}</div>`
+    : '<div class="notice-text" style="margin-bottom:12px">카카오 알림톡은 <b>바로빌(Barobill)</b>, 문자(SMS/LMS)는 <b>알리고(Aligo)</b> 기준으로 각각 인증 정보를 입력하고 <b>실시간 외부 API 발송 활성화</b>를 체크하세요.</div>';
+
+  const bs = cfg.bridgeStatus || {};
+  const hb = bs.heartbeat || null;
+  const hbAlive = hb?.lastPollAt && (Date.now() - hb.lastPollAt < 30000);
+  const hbLine = hb?.lastPollAt
+    ? (hbAlive
+        ? `연결됨 (${esc(hb.deviceName || '휴대폰')} · 방금 전 폴링)`
+        : `마지막 연결: ${esc(hb.deviceName || '휴대폰')} (${new Date(hb.lastPollAt).toLocaleTimeString('ko-KR')})`)
+    : '아직 휴대폰 브릿지 앱 연결 이력이 없습니다.';
+  const bridgeOrigin = typeof location !== 'undefined' ? location.origin : '';
+
   openDialog(
-    '문자(SMS/LMS) · 카카오 알림톡 연동 설정',
+    '문자(폰 브릿지·알리고) · 카카오 알림톡(바로빌) 연동 설정',
     '<form id="edit-form" data-submit="messaging-config"><div class="dialog-body">' +
-      '<div class="notice-text" style="margin-bottom:16px">솔라피(Solapi), 알리고(Aligo), 사내 메시징 게이트웨이 등의 발송 웹훅/API 주소를 등록하면 발송 시 실제 문자와 카카오 알림톡이 즉시 전송됩니다. 미등록 상태에서는 CRM 발송 이력 기록 및 원클릭 카톡/문자 복사 모드로 동작합니다.</div>' +
-      '<label class="checkline" style="margin-bottom:16px"><input type="checkbox" name="enabled" ' + (cfg.enabled ? 'checked' : '') + '> <b>실시간 외부 API 발송 활성화</b></label>' +
+      statusLine +
+      '<label class="checkline" style="margin-bottom:14px"><input type="checkbox" name="enabled" ' + (cfg.enabled ? 'checked' : '') + '> <b>실시간 외부 API 발송 활성화 (해제 시 발송 이력만 기록)</b></label>' +
       '<div class="field-grid">' +
-        field('발신 대표번호', 'senderPhone', cfg.senderPhone || '1588-0000', 'tel') +
-        field('카카오 비즈니스 채널 ID (PFID)', 'kakaoPfId', cfg.kakaoPfId || '') +
+        field('사전 등록 발신 대표번호 (문자/대체문자 공용)', 'senderPhone', cfg.senderPhone || '1588-0000', 'tel') +
+        '<div class="field"><label for="kakaoProvider">카카오 알림톡 대행사</label><select class="input" id="kakaoProvider" name="kakaoProvider" onchange="syncMessagingProviderFields()">' +
+          '<option value="barobill"' + (cfg.kakaoProvider === 'barobill' ? ' selected' : '') + '>바로빌 (Barobill)</option>' +
+          '<option value="aligo"' + (cfg.kakaoProvider === 'aligo' ? ' selected' : '') + '>알리고 (Aligo)</option>' +
+          '<option value="webhook"' + (cfg.kakaoProvider === 'webhook' ? ' selected' : '') + '>커스텀 웹훅 (Webhook)</option>' +
+        '</select></div>' +
       '</div>' +
-      field('카카오 알림톡 발송 API / Webhook URL', 'kakaoWebhookUrl', cfg.kakaoWebhookUrl || '', 'url') +
-      field('문자(LMS/SMS) 발송 API / Webhook URL', 'smsWebhookUrl', cfg.smsWebhookUrl || '', 'url') +
-      field('인증 API Key / Bearer Token (선택)', 'apiKey', cfg.apiKey || '', 'password') +
-    '</div><div class="dialog-footer">' + btn('취소', 'close') + '<button type="submit" class="btn primary">연동 설정 저장</button></div></form>',
+
+      '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px;margin-bottom:14px">' +
+        '<b style="font-size:12.5px;color:#92400e;display:block;margin-bottom:10px">1. 카카오 알림톡 연동 (바로빌 기준)</b>' +
+        '<div data-kakao-provider="barobill">' +
+          '<div class="field-grid">' +
+            field('바로빌 연동인증키 (CERTKEY)' + (cfg.hasBarobillCertKey ? ' · 등록됨' : ''), 'barobillCertKey', cfg.barobillCertKey || '', 'password') +
+            field('사업자등록번호 (숫자 10자리 · CorpNum)', 'barobillCorpNum', cfg.barobillCorpNum || '') +
+          '</div>' +
+          '<div class="field-grid">' +
+            field('바로빌 회원 아이디 (SenderID)', 'barobillUserId', cfg.barobillUserId || '') +
+            field('카카오톡 채널 아이디 (YellowId · 예: @채널명)', 'barobillYellowId', cfg.barobillYellowId || '') +
+          '</div>' +
+          '<label class="checkline" style="margin:2px 0 10px"><input type="checkbox" name="barobillTestMode" ' + (cfg.barobillTestMode ? 'checked' : '') + '> <span>바로빌 테스트 서버(testws.baroservice.com) 사용</span></label>' +
+        '</div>' +
+        '<div data-kakao-provider="aligo">' +
+          field('카카오 발신프로필키 (SenderKey)', 'barobillYellowId', cfg.barobillYellowId || '') +
+        '</div>' +
+        '<div data-kakao-provider="barobill,aligo">' +
+          '<div class="field-grid">' +
+            field('승인 알림톡 템플릿명 (기본·가견적)', 'kakaoTemplateName', cfg.kakaoTemplateName || '') +
+            field('방문실측 안내 템플릿명 (선택)', 'kakaoTemplateNameMeasure', cfg.kakaoTemplateNameMeasure || '') +
+          '</div>' +
+          '<div class="field-grid">' +
+            field('최종견적 확정 템플릿명 (선택)', 'kakaoTemplateNameFinal', cfg.kakaoTemplateNameFinal || '') +
+            field('알림톡 웹링크 버튼명 (버튼 있을 때만 입력)', 'kakaoButtonName', cfg.kakaoButtonName || '') +
+          '</div>' +
+          '<label class="checkline" style="margin:4px 0 0"><input type="checkbox" name="kakaoFailoverSms" ' + (cfg.kakaoFailoverSms !== false ? 'checked' : '') + '> <span>알림톡 실패 시 문자(LMS) 자동 대체발송</span></label>' +
+        '</div>' +
+        '<div data-kakao-provider="webhook">' +
+          field('카카오 알림톡 발송 Webhook URL', 'kakaoWebhookUrl', cfg.kakaoWebhookUrl || '', 'url') +
+        '</div>' +
+      '</div>' +
+
+      '<div style="background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px">' +
+          '<b style="font-size:12.5px;color:var(--navy)">2. 문자 메시지 (SMS/LMS) 연동</b>' +
+          '<select class="input" name="smsProvider" onchange="syncMessagingProviderFields()" style="width:195px;height:32px;padding:0 8px">' +
+            '<option value="phone_bridge"' + (cfg.smsProvider === 'phone_bridge' ? ' selected' : '') + '>폰 브릿지 (내 휴대폰 연결)</option>' +
+            '<option value="aligo"' + (cfg.smsProvider === 'aligo' ? ' selected' : '') + '>알리고 (Aligo)</option>' +
+            '<option value="webhook"' + (cfg.smsProvider === 'webhook' ? ' selected' : '') + '>커스텀 웹훅</option>' +
+          '</select>' +
+        '</div>' +
+        '<div data-sms-provider="phone_bridge">' +
+          '<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px">' +
+            '<div style="flex:1">' + field('브릿지 시크릿 키 (Bridge Secret)' + (cfg.hasBridgeSecret ? ' · 등록됨' : ''), 'bridgeSecret', cfg.bridgeSecret || '', 'text') + '</div>' +
+            '<button type="button" class="btn soft" style="height:40px;margin-bottom:12px" data-action="gen-bridge-secret">자동 생성</button>' +
+          '</div>' +
+          '<div class="notice-text" style="margin:0;font-size:12px;line-height:1.55">' +
+            '<b>연결 상태:</b> ' + hbLine + (bs.pendingCount ? ` · 대기 ${bs.pendingCount}건` : '') + '<br>' +
+            '<b>휴대폰 브릿지 앱(KCC 문자연동) 설정값</b> ' +
+            '<a class="link-chip" href="https://github.com/jihoon3813-commits/kcc-lifen/releases/latest/download/kcc-sms-bridge.apk" target="_blank" rel="noopener">APK 다운로드</a><br>' +
+            '• 서버 URL: <code>' + esc(bridgeOrigin) + '</code> <button type="button" class="link-chip" data-action="copy-bridge-url" data-url="' + esc(bridgeOrigin) + '">복사</button><br>' +
+            '• 시크릿 키: 위 입력란에 설정 후 <b>연동 설정 저장</b>을 눌러 주세요. (알리고 키/IP 설정 없이 폰 유심으로 바로 발송됩니다.)' +
+          '</div>' +
+        '</div>' +
+        '<div data-sms-provider="aligo">' +
+          '<div class="field-grid">' +
+            field('알리고 API Key' + (cfg.hasAligoApiKey ? ' · 등록됨' : ''), 'aligoApiKey', cfg.aligoApiKey || '', 'password') +
+            field('알리고 사용자 ID (user_id)', 'aligoUserId', cfg.aligoUserId || '') +
+          '</div>' +
+          '<label class="checkline" style="margin:2px 0 0"><input type="checkbox" name="aligoTestMode" ' + (cfg.aligoTestMode ? 'checked' : '') + '> <span>알리고 테스트 모드(testmode_yn=Y · 실제 과금/수신 없음)</span></label>' +
+        '</div>' +
+        '<div data-sms-provider="webhook">' +
+          field('문자(LMS/SMS) 발송 Webhook URL', 'smsWebhookUrl', cfg.smsWebhookUrl || '', 'url') +
+          field('웹훅 Bearer 인증키 (선택)', 'webhookApiKey', cfg.webhookApiKey || '', 'password') +
+        '</div>' +
+      '</div>' +
+
+      '<div style="background:#f1f5f9;border:1px solid var(--line);border-radius:10px;padding:12px">' +
+        '<b style="font-size:12px;display:block;margin-bottom:8px">연동 테스트 발송 (선택)</b>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+          '<select class="input" id="test-msg-channel" style="width:150px"><option value="sms">문자 (알리고)</option><option value="kakao">알림톡 (바로빌)</option></select>' +
+          '<input class="input" id="test-msg-phone" type="tel" placeholder="수신 테스트 번호 (010-0000-0000)" style="flex:1;min-width:170px">' +
+          '<button type="button" class="btn soft" data-action="test-messaging-send">' + icon('send') + '테스트 발송</button>' +
+        '</div>' +
+      '</div>' +
+    '</div><div class="dialog-footer">' + btn('닫기', 'close') + '<button type="submit" class="btn primary">연동 설정 저장</button></div></form>',
     '', '', '고객 모바일 견적서 발송 채널 관리'
   );
+  syncMessagingProviderFields();
 }
 
 let page='customers', navSyncing=false, navSyncSeq=0, customerTab='all', quoteTab='all', contractTab='all', paymentTab='all', paymentQuery='', settingsTab='labels', role='본사 관리자', query='', stageFilter='', productFilter='', partnerFilter='', sourceFilter='', linkFilter='', periodFilter='all', sortOrder='new', productLinkCatFilter='all', productLinkQuery='', selected=new Set(), selectedQuotes=new Set(), expandedQuoteInquiries=new Set(), detailId=null, detailTab='notes', editor=null, statsPeriod='30', restoreFocus=null, quotePreviewId=null;
@@ -5095,7 +5284,21 @@ function settingsPage(){
   if(settingsTab==='forms')content=renderFormsSettingsPanel();
   if(settingsTab==='users')content=renderUsersSettingsPanel();
   if(settingsTab==='quote-phone')content=renderQuotePhoneSettingsPanel();
-  if(settingsTab==='integrations')content=`<div class="panel-head"><div><h3>외부 서비스 연동</h3><p>실제 서비스 개통 상태와 운영 연결을 관리합니다.</p></div></div><div class="panel-pad">${[['카드결제 PG','신규 결제 요청·승인·취소·정산','credit'],['문자·알림톡','견적 안내·본인 인증·업무 알림','send'],['렌탈사 접수','심사·약정·정산 결과 연결','file'],['랜딩페이지 수집','상담 신청·유입 이벤트 연결','link']].map(([n,t,i])=>`<div class="settings-row">${icon(i)}<div class="grow"><b>${n}</b><small>${t}</small></div>${badge('미연결','gray')}${btn('연결 안내','integration','info','sm',`data-name="${n}"`)}</div>`).join('')}</div>`;
+  if(settingsTab==='integrations'){
+    const msgSt = messagingStatusCache || {};
+    const statusParts = [];
+    if (msgSt.kakaoReady) statusParts.push('카톡:' + getMessagingProviderLabel(msgSt.kakaoProvider));
+    if (msgSt.smsReady) statusParts.push('문자:' + getMessagingProviderLabel(msgSt.smsProvider));
+    const msgBadge = msgSt.live
+      ? badge('연결됨 · ' + statusParts.join(' / '), 'green')
+      : badge('미연결', 'gray');
+    content=`<div class="panel-head"><div><h3>외부 서비스 연동</h3><p>실제 서비스 개통 상태와 운영 연결을 관리합니다.</p></div></div><div class="panel-pad">${[
+      ['카드결제 PG','신규 결제 요청·승인·취소·정산','credit',badge('미연결','gray'),'연결 안내'],
+      ['문자·알림톡','견적 안내(카톡: 바로빌 / 문자: 알리고)','send',msgBadge,'연동 설정'],
+      ['렌탈사 접수','심사·약정·정산 결과 연결','file',badge('미연결','gray'),'연결 안내'],
+      ['랜딩페이지 수집','상담 신청·유입 이벤트 연결','link',badge('미연결','gray'),'연결 안내']
+    ].map(([n,t,i,b,btnLabel])=>`<div class="settings-row">${icon(i)}<div class="grow"><b>${n}</b><small>${t}</small></div>${b}${btn(btnLabel,'integration','info','sm',`data-name="${n}"`)}</div>`).join('')}</div>`;
+  }
   if(settingsTab==='reset')content=`<div class="panel-head"><h3>운영 데이터 초기화</h3></div><div class="panel-pad"><div class="notice-text">고객·견적·계약·렌탈·파트너·광고링크 데이터를 모두 비우고 기본 설정(최고관리자·기본 상품·동의서 양식)만 남깁니다.</div><div style="margin-top:20px">${btn('운영 데이터 초기화','reset-data','refresh','danger')}</div></div>`;
   return pageHead('설정','운영 기준과 사용자 권한을 관리하세요.','','SYSTEM SETTINGS')+`<div class="settings-layout"><nav class="settings-nav">${tabs.map(([v,t,i])=>`<button class="${settingsTab===v?'active':''}" data-action="settings-tab" data-value="${v}">${icon(i)}${t}</button>`).join('')}</nav><section class="panel">${content}</section></div>`;
 }
@@ -7654,7 +7857,7 @@ switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':se
   window.scrollTo(0, 0);
   if (targetLink) toast(`[${targetLink.channel} · ${targetLink.name}] 유입 고객만 필터링하여 표시합니다.`);
   break;
-}case'detail-tab':openCustomer(id,v);break;case'quote-tab':quoteTab=v;selected.clear();selectedQuotes.clear();render();break;case'toggle-quote-inquiry':{const numId=Number(id);if(expandedQuoteInquiries.has(numId))expandedQuoteInquiries.delete(numId);else expandedQuoteInquiries.add(numId);const keepY=window.scrollY;render();window.scrollTo(0,keepY);break}case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();break;
+}case'detail-tab':openCustomer(id,v);break;case'quote-tab':quoteTab=v;selected.clear();selectedQuotes.clear();render();break;case'toggle-quote-inquiry':{const numId=Number(id);if(expandedQuoteInquiries.has(numId))expandedQuoteInquiries.delete(numId);else expandedQuoteInquiries.add(numId);const keepY=window.scrollY;render();window.scrollTo(0,keepY);break}case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();if(v==='integrations')refreshMessagingStatus(true);break;
 case'clear-quote-phone':{
   (async()=>{
     try{
@@ -7786,6 +7989,83 @@ case'clear-quote-phone':{
     }
     break;
   }
+  case'open-messaging-config':{
+    openMessagingIntegrationDialog();
+    break;
+  }
+  case'gen-bridge-secret':{
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let token = 'kcc_';
+    for (let i = 0; i < 20; i++) token += chars[Math.floor(Math.random() * chars.length)];
+    const inp = $('#edit-form[data-submit="messaging-config"] [name="bridgeSecret"]');
+    if (inp) {
+      inp.value = token;
+      inp.focus();
+      inp.select();
+    }
+    copy(token);
+    toast('새 브릿지 시크릿 키를 생성해 복사했습니다. 하단의 [연동 설정 저장]을 눌러주세요.');
+    break;
+  }
+  case'copy-bridge-url':{
+    const url = el.dataset.url || (typeof location !== 'undefined' ? location.origin : '');
+    copy(url);
+    toast('서버 URL을 복사했습니다: ' + url);
+    break;
+  }
+  case'test-messaging-send':{
+    const form = $('#edit-form[data-submit="messaging-config"]');
+    const testPhone = ($('#test-msg-phone')?.value || '').trim();
+    const testChannel = $('#test-msg-channel')?.value || 'sms';
+    if (testPhone.replace(/\D/g, '').length < 10) {
+      toast('테스트 수신 휴대폰 번호 10~11자리를 입력해 주세요.');
+      $('#test-msg-phone')?.focus();
+      break;
+    }
+    const fd = form ? new FormData(form) : null;
+    const rawForm = fd ? Object.fromEntries(fd.entries()) : {};
+    el.disabled = true;
+    try {
+      const res = await apiFetch('/api/settings/integrations/messaging-test', {
+        method: 'POST',
+        body: {
+          channel: testChannel,
+          phone: testPhone,
+          config: {
+            enabled: Boolean(form?.querySelector('[name="enabled"]')?.checked),
+            kakaoProvider: (rawForm.kakaoProvider || 'barobill').trim(),
+            smsProvider: (rawForm.smsProvider || 'aligo').trim(),
+            senderPhone: (rawForm.senderPhone || '').trim(),
+            barobillCertKey: (rawForm.barobillCertKey || '').trim(),
+            barobillCorpNum: (rawForm.barobillCorpNum || '').trim(),
+            barobillUserId: (rawForm.barobillUserId || '').trim(),
+            barobillYellowId: (rawForm.barobillYellowId || '').trim(),
+            barobillTestMode: Boolean(form?.querySelector('[name="barobillTestMode"]')?.checked),
+            kakaoTemplateName: (rawForm.kakaoTemplateName || '').trim(),
+            kakaoTemplateNameMeasure: (rawForm.kakaoTemplateNameMeasure || '').trim(),
+            kakaoTemplateNameFinal: (rawForm.kakaoTemplateNameFinal || '').trim(),
+            kakaoButtonName: (rawForm.kakaoButtonName || '').trim(),
+            kakaoFailoverSms: Boolean(form?.querySelector('[name="kakaoFailoverSms"]')?.checked),
+            aligoApiKey: (rawForm.aligoApiKey || '').trim(),
+            aligoUserId: (rawForm.aligoUserId || '').trim(),
+            aligoTestMode: Boolean(form?.querySelector('[name="aligoTestMode"]')?.checked),
+            bridgeSecret: (rawForm.bridgeSecret || '').trim(),
+            kakaoWebhookUrl: (rawForm.kakaoWebhookUrl || '').trim(),
+            smsWebhookUrl: (rawForm.smsWebhookUrl || '').trim(),
+            webhookApiKey: (rawForm.webhookApiKey || '').trim(),
+          }
+        }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resData.error || '테스트 발송에 실패했습니다.');
+      toast(resData.message || '테스트 발송을 완료했습니다.');
+    } catch (err) {
+      toast('테스트 발송 실패: ' + err.message);
+    } finally {
+      el.disabled = false;
+    }
+    break;
+  }
   case'submit-send-quote':{
     if (!sendState) break;
     const phoneVal = ($('#send-phone')?.value || sendState.recipientPhone || '').trim();
@@ -7801,6 +8081,7 @@ case'clear-quote-phone':{
         method: 'POST',
         body: {
           channel: sendState.channel,
+          tplKey: sendState.tpl,
           quoteType: sendState.quoteType,
           quoteId: sendState.quoteId,
           recipientName: sendState.recipientName,
@@ -7812,7 +8093,7 @@ case'clear-quote-phone':{
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error || '발송 처리에 실패했습니다.');
       await syncFromServer();
-      toast('[' + sendState.quoteType + '] ' + (sendState.channel === 'kakao' ? '카카오 알림톡' : '문자(LMS)') + ' 발송이 완료되었습니다!');
+      toast(resData.message || ('[' + sendState.quoteType + '] ' + (sendState.channel === 'kakao' ? '카카오 알림톡' : '문자(LMS)') + ' 발송이 완료되었습니다!'));
       await openSendQuote(sendState.cid, sendState.quoteType);
     } catch (err) {
       toast('발송 오류: ' + err.message);
@@ -10203,23 +10484,46 @@ case'create-form':{
 }
 case'messaging-config':{
     try {
+      const formEl = $('#edit-form[data-submit="messaging-config"]');
       const res = await apiFetch('/api/settings/integrations/messaging', {
         method: 'PUT',
         body: {
-          enabled: !!d.enabled,
-          provider: 'webhook',
+          enabled: Boolean(formEl?.querySelector('[name="enabled"]')?.checked),
+          kakaoProvider: (d.kakaoProvider || 'barobill').trim(),
+          smsProvider: (d.smsProvider || 'aligo').trim(),
           senderPhone: (d.senderPhone || '').trim(),
-          kakaoPfId: (d.kakaoPfId || '').trim(),
+          barobillCertKey: (d.barobillCertKey || '').trim(),
+          barobillCorpNum: (d.barobillCorpNum || '').trim(),
+          barobillUserId: (d.barobillUserId || '').trim(),
+          barobillYellowId: (d.barobillYellowId || '').trim(),
+          barobillTestMode: Boolean(formEl?.querySelector('[name="barobillTestMode"]')?.checked),
+          kakaoTemplateName: (d.kakaoTemplateName || '').trim(),
+          kakaoTemplateNameMeasure: (d.kakaoTemplateNameMeasure || '').trim(),
+          kakaoTemplateNameFinal: (d.kakaoTemplateNameFinal || '').trim(),
+          kakaoButtonName: (d.kakaoButtonName || '').trim(),
+          kakaoFailoverSms: Boolean(formEl?.querySelector('[name="kakaoFailoverSms"]')?.checked),
+          aligoApiKey: (d.aligoApiKey || '').trim(),
+          aligoUserId: (d.aligoUserId || '').trim(),
+          aligoTestMode: Boolean(formEl?.querySelector('[name="aligoTestMode"]')?.checked),
+          bridgeSecret: (d.bridgeSecret || '').trim(),
           kakaoWebhookUrl: (d.kakaoWebhookUrl || '').trim(),
           smsWebhookUrl: (d.smsWebhookUrl || '').trim(),
-          apiKey: (d.apiKey || '').trim()
+          webhookApiKey: (d.webhookApiKey || '').trim()
         }
       });
+      const resData = await res.json().catch(() => ({}));
       if (res.ok) {
+        const savedMsg = resData.messaging || resData.configs?.messaging;
+        if (savedMsg?.status) {
+          messagingStatusCache = savedMsg.status;
+        }
         closeDialog();
-        toast('문자·알림톡 발송 연동 설정이 저장되었습니다.');
+        if (page === 'settings' && settingsTab === 'integrations') render();
+        toast(resData.message || '문자·알림톡 발송 연동 설정이 저장되었습니다.');
         break;
       }
+      toast(resData.error || '설정 저장에 실패했습니다.');
+      break;
     } catch {}
     toast('설정 저장에 실패했습니다.');
     break;

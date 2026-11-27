@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { calculateQuote } from './quoteCalc.js';
 import { formatCustomerSafeQuote } from './mobileQuoteFormatter.js';
 import { notifyNewQuote } from '../../api/_lib/discordHelper.js';
+import { dispatchMessage, getMessagingChannelStatus } from './messagingService.js';
 
 export function checkConvexPartnerAccess(partnerOrgId, user, project, organizations = []) {
   if (!partnerOrgId) return true;
@@ -202,7 +203,7 @@ export function mapConvexItemsForFormatter(items = []) {
 export async function getProjectQuotePreviewFromConvex(
   convexClient,
   api,
-  { projectId, requestedType = '', requestedQuoteId = null, allowSimulate = true, partnerOrgId = null, user = null, messagingLive = false }
+  { projectId, requestedType = '', requestedQuoteId = null, allowSimulate = true, partnerOrgId = null, user = null, messagingLive = false, messagingStatus = null }
 ) {
   const data = await convexClient.query(api.quotes.getPreviewByProject, { projectId });
   if (!data || !data.project) {
@@ -345,6 +346,12 @@ export async function getProjectQuotePreviewFromConvex(
       views_count: viewsCount,
       dispatches,
       messaging_live: Boolean(messagingLive),
+      messaging_status: messagingStatus || {
+        live: Boolean(messagingLive),
+        smsReady: Boolean(messagingLive),
+        kakaoReady: Boolean(messagingLive),
+        provider: messagingLive ? 'webhook' : 'simulation',
+      },
     },
   };
 }
@@ -354,7 +361,7 @@ export async function sendProjectQuoteViaConvex(
   api,
   { projectId, body, user, partnerOrgId, baseOrigin, msgCfg = {} }
 ) {
-  const { channel = 'kakao', recipientPhone, recipientName, message, origin, quoteType, quoteId } = body || {};
+  const { channel = 'kakao', recipientPhone, recipientName, message, origin, quoteType, quoteId, tplKey = '' } = body || {};
 
   if (!['sms', 'kakao'].includes(channel)) {
     return { status: 400, data: { error: '발송 채널은 문자(sms) 또는 카카오톡(kakao)이어야 합니다.' } };
@@ -399,43 +406,38 @@ export async function sendProjectQuoteViaConvex(
     `▼ 모바일 견적서 바로 확인하기\n${quoteUrl}`;
   const finalMessage = String(message || defaultMsg).trim();
 
-  let providerUsed = 'simulation';
-  let sendStatus = 'sent';
-  let externalResponse = null;
+  const dispatchResult = await dispatchMessage(
+    msgCfg,
+    {
+      channel,
+      to: cleanDigits,
+      recipientName: targetName,
+      message: finalMessage,
+      quoteUrl,
+      projectId,
+      quoteId: quote.version,
+      quoteType: safeQuoteType,
+      product: data.project.product || '창호',
+      totalPrice: Number(quote.totalPrice || 0),
+      tplKey: tplKey || (safeQuoteType === '최종견적' ? 'final' : 'basic'),
+      sentBy: user?.name || '관리자',
+    },
+    { convexClient, api }
+  );
 
-  const webhookUrl = channel === 'kakao' ? msgCfg.kakaoWebhookUrl : msgCfg.smsWebhookUrl;
-  if (msgCfg.enabled && webhookUrl) {
-    providerUsed = msgCfg.provider || (channel === 'kakao' ? 'kakao_webhook' : 'sms_webhook');
-    try {
-      const resp = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(msgCfg.apiKey ? { Authorization: `Bearer ${msgCfg.apiKey}` } : {}),
-        },
-        body: JSON.stringify({
-          channel,
-          sender: msgCfg.senderPhone || '1588-0000',
-          kakaoPfId: msgCfg.kakaoPfId || undefined,
-          to: cleanDigits,
-          recipientName: targetName,
-          message: finalMessage,
-          quoteUrl,
-          projectId,
-          quoteId: quote.version,
-        }),
-      });
-      if (!resp.ok) {
-        sendStatus = 'failed';
-        externalResponse = `HTTP ${resp.status}`;
-      } else {
-        externalResponse = 'delivered';
-      }
-    } catch (err) {
-      sendStatus = 'failed';
-      externalResponse = err.message;
-    }
+  if (!dispatchResult.ok && dispatchResult.status === 400) {
+    return {
+      status: 400,
+      data: {
+        error: dispatchResult.error,
+        provider: dispatchResult.provider,
+      },
+    };
   }
+
+  const providerUsed = dispatchResult.provider || 'simulation';
+  const sendStatus = dispatchResult.ok ? 'sent' : 'failed';
+  const externalResponse = dispatchResult.ok ? dispatchResult.detail || 'delivered' : dispatchResult.error || 'send_failed';
 
   await convexClient.mutation(api.quotes.recordQuoteDispatch, {
     projectId,
@@ -460,6 +462,13 @@ export async function sendProjectQuoteViaConvex(
     };
   }
 
+  const providerLabel =
+    providerUsed === 'barobill'
+      ? '바로빌'
+      : providerUsed === 'aligo'
+        ? '알리고'
+        : '외부 API';
+
   return {
     status: 200,
     data: {
@@ -472,10 +481,11 @@ export async function sendProjectQuoteViaConvex(
       recipient_name: targetName,
       recipient_phone: targetPhone,
       quote_url: quoteUrl,
+      messaging_status: getMessagingChannelStatus(msgCfg),
       message:
         providerUsed === 'simulation'
-          ? `${channel === 'kakao' ? '카카오 알림톡' : '문자'} 발송이 시뮬레이션 모드로 기록되었습니다. (실제 발송은 설정 → 외부 연동에서 웹훅을 활성화하세요)`
-          : `${targetName} 고객님께 ${channel === 'kakao' ? '카카오 알림톡' : '문자'}을 실제 발송했습니다.`,
+          ? `${channel === 'kakao' ? '카카오 알림톡' : '문자'} 발송이 시뮬레이션 모드로 기록되었습니다. (실제 발송은 설정 → 외부 연동에서 발송 API를 활성화하세요)`
+          : `${targetName} 고객님께 ${channel === 'kakao' ? '카카오 알림톡' : '문자'}을 실제 발송했습니다. (${providerLabel})`,
     },
   };
 }

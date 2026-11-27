@@ -1,0 +1,87 @@
+name: Build KCC SMS Bridge APK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "android-sms-bridge/**"
+      - ".github/workflows/build-sms-bridge-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Configure Android SDK licenses
+        run: |
+          SDK_DIR="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$SDK_DIR/licenses"
+          printf "\n24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n8933bad161af4178b1185d1a37fbf41ea5269c55\n" > "$SDK_DIR/licenses/android-sdk-license"
+          printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n" > "$SDK_DIR/licenses/android-sdk-preview-license"
+
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Generate signing keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$RUNNER_TEMP/kcc-release.jks" \
+            -alias kcc \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass kcc1234 \
+            -keypass kcc1234 \
+            -dname "CN=KCC, OU=IT, O=LifeNJoy, L=Seoul, S=Seoul, C=KR"
+
+      - name: Build signed Release APK
+        working-directory: android-sms-bridge
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/kcc-release.jks
+          KEYSTORE_PASSWORD: kcc1234
+          KEY_ALIAS: kcc
+          KEY_PASSWORD: kcc1234
+        run: |
+          gradle assembleRelease --no-daemon
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          echo "Built APK: $APK_FILE"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/kcc-sms-bridge.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcc-sms-bridge-apk
+          path: kcc-sms-bridge.apk
+
+      - name: Publish APK to GitHub Releases (latest)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view sms-bridge-latest >/dev/null 2>&1; then
+            gh release edit sms-bridge-latest \
+              --title "KCC 홈씨씨 문자연동 안드로이드 앱 (KCC SMS Bridge)" \
+              --notes "KCC홈씨씨 어드민 전용 문자 브릿지 앱입니다. 소노·효원 문자연동 앱과 별도 패키지(com.kcc.smsbridge)로 동시에 설치·사용할 수 있습니다."
+            gh release upload sms-bridge-latest kcc-sms-bridge.apk --clobber
+          else
+            gh release create sms-bridge-latest kcc-sms-bridge.apk \
+              --title "KCC 홈씨씨 문자연동 안드로이드 앱 (KCC SMS Bridge)" \
+              --notes "KCC홈씨씨 어드민 전용 문자 브릿지 앱입니다. 소노·효원 문자연동 앱과 별도 패키지(com.kcc.smsbridge)로 동시에 설치·사용할 수 있습니다." \
+              --latest
+          fi

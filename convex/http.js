@@ -7,7 +7,7 @@ const http = httpRouter();
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Bridge-Secret",
 };
 
 // 1. Preflight OPTIONS
@@ -310,6 +310,112 @@ http.route({
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
+      );
+    }
+  }),
+});
+
+// 4. Phone SMS Bridge endpoints (compatible with sono-sms-bridge.apk)
+const bridgeCorsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, X-Bridge-Secret",
+};
+
+for (const bridgePath of ["/api/sms-bridge/poll", "/api/sms-bridge/ack", "/api/sms-bridge/sync"]) {
+  http.route({
+    path: bridgePath,
+    method: "OPTIONS",
+    handler: httpAction(async () => new Response(null, { status: 204, headers: bridgeCorsHeaders })),
+  });
+}
+
+http.route({
+  path: "/api/sms-bridge/poll",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    try {
+      const body = await req.json().catch(() => ({}));
+      const secret = String(req.headers.get("x-bridge-secret") || body?.secret || "").trim();
+      const deviceName = typeof body?.deviceName === "string" ? body.deviceName.trim() : undefined;
+      const appVersion = typeof body?.appVersion === "string" ? body.appVersion.trim() : undefined;
+      const res = await ctx.runMutation(api.smsBridge.pollOutbox, {
+        secret,
+        deviceName,
+        appVersion,
+      });
+      return new Response(JSON.stringify(res), {
+        status: res.ok ? 200 : 401,
+        headers: { ...bridgeCorsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ ok: false, error: err?.message || "Invalid request", jobs: [] }),
+        { status: 400, headers: { ...bridgeCorsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+http.route({
+  path: "/api/sms-bridge/ack",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    try {
+      const body = await req.json().catch(() => ({}));
+      const secret = String(req.headers.get("x-bridge-secret") || body?.secret || "").trim();
+      const outboxId = String(body?.outboxId || "").trim();
+      if (!outboxId) {
+        return new Response(JSON.stringify({ ok: false, error: "outboxId is required" }), {
+          status: 400,
+          headers: { ...bridgeCorsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const res = await ctx.runMutation(api.smsBridge.ackOutbox, {
+        secret,
+        outboxId,
+        success: Boolean(body?.success),
+        errorMessage: typeof body?.errorMessage === "string" ? body.errorMessage : undefined,
+      });
+      return new Response(JSON.stringify(res), {
+        status: res.ok ? 200 : 401,
+        headers: { ...bridgeCorsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ ok: false, error: err?.message || "Invalid request" }),
+        { status: 400, headers: { ...bridgeCorsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+http.route({
+  path: "/api/sms-bridge/sync",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    try {
+      const body = await req.json().catch(() => ({}));
+      const secret = String(req.headers.get("x-bridge-secret") || body?.secret || "").trim();
+      const deviceName = typeof body?.deviceName === "string" ? body.deviceName.trim() : undefined;
+      const items = Array.isArray(body?.items)
+        ? body.items
+        : Array.isArray(body?.messages)
+          ? body.messages
+          : [];
+      const res = await ctx.runMutation(api.smsBridge.syncMessages, {
+        secret,
+        deviceName,
+        count: items.length,
+      });
+      return new Response(JSON.stringify(res), {
+        status: res.ok ? 200 : 401,
+        headers: { ...bridgeCorsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ ok: false, synced: 0, error: err?.message || "Invalid request" }),
+        { status: 400, headers: { ...bridgeCorsHeaders, "Content-Type": "application/json" } }
       );
     }
   }),

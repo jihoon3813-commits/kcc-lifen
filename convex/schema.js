@@ -314,4 +314,24 @@ export default defineSchema({
     detail: v.optional(v.string()),
     createdAt: v.optional(v.string()),
   }).index("by_project", ["projectId"]),
+
+  // 22. 폰 브릿지 문자 발송 대기열
+  smsOutbox: defineTable({
+    receiverPhone: v.string(),
+    title: v.optional(v.string()),
+    message: v.string(),
+    status: v.string(), // 'pending' | 'processing' | 'sent' | 'failed'
+    projectId: v.optional(v.number()),
+    quoteId: v.optional(v.number()),
+    recipientName: v.optional(v.string()),
+    createdBy: v.optional(v.string()),
+    deviceName: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    attempts: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    sentAt: v.optional(v.number()),
+  })
+    .index("by_status", ["status"])
+    .index("by_createdAt", ["createdAt"]),
 });

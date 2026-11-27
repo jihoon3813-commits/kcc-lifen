@@ -14,6 +14,10 @@ import {
   getProjectQuotePreviewFromConvex,
   sendProjectQuoteViaConvex
 } from '../utils/quoteService.js';
+import {
+  getMessagingChannelStatus,
+  resolveMessagingConfig
+} from '../utils/messagingService.js';
 
 const router = express.Router();
 
@@ -22,23 +26,6 @@ const upload = multer({
   storage,
   limits: { fileSize: 15 * 1024 * 1024 }
 });
-
-// Helper: Load messaging config from integration_configs
-function getMessagingConfig() {
-  try {
-    const row = db.prepare("SELECT config_json FROM integration_configs WHERE key = 'messaging'").get();
-    if (row?.config_json) return JSON.parse(row.config_json);
-  } catch {}
-  return {
-    enabled: false,
-    provider: 'simulation',
-    senderPhone: process.env.SMS_SENDER_PHONE || '1588-0000',
-    smsWebhookUrl: process.env.SMS_WEBHOOK_URL || '',
-    kakaoWebhookUrl: process.env.KAKAO_WEBHOOK_URL || '',
-    apiKey: process.env.MESSAGING_API_KEY || '',
-    kakaoPfId: process.env.KAKAO_PF_ID || ''
-  };
-}
 
 // 1. Upload & Parse KCC Estimate File (XLS / XLSX / CSV)
 router.post('/parse-file', requireAuth, upload.single('file'), (req, res) => {
@@ -137,7 +124,8 @@ router.get('/by-project/:projectId/preview', requireAuth, checkPartnerAccess, as
     const requestedType = req.query.type ? String(req.query.type).trim() : '';
     const requestedQuoteId = req.query.quoteId ? parseInt(req.query.quoteId, 10) : null;
     const allowSimulate = req.query.simulate !== '0';
-    const msgCfg = getMessagingConfig();
+    const msgCfg = await resolveMessagingConfig(convexClient, api, db);
+    const messagingStatus = getMessagingChannelStatus(msgCfg);
 
     const result = await getProjectQuotePreviewFromConvex(convexClient, api, {
       projectId,
@@ -146,7 +134,8 @@ router.get('/by-project/:projectId/preview', requireAuth, checkPartnerAccess, as
       allowSimulate,
       partnerOrgId: req.partnerOrgId,
       user: req.user,
-      messagingLive: Boolean(msgCfg.enabled && (msgCfg.smsWebhookUrl || msgCfg.kakaoWebhookUrl))
+      messagingLive: messagingStatus.live,
+      messagingStatus
     });
     res.status(result.status).json(result.data);
   } catch (err) {
@@ -159,7 +148,7 @@ router.get('/by-project/:projectId/preview', requireAuth, checkPartnerAccess, as
 router.post('/by-project/:projectId/send', requireAuth, checkPartnerAccess, async (req, res) => {
   try {
     const projectId = parseInt(req.params.projectId, 10);
-    const msgCfg = getMessagingConfig();
+    const msgCfg = await resolveMessagingConfig(convexClient, api, db);
     const baseOrigin = `${req.protocol}://${req.get('host')}`;
 
     const result = await sendProjectQuoteViaConvex(convexClient, api, {

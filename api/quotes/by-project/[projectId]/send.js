@@ -6,6 +6,7 @@ import {
   authenticateRequest,
 } from "../../../_lib/authHelper.js";
 import { sendProjectQuoteViaConvex } from "../../../../server/utils/quoteService.js";
+import { resolveMessagingConfig } from "../../../../server/utils/messagingService.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -35,15 +36,7 @@ export default async function handler(req, res) {
     const host = req.headers["x-forwarded-host"] || req.headers.host || "";
     const baseOrigin = host ? `${proto}://${host}` : "";
 
-    const msgCfg = {
-      enabled: Boolean(process.env.SMS_WEBHOOK_URL || process.env.KAKAO_WEBHOOK_URL),
-      provider: "webhook",
-      senderPhone: process.env.SMS_SENDER_PHONE || "1588-0000",
-      smsWebhookUrl: process.env.SMS_WEBHOOK_URL || "",
-      kakaoWebhookUrl: process.env.KAKAO_WEBHOOK_URL || "",
-      apiKey: process.env.MESSAGING_API_KEY || "",
-      kakaoPfId: process.env.KAKAO_PF_ID || "",
-    };
+    const msgCfg = await resolveMessagingConfig(convexClient, api);
 
     const result = await sendProjectQuoteViaConvex(convexClient, api, {
       projectId,

@@ -7,6 +7,15 @@ import { db, DEFAULT_RENTAL_FIELDS_CONFIG, DEFAULT_RENTAL_PRIVACY_CONTENT } from
 import { requireAuth, requireRole, requireMenu } from '../middleware/auth.js';
 import { seedDatabase } from '../db/seed.js';
 import { deleteEncryptedObject, decryptText, readEncryptedObject } from '../utils/rentalSecurity.js';
+import { convexClient, api } from '../convex.js';
+import {
+  MESSAGING_SETTING_KEY,
+  dispatchMessage,
+  loadRawMessagingConfig,
+  mergeMessagingConfigUpdate,
+  normalizeMessagingConfig,
+  sanitizeMessagingConfigForClient
+} from '../utils/messagingService.js';
 
 const router = express.Router();
 
@@ -660,7 +669,7 @@ router.get('/audit-logs', requireAuth, (req, res) => {
 });
 
 // 4b. Get Integration Configs (SMS / KakaoTalk / PG)
-router.get('/integrations', requireAuth, requireMenu('settings'), (req, res) => {
+router.get('/integrations', requireAuth, requireMenu('settings'), async (req, res) => {
   const rows = db.prepare('SELECT key, config_json, updated_by, updated_at FROM integration_configs').all();
   const configs = {};
   for (const r of rows) {
@@ -668,13 +677,107 @@ router.get('/integrations', requireAuth, requireMenu('settings'), (req, res) => 
       configs[r.key] = { ...JSON.parse(r.config_json), updatedBy: r.updated_by, updatedAt: r.updated_at };
     } catch {}
   }
-  res.json({ configs });
+  const rawMessaging = await loadRawMessagingConfig(convexClient, api, db);
+  const effectiveMessaging = normalizeMessagingConfig(rawMessaging, process.env);
+  const clientMessaging = sanitizeMessagingConfigForClient(effectiveMessaging);
+  try {
+    clientMessaging.bridgeStatus = await convexClient.query(api.smsBridge.getBridgeStatus, {});
+  } catch {
+    clientMessaging.bridgeStatus = null;
+  }
+  configs.messaging = { ...configs.messaging, ...clientMessaging };
+  res.json({ configs, messaging: clientMessaging });
+});
+
+// 4c-test. Test Send SMS / KakaoTalk
+router.post('/integrations/messaging-test', requireAuth, requireMenu('settings'), async (req, res) => {
+  try {
+    const body = req.body || {};
+    const prevRaw = await loadRawMessagingConfig(convexClient, api, db);
+    const merged = body.config
+      ? normalizeMessagingConfig(mergeMessagingConfigUpdate(prevRaw, body.config), process.env)
+      : normalizeMessagingConfig(prevRaw, process.env);
+    const channel = body.channel === 'sms' ? 'sms' : 'kakao';
+    const phone = String(body.phone || '').trim();
+    if (phone.replace(/\D/g, '').length < 10) {
+      return res.status(400).json({ error: '테스트 수신 휴대폰 번호 10~11자리를 입력해 주세요.' });
+    }
+    const quoteUrl = `${req.protocol}://${req.get('host')}/quote.html`;
+    const result = await dispatchMessage(
+      merged,
+      {
+        channel,
+        to: phone,
+        recipientName: '테스트고객',
+        message:
+          String(body.message || '').trim() ||
+          `[KCC홈씨씨] 테스트고객 고객님, 문자·알림톡 발송 연동 테스트 메시지입니다.\n▼ 모바일 견적서 확인하기\n${quoteUrl}`,
+        quoteUrl,
+        projectId: 0,
+        quoteId: 0,
+        quoteType: '가견적',
+        product: '창호',
+        totalPrice: 5200000,
+        tplKey: body.tplKey || 'basic',
+        sentBy: req.user?.name || '관리자',
+      },
+      { convexClient, api }
+    );
+    if (!result.ok) {
+      return res.status(result.status || 502).json({
+        error: result.error || '테스트 발송에 실패했습니다.',
+        provider: result.provider
+      });
+    }
+    res.json({
+      success: true,
+      simulated: Boolean(result.simulated),
+      provider: result.provider,
+      message: result.simulated
+        ? '실발송 활성화가 꺼져 있어 시뮬레이션 확인만 수행했습니다.'
+        : result.provider === 'phone_bridge'
+          ? '폰 브릿지 발송 대기열에 등록했습니다. 연결된 휴대폰 앱에서 곧 발송됩니다.'
+          : `${channel === 'kakao' ? '카카오 알림톡' : '문자(LMS)'} 테스트 발송을 완료했습니다. (${result.provider})`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err?.message || '테스트 발송 처리 중 오류가 발생했습니다.' });
+  }
 });
 
 // 4c. Save Integration Config
-router.put('/integrations/:key', requireAuth, requireMenu('settings'), (req, res) => {
+router.put('/integrations/:key', requireAuth, requireMenu('settings'), async (req, res) => {
   const { key } = req.params;
   const payload = req.body || {};
+  if (key === 'messaging') {
+    const prevRaw = await loadRawMessagingConfig(convexClient, api, db);
+    const merged = mergeMessagingConfigUpdate(prevRaw, payload);
+    const mergedJson = JSON.stringify(merged);
+    db.prepare(`
+      INSERT INTO integration_configs (key, config_json, updated_by, updated_at)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET
+        config_json = excluded.config_json,
+        updated_by = excluded.updated_by,
+        updated_at = CURRENT_TIMESTAMP
+    `).run('messaging', mergedJson, req.user?.name || '관리자');
+    try {
+      await convexClient.mutation(api.settings.setSetting, {
+        key: MESSAGING_SETTING_KEY,
+        value: mergedJson
+      });
+    } catch (err) {
+      console.warn('[Settings] Failed to sync messaging config to Convex:', err?.message || err);
+    }
+    const clientCfg = sanitizeMessagingConfigForClient(normalizeMessagingConfig(merged, process.env));
+    return res.json({
+      success: true,
+      saved: true,
+      messaging: clientCfg,
+      configs: { messaging: clientCfg },
+      message: '문자·알림톡 연동 설정이 저장되었습니다.'
+    });
+  }
+
   db.prepare(`
     INSERT INTO integration_configs (key, config_json, updated_by, updated_at)
     VALUES (?, ?, ?, CURRENT_TIMESTAMP)

@@ -17,6 +17,7 @@ import type * as projects from "../projects.js";
 import type * as quotes from "../quotes.js";
 import type * as rentals from "../rentals.js";
 import type * as settings from "../settings.js";
+import type * as smsBridge from "../smsBridge.js";
 import type * as sync from "../sync.js";
 
 import type {
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   quotes: typeof quotes;
   rentals: typeof rentals;
   settings: typeof settings;
+  smsBridge: typeof smsBridge;
   sync: typeof sync;
 }>;
 

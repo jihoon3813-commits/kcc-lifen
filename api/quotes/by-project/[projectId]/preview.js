@@ -5,6 +5,10 @@ import {
   authenticateRequest,
 } from "../../../_lib/authHelper.js";
 import { getProjectQuotePreviewFromConvex } from "../../../../server/utils/quoteService.js";
+import {
+  getMessagingChannelStatus,
+  resolveMessagingConfig,
+} from "../../../../server/utils/messagingService.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -29,6 +33,9 @@ export default async function handler(req, res) {
     const requestedQuoteId = req.query.quoteId ? parseInt(req.query.quoteId, 10) : null;
     const allowSimulate = req.query.simulate !== "0";
 
+    const msgCfg = await resolveMessagingConfig(convexClient, api);
+    const messagingStatus = getMessagingChannelStatus(msgCfg);
+
     const result = await getProjectQuotePreviewFromConvex(convexClient, api, {
       projectId,
       requestedType,
@@ -36,7 +43,8 @@ export default async function handler(req, res) {
       allowSimulate,
       partnerOrgId: auth.partnerOrgId,
       user: auth.user,
-      messagingLive: Boolean(process.env.SMS_WEBHOOK_URL || process.env.KAKAO_WEBHOOK_URL),
+      messagingLive: messagingStatus.live,
+      messagingStatus,
     });
     return res.status(result.status).json(result.data);
   } catch (err) {

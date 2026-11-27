@@ -19,6 +19,7 @@ import partnerRoutes from './routes/partners.js';
 import analyticsRoutes from './routes/analytics.js';
 import settingsRoutes from './routes/settings.js';
 import landingRoutes from './routes/landing.js';
+import smsBridgeRoutes from './routes/smsBridge.js';
 
 // 1. Initialize DB & Seed if empty
 initDatabase();
@@ -82,6 +83,7 @@ app.use('/api/partners', partnerRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/landing', landingRoutes);
+app.use('/api/sms-bridge', smsBridgeRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
