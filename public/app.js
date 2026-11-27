@@ -2068,7 +2068,7 @@ function customersPage(){
   const linkFilterBanner = linkFilter ? `<div class="active-link-filter-bar"><div>${icon('link')}<span>선택된 광고링크 유입 고객만 보는 중:</span> <span class="ch-pill ${channelTone(activeLinkObj?.channel || sourceFilter)}">${esc(activeLinkObj?.channel || sourceFilter || '광고링크')}</span> <b>${esc(activeLinkObj?.name || ('링크 #' + linkFilter))}</b></div><button type="button" class="btn sm" data-action="clear-link-filter">${icon('close')}필터 해제 (전체 보기)</button></div>` : '';
   const filteredList = filteredCustomers();
   const allCustSelected = filteredList.length > 0 && filteredList.every(x => selected.has(x.id));
-  return pageHead('고객관리','고객의 첫 문의부터 계약까지, 한눈에 관리하세요.',btn('새로고침','refresh-data','refresh','secondary')+btn('당근 리드 연동','open-daangn-sync','link','secondary')+btn('일정 보기','calendar','calendar','secondary')+btn('고객 등록','new-customer','plus','primary'),'CUSTOMER MANAGEMENT')+`<div class="metrics">${metric('전체 고객',c.length,'건','현재 등록된 전체 공사건','users','','filter-all')}${metric('견적 요청 대기',c.filter(x=>x.status==='가견적요청').length,'건','<span class="accent">원본 견적 수령</span>이 필요해요','file','orange','filter-stage','data-value="가견적요청"')}${metric('실측 예정',c.filter(x=>x.status==='실측예정').length,'건','담당팀과 방문 일정을 확인하세요','calendar','purple','filter-stage','data-value="실측예정"')}${metric('계약 진행',c.filter(x=>x.status==='계약진행').length,'건','서류 검토와 수납 상태 확인','contract','green','filter-stage','data-value="계약진행"')}</div><section class="panel"><div class="tabs">${custTabs.map(([v,l,cnt,isAlert])=>`<button class="tab ${customerTab===v?'active':''}" data-action="customer-tab" data-value="${v}">${l}${cnt>0?`<span class="count${isAlert?' count-red':''}">${cnt}</span>`:''}</button>`).join('')}</div><div class="filters"><div class="search-field">${icon('search')}<input class="input" id="customer-search" value="${esc(query)}" placeholder="고객명, 연락처, 주소, 광고채널 검색" aria-label="고객 검색"></div><select class="select" id="filter-period" aria-label="등록 기간"><option value="all" ${periodFilter==='all'?'selected':''}>등록 기간 전체</option><option value="today" ${periodFilter==='today'?'selected':''}>오늘</option><option value="7" ${periodFilter==='7'?'selected':''}>최근 7일</option></select><select class="select" id="filter-product" aria-label="상품군">${options(['창호','그린리모델링','주방','욕실'],productFilter,'상품군 전체')}</select><select class="select" id="filter-stage" aria-label="진행구분">${options(getStageNames(),stageFilter,'진행구분 전체')}</select><select class="select" id="filter-source" aria-label="유입채널">${options(channelOptions,sourceFilter,'유입채널 전체')}</select>${role==='본사 관리자'?`<select class="select" id="filter-partner" aria-label="소속 파트너">${options(['직영',...db.partners.map(p=>p.name)],partnerFilter,'파트너 전체')}</select>`:''}<button class="icon-btn" data-action="reset-filters" title="필터 초기화" aria-label="필터 초기화">${icon('refresh')}</button></div>${linkFilterBanner}<div class="toolbar"><span id="list-count" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="customers" ${allCustSelected?'checked':''}> 전체 선택</label><span>검색 결과 <strong>${filteredList.length}</strong>건</span>${selected.size?`· <button type="button" data-action="assign" style="color:var(--blue)">${selected.size}명 담당자 배정</button> · ${btn(`선택 삭제 (${selected.size})`,'delete-selected','trash','sm danger')}`:''}</span><div class="actions">${btn(selected.size?`선택 엑셀 (${selected.size})`:'엑셀용 CSV','export','download','sm')}<select class="sort" id="sort-order" aria-label="정렬 순서"><option value="new" ${sortOrder==='new'?'selected':''}>최근 등록순</option><option value="old" ${sortOrder==='old'?'selected':''}>고객번호 낮은순</option></select></div></div><div class="customers" id="customer-rows">${customerRows()}</div><div class="pagination"><span>전체 결과를 한 페이지에 표시합니다.</span><div class="pages"><button class="active" aria-label="현재 1페이지">1</button></div></div></section>`;
+  return pageHead('고객관리','고객의 첫 문의부터 계약까지, 한눈에 관리하세요.',btn('새로고침','refresh-data','refresh','secondary')+btn('당근 리드 연동','open-daangn-sync','link','secondary')+btn('일정 보기','calendar','calendar','secondary')+btn('고객 등록','new-customer','plus','primary'),'CUSTOMER MANAGEMENT')+`<div class="metrics">${metric('전체 고객',c.length,'건','현재 등록된 전체 공사건','users','','filter-all')}${metric('견적 요청 대기',c.filter(x=>x.status==='가견적요청').length,'건','<span class="accent">원본 견적 수령</span>이 필요해요','file','orange','filter-stage','data-value="가견적요청"')}${metric('실측 예정',c.filter(x=>x.status==='실측예정').length,'건','담당팀과 방문 일정을 확인하세요','calendar','purple','filter-stage','data-value="실측예정"')}${metric('계약 진행',c.filter(x=>x.status==='계약진행').length,'건','서류 검토와 수납 상태 확인','contract','green','filter-stage','data-value="계약진행"')}</div><section class="panel"><div class="tabs">${custTabs.map(([v,l,cnt,isAlert])=>`<button class="tab ${customerTab===v?'active':''}" data-action="customer-tab" data-value="${v}">${l}${cnt>0?`<span class="count${isAlert?' count-red':''}">${cnt}</span>`:''}</button>`).join('')}</div><div class="filters"><div class="search-field">${icon('search')}<input class="input" id="customer-search" value="${esc(query)}" placeholder="고객명, 연락처, 주소, 광고채널 검색" aria-label="고객 검색"></div><select class="select" id="filter-period" aria-label="등록 기간"><option value="all" ${periodFilter==='all'?'selected':''}>등록 기간 전체</option><option value="today" ${periodFilter==='today'?'selected':''}>오늘</option><option value="7" ${periodFilter==='7'?'selected':''}>최근 7일</option></select><select class="select" id="filter-product" aria-label="상품군">${options(['창호','그린리모델링','주방','욕실'],productFilter,'상품군 전체')}</select><select class="select" id="filter-stage" aria-label="진행구분">${options(getStageNames(),stageFilter,'진행구분 전체')}</select><select class="select" id="filter-source" aria-label="유입채널">${options(channelOptions,sourceFilter,'유입채널 전체')}</select>${role==='본사 관리자'?`<select class="select" id="filter-partner" aria-label="소속 파트너">${options(['직영',...db.partners.map(p=>p.name)],partnerFilter,'파트너 전체')}</select>`:''}<button class="icon-btn" data-action="reset-filters" title="필터 초기화" aria-label="필터 초기화">${icon('refresh')}</button></div>${linkFilterBanner}<div class="toolbar"><span id="list-count" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="customers" ${allCustSelected?'checked':''}> 전체 선택</label><span>검색 결과 <strong>${filteredList.length}</strong>건</span>${selected.size?`· <button type="button" data-action="assign" style="color:var(--blue)">${selected.size}명 담당자 배정</button>${customerTab==='all'?` · ${btn(`선택 고객 삭제 (${selected.size})`,'delete-selected','trash','sm danger')}`:(customerTab==='inquiries'?` · ${btn(`선택 문의 삭제 (${selected.size})`,'delete-selected','trash','sm danger')}`:'')}`:''}</span><div class="actions">${btn(selected.size?`선택 엑셀 (${selected.size})`:'엑셀용 CSV','export','download','sm')}<select class="sort" id="sort-order" aria-label="정렬 순서"><option value="new" ${sortOrder==='new'?'selected':''}>최근 등록순</option><option value="old" ${sortOrder==='old'?'selected':''}>고객번호 낮은순</option></select></div></div><div class="customers" id="customer-rows">${customerRows()}</div><div class="pagination"><span>전체 결과를 한 페이지에 표시합니다.</span><div class="pages"><button class="active" aria-label="현재 1페이지">1</button></div></div></section>`;
 }
 function renderQuotePreviewButtons(c, sizeCls = 'sm soft') {
   if (!c || !c.quote) return '';
@@ -2183,7 +2183,7 @@ function quotesPage() {
   return pageHead('견적관리', '원본 견적을 고객에게 전달할 최적의 제안으로 완성하고, 확정 견적 금액으로 계약을 즉시 등록하세요.', quoteHeadBtns, 'ESTIMATE WORKSPACE') +
     `<div class="metrics">${metric('원본 수령 대기', ready.length, '건', 'KCC 영업지원팀 요청 건', 'clock', 'orange')}${metric('발행된 견적', totalPublishedCount, '건', `총 ${published.length}명 · 수정 버전 포함`, 'file')}${metric('고객 열람', published.filter(c => c.viewed).length, '건', '발행 이후 열람한 고객', 'eye', 'green')}${metric('견적 문의', inquiryRows.length, '건', '모바일 견적서 고객 문의', 'bell', 'purple', 'quote-tab', 'data-value="inquiries"')}</div>` +
     `<div class="banner">${icon('info')}<div><b>원본 엑셀 → 판매가 설정 → 고객견적 발행 → 계약 등록(금액 자동세팅)</b><br>가견적·최종견적을 수정 발행해도 기존 버전이 덮어쓰이지 않고 버전별로 모두 보관됩니다. 목록에서 <b>[계약 등록]</b>을 클릭하면 해당 견적 금액으로 현금·카드·렌탈(60개월) 금액이 자동 세팅됩니다.</div></div>` +
-    `<section class="panel"><div class="tabs">${tabMeta.map(([v, l, cnt, isAlert]) => `<button class="tab ${quoteTab === v ? 'active' : ''}" data-action="quote-tab" data-value="${v}">${l}${cnt > 0 ? `<span class="count${isAlert ? ' count-red' : ''}">${cnt}</span>` : ''}</button>`).join('')}</div><div class="panel-head"><div><h3>${quoteTab === 'inquiries' ? '고객 견적 문의 내역' : '견적 요청 및 발행 · 계약전환 현황'}</h3><p>${quoteTab === 'inquiries' ? '모바일 견적서에서 상담·문의를 요청한 고객 목록입니다.' : '고객별·버전별 견적 원가·공급가·할인 내역과 결제방식별 자동세팅 기준액을 상세히 확인하고 계약을 등록합니다.'}</p></div>${badge('실운영 데이터', 'blue')}</div><div class="toolbar"><span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="quote-versions" ${allQuotesSelected ? 'checked' : ''}> 전체 선택</label><span>목록 <strong>${displayRows.length}</strong>건</span>${selectedQuotes.size ? `· ${btn(`선택 견적 삭제 (${selectedQuotes.size})`, 'delete-selected', 'trash', 'sm danger')}` : ''}</span><div class="actions">${btn(selectedQuotes.size ? `선택 엑셀 (${selectedQuotes.size})` : '엑셀용 CSV', 'export', 'download', 'sm')}</div></div><div class="table-wrap"><table class="mobile-card-table contract-master-table quote-master-table"><thead><tr><th style="width:36px"><input type="checkbox" data-select-all="quote-versions" ${allQuotesSelected ? 'checked' : ''} aria-label="견적 전체 선택"></th><th style="width:21%">고객 / 견적번호</th><th style="width:13%">견적 구분 · 계약여부</th><th style="width:20%">견적 금액 상세 (VAT포함)</th><th style="width:19%">결제조건 기준액 (자동세팅)</th><th style="width:11%">열람 · 담당</th><th style="width:16%">관리 (계약등록 · 견적)</th></tr></thead><tbody>${displayRows.length ? displayRows.map(({ c, pq, isLatestOfType, hasMultipleOfType, isPrimaryCustomerRow }) => {
+    `<section class="panel"><div class="tabs">${tabMeta.map(([v, l, cnt, isAlert]) => `<button class="tab ${quoteTab === v ? 'active' : ''}" data-action="quote-tab" data-value="${v}">${l}${cnt > 0 ? `<span class="count${isAlert ? ' count-red' : ''}">${cnt}</span>` : ''}</button>`).join('')}</div><div class="panel-head"><div><h3>${quoteTab === 'inquiries' ? '고객 견적 문의 내역' : '견적 요청 및 발행 · 계약전환 현황'}</h3><p>${quoteTab === 'inquiries' ? '모바일 견적서에서 상담·문의를 요청한 고객 목록입니다.' : '고객별·버전별 견적 원가·공급가·할인 내역과 결제방식별 자동세팅 기준액을 상세히 확인하고 계약을 등록합니다.'}</p></div>${badge('실운영 데이터', 'blue')}</div><div class="toolbar"><span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="quote-versions" ${allQuotesSelected ? 'checked' : ''}> 전체 선택</label><span>목록 <strong>${displayRows.length}</strong>건</span>${selectedQuotes.size ? `· ${btn(quoteTab === 'inquiries' ? `선택 문의 삭제 (${selectedQuotes.size})` : `선택 견적 삭제 (${selectedQuotes.size})`, 'delete-selected', 'trash', 'sm danger')}` : ''}</span><div class="actions">${btn(selectedQuotes.size ? `선택 엑셀 (${selectedQuotes.size})` : '엑셀용 CSV', 'export', 'download', 'sm')}</div></div><div class="table-wrap"><table class="mobile-card-table contract-master-table quote-master-table"><thead><tr><th style="width:36px"><input type="checkbox" data-select-all="quote-versions" ${allQuotesSelected ? 'checked' : ''} aria-label="견적 전체 선택"></th><th style="width:21%">고객 / 견적번호</th><th style="width:13%">견적 구분 · 계약여부</th><th style="width:20%">견적 금액 상세 (VAT포함)</th><th style="width:19%">결제조건 기준액 (자동세팅)</th><th style="width:11%">열람 · 담당</th><th style="width:16%">관리 (계약등록 · 견적)</th></tr></thead><tbody>${displayRows.length ? displayRows.map(({ c, pq, isLatestOfType, hasMultipleOfType, isPrimaryCustomerRow }) => {
       const quoteAct = getQuoteRowActivityState(c);
       const strip = isPrimaryCustomerRow ? activityStripInfo(quoteAct) : { cls: '', badge: '' };
       const quoteStripBadge = quoteAct.kind === 'updated' ? '' : strip.badge;
@@ -2393,7 +2393,7 @@ function contractsPage(){
     newBanner +
     `<section class="panel">
       <div class="tabs">${tabMeta.map(([v, l, newCnt]) => `<button class="tab ${contractTab === v ? 'active' : ''}" data-action="contract-tab" data-value="${v}">${l}${newCnt > 0 ? `<span class="count count-red" title="최근 24시간 신규 ${newCnt}건">${newCnt}</span>` : ''}</button>`).join('')}</div>
-      <div class="toolbar"><span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="contracts" ${allContractsSelected ? 'checked' : ''}> 전체 선택</label><span>목록 <strong>${contractRowCids.length}</strong>건</span>${selected.size ? `· ${btn(`선택 삭제 (${selected.size})`, 'delete-selected', 'trash', 'sm danger')}` : ''}</span><div class="actions">${btn(selected.size ? `선택 엑셀 (${selected.size})` : '엑셀용 CSV', 'export', 'download', 'sm')}</div></div>
+      <div class="toolbar"><span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="contracts" ${allContractsSelected ? 'checked' : ''}> 전체 선택</label><span>목록 <strong>${contractRowCids.length}</strong>건</span>${selected.size ? `· ${btn(`선택 계약 삭제 (${selected.size})`, 'delete-selected', 'trash', 'sm danger')}` : ''}</span><div class="actions">${btn(selected.size ? `선택 엑셀 (${selected.size})` : '엑셀용 CSV', 'export', 'download', 'sm')}</div></div>
       <div class="table-wrap">
         <table class="mobile-card-table contract-master-table">
           <thead><tr><th style="width:36px"><input type="checkbox" data-select-all="contracts" ${allContractsSelected ? 'checked' : ''} aria-label="계약 고객 전체 선택"></th>${contractTab === 'rental' 
@@ -8406,7 +8406,28 @@ case'export':{
 case'delete-selected':{
   if (page === 'quotes') {
     if (!selectedQuotes.size) {
-      toast('삭제할 견적서를 먼저 선택해 주세요.');
+      toast(quoteTab === 'inquiries' ? '삭제할 견적 문의를 먼저 선택해 주세요.' : '삭제할 견적서를 먼저 선택해 주세요.');
+      break;
+    }
+    if (quoteTab === 'inquiries') {
+      const inquiryPids = [...new Set([...selectedQuotes].map((k) => Number(String(k).split(':')[0])).filter((n) => Number.isFinite(n) && n > 0))];
+      if (!inquiryPids.length) {
+        toast('삭제할 견적 문의를 먼저 선택해 주세요.');
+        break;
+      }
+      if (!confirm(`선택한 고객 ${inquiryPids.length}명의 견적 문의 내역만 삭제하시겠습니까?\n(고객 정보와 발행된 견적서는 그대로 유지됩니다.)`)) break;
+      (async () => {
+        try {
+          const res = await apiFetch('/api/quotes/inquiries/bulk-delete', { method: 'POST', body: { projectIds: inquiryPids } });
+          const resData = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(resData.error || '견적 문의 삭제에 실패했습니다.');
+          selectedQuotes.clear();
+          await syncFromServer();
+          toast(`선택한 고객 ${inquiryPids.length}명의 견적 문의를 삭제했습니다. (고객·견적 정보는 유지됨)`);
+        } catch (err) {
+          toast(err.message || '견적 문의 삭제 중 오류가 발생했습니다.');
+        }
+      })();
       break;
     }
     const quoteTargets = [...selectedQuotes]
@@ -8435,12 +8456,62 @@ case'delete-selected':{
     break;
   }
   if(!selected.size){
-    toast('삭제할 고객을 먼저 선택해 주세요.');
+    toast('삭제할 항목을 먼저 선택해 주세요.');
     break;
   }
   const targetIds=[...selected].map(Number).filter(n=>Number.isFinite(n)&&n>0);
   if(!targetIds.length){
-    toast('삭제할 고객 ID가 올바르지 않습니다.');
+    toast('선택한 항목의 ID가 올바르지 않습니다.');
+    break;
+  }
+  if (page === 'customers' && customerTab === 'inquiries') {
+    if (!confirm(`선택한 고객 ${targetIds.length}명의 견적 문의 내역만 삭제하시겠습니까?\n(고객 정보와 견적·계약 내역은 그대로 유지됩니다.)`)) break;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/quotes/inquiries/bulk-delete', { method: 'POST', body: { projectIds: targetIds } });
+        const resData = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(resData.error || '견적 문의 삭제에 실패했습니다.');
+        selected.clear();
+        await syncFromServer();
+        toast(`선택한 고객 ${targetIds.length}명의 견적 문의만 삭제했습니다. (고객 정보는 유지됨)`);
+      } catch (err) {
+        toast(err.message || '견적 문의 삭제 중 오류가 발생했습니다.');
+      }
+    })();
+    break;
+  }
+  if (page === 'customers' && customerTab !== 'all') {
+    toast("고객 원데이터 삭제는 '전체 고객' 탭에서만 진행할 수 있습니다.");
+    break;
+  }
+  if (page === 'contracts') {
+    if (contractTab === 'rental') {
+      toast('렌탈 신청 건은 개별 상세창에서 상태를 변경해 주세요.');
+      break;
+    }
+    const cidSet = new Set(targetIds);
+    const targetContracts = (db.contracts || []).filter(k => cidSet.has(Number(k.cid)) && (contractTab !== 'cash' || isCashContract(k)));
+    if (!targetContracts.length) {
+      toast('선택한 고객의 삭제할 계약 내역이 없습니다.');
+      break;
+    }
+    if (!confirm(`선택한 계약 ${targetContracts.length}건만 삭제하시겠습니까?\n(고객 정보와 견적서는 그대로 유지됩니다.)`)) break;
+    (async () => {
+      try {
+        for (const k of targetContracts) {
+          const res = await apiFetch('/api/contracts/' + encodeURIComponent(k.id), { method: 'DELETE' });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `계약(${k.id}) 삭제에 실패했습니다.`);
+          }
+        }
+        selected.clear();
+        await syncFromServer();
+        toast(`선택한 계약 ${targetContracts.length}건만 삭제했습니다. (고객·견적 정보는 유지됨)`);
+      } catch (err) {
+        toast(err.message || '계약 삭제 중 오류가 발생했습니다.');
+      }
+    })();
     break;
   }
   if(!confirm(`선택한 고객 ${targetIds.length}명과 연결된 견적·계약·렌탈 내역을 모두 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) break;

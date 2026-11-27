@@ -586,3 +586,47 @@ export const deleteProjectQuotes = mutation({
     return { deleted };
   },
 });
+
+// 모바일 견적서 문의 내역만 삭제 (고객 및 발행 견적서는 유지)
+export const deleteQuoteInquiries = mutation({
+  args: {
+    projectIds: v.array(v.number()),
+    userName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+    const pidSet = new Set(
+      args.projectIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+    );
+    if (pidSet.size === 0) return { deleted: 0 };
+
+    const consultations = await ctx.db.query("consultations").collect();
+    const deletedByProject = new Map();
+    let deleted = 0;
+
+    for (const c of consultations) {
+      const pId = Number(c.projectId);
+      if (
+        pidSet.has(pId) &&
+        typeof c.content === "string" &&
+        c.content.startsWith("[모바일 견적서 상담 요청]")
+      ) {
+        await ctx.db.delete(c._id);
+        deleted += 1;
+        deletedByProject.set(pId, (deletedByProject.get(pId) || 0) + 1);
+      }
+    }
+
+    for (const [pId, count] of deletedByProject.entries()) {
+      await ctx.db.insert("auditLogs", {
+        projectId: pId,
+        userName: args.userName || "관리자",
+        action: "견적 문의 삭제",
+        detail: `모바일 견적서 문의 내역 ${count}건 삭제`,
+        createdAt: now,
+      });
+    }
+
+    return { deleted };
+  },
+});

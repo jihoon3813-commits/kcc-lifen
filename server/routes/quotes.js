@@ -117,6 +117,32 @@ router.post('/bulk-delete', requireAuth, async (req, res) => {
   }
 });
 
+// 2-2. Delete only mobile quote inquiries (keep customer & published quotes)
+router.post('/inquiries/bulk-delete', requireAuth, async (req, res) => {
+  try {
+    const rawIds = Array.isArray(req.body?.projectIds) ? req.body.projectIds : [];
+    const projectIds = [...new Set(rawIds.map((id) => parseInt(id, 10)).filter((id) => Number.isFinite(id) && id > 0))];
+
+    if (projectIds.length === 0) {
+      return res.status(400).json({ error: '삭제할 견적 문의 고객 ID 목록이 필요합니다.' });
+    }
+
+    const result = await convexClient.mutation(api.quotes.deleteQuoteInquiries, {
+      projectIds,
+      userName: req.user?.name || '관리자',
+    });
+
+    res.json({
+      success: true,
+      deleted: result?.deleted ?? 0,
+      deletedProjectIds: projectIds,
+    });
+  } catch (err) {
+    console.error('[Convex] POST /api/quotes/inquiries/bulk-delete error:', err);
+    res.status(500).json({ error: '견적 문의 삭제 중 오류가 발생했습니다.' });
+  }
+});
+
 // 3. Preview Published Quote by Project ID (Direct from Convex)
 router.get('/by-project/:projectId/preview', requireAuth, checkPartnerAccess, async (req, res) => {
   try {
