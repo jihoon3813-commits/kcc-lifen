@@ -1329,14 +1329,14 @@ async function openSendQuote(id, preferredType = '', quoteId = null) {
   const messagingStatus = previewData?.messaging_status || {
     live: isLiveApi,
     smsReady: isLiveApi,
-    kakaoReady: isLiveApi,
+    kakaoReady: false,
     provider: isLiveApi ? 'webhook' : 'simulation'
   };
   const defaultTpl = qType === '최종견적' ? 'final' : 'basic';
 
   sendState = {
     cid: c.id,
-    channel: 'kakao',
+    channel: 'sms',
     tpl: defaultTpl,
     previewTab: 'message',
     recipientName: c.name,
@@ -1395,7 +1395,11 @@ function renderSendDialog() {
     '<small>' + (s.finalQuote ? '클릭 시 최종견적 링크·문구로 전환' : '클릭 시 우측에 최종견적 예시 화면 표시') + '</small>' +
   '</button>';
 
-  const kakaoStateBadge = ms.kakaoReady ? badge('실발송 연결됨', 'green') : badge('연동 필요', 'gray');
+  const kakaoEnabled = Boolean(ms.kakaoReady);
+  if (!kakaoEnabled && s.channel === 'kakao') {
+    s.channel = 'sms';
+  }
+  const kakaoStateBadge = kakaoEnabled ? badge('실발송 연결됨', 'green') : badge('연동 개발중', 'gray');
   const smsStateBadge = ms.smsReady ? badge('실발송 연결됨', 'green') : badge('연동 필요', 'gray');
 
   const body = '<div class="dialog-body"><div class="send-layout">' +
@@ -1405,11 +1409,11 @@ function renderSendDialog() {
       '</div>' +
       '<div class="field"><label>2. 발송 수단 선택</label>' +
         '<div class="channel-cards">' +
-          '<button type="button" class="channel-card kakao ' + (s.channel === 'kakao' ? 'active' : '') + '" data-action="switch-send-ch" data-value="kakao">' +
-            '<span class="ch-badge kakao">TALK</span><div style="flex:1"><b>카카오 알림톡 · 카톡</b><small>버튼형 모바일 견적 링크 발송</small></div>' + kakaoStateBadge +
-          '</button>' +
           '<button type="button" class="channel-card sms ' + (s.channel === 'sms' ? 'active' : '') + '" data-action="switch-send-ch" data-value="sms">' +
             '<span class="ch-badge sms">LMS</span><div style="flex:1"><b>문자 메시지 (LMS)</b><small>장문 안내 문자 및 전용 링크 발송</small></div>' + smsStateBadge +
+          '</button>' +
+          '<button type="button" class="channel-card kakao ' + (kakaoEnabled ? (s.channel === 'kakao' ? 'active' : '') : 'is-disabled') + '" data-action="switch-send-ch" data-value="kakao"' + (kakaoEnabled ? '' : ' aria-disabled="true" title="카카오 알림톡 연동 개발중 (연동 완료 후 오픈)"') + '>' +
+            '<span class="ch-badge kakao">TALK</span><div style="flex:1"><b>카카오 알림톡 · 카톡</b><small>' + (kakaoEnabled ? '버튼형 모바일 견적 링크 발송' : '연동 개발중 · 완료 시 오픈 예정') + '</small></div>' + kakaoStateBadge +
           '</button>' +
         '</div>' +
       '</div>' +
@@ -7969,6 +7973,10 @@ case'clear-quote-phone':{
   }
   case'switch-send-ch':{
     if (sendState) {
+      if (v === 'kakao' && !sendState.messagingStatus?.kakaoReady) {
+        toast('카카오 알림톡 발송은 현재 연동 개발중입니다. 연동 완료 후 오픈됩니다.');
+        break;
+      }
       sendState.channel = v === 'sms' ? 'sms' : 'kakao';
       renderSendDialog();
     }
@@ -8076,6 +8084,10 @@ case'clear-quote-phone':{
   }
   case'submit-send-quote':{
     if (!sendState) break;
+    if (sendState.channel === 'kakao' && !sendState.messagingStatus?.kakaoReady) {
+      toast('카카오 알림톡 발송은 현재 연동 개발중입니다. 문자 메시지(LMS)를 이용해 주세요.');
+      break;
+    }
     const phoneVal = ($('#send-phone')?.value || sendState.recipientPhone || '').trim();
     const msgVal = ($('#send-message')?.value || sendState.message || '').trim();
     if (phoneVal.replace(/\D/g, '').length < 10) {

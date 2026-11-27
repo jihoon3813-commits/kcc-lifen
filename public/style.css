@@ -174,6 +174,26 @@
   background: #f5f8ff;
   box-shadow: 0 3px 12px rgba(49, 101, 237, 0.1);
 }
+.channel-card.is-disabled {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+.channel-card.is-disabled:hover {
+  border-color: #e2e8f0;
+}
+.channel-card.is-disabled .ch-badge.kakao {
+  background: #e2e8f0;
+  color: #64748b;
+}
+.channel-card.is-disabled b {
+  color: #64748b;
+}
+.channel-card.is-disabled small {
+  color: #94a3b8;
+}
 .ch-badge {
   width: 36px;
   height: 36px;
