@@ -2,6 +2,40 @@ import crypto from 'node:crypto';
 
 export const MESSAGING_SETTING_KEY = 'integrations_messaging';
 
+export const DEFAULT_QUOTE_MESSAGE_TEMPLATES = {
+  basic:
+    '[KCC홈씨씨] #{고객명} 고객님, 우리 집 맞춤 모바일 견적서가 도착했습니다.\n\n' +
+    '■ 견적 구분: #{견적구분}\n' +
+    '■ 예상 금액: #{예상금액} (부가세 포함)\n' +
+    '■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n' +
+    '■ 시공 시 혜택(1): LG가전 구독료 10% 할인 지원(최대 72개월 간 매월 10% 할인, 전 제품 대상)\n' +
+    '■ 시공 시 혜택(2): KCC홈씨씨 주방 시공 시 10% 할인 지원(최종 견적 금액에서 10% 할인 적용)\n\n' +
+    '▼ 나의 모바일 견적서 바로가기\n#{견적링크}\n\n' +
+    '※ 열람 시 고객님 본인 성함(#{고객명})과 휴대폰 번호로 로그인해 주세요.',
+  final:
+    '[KCC홈씨씨] #{고객명} 고객님, 현장 실측이 반영된 최종 모바일 견적서가 발행되었습니다.\n\n' +
+    '■ 견적 구분: #{견적구분}\n' +
+    '■ 확정 견적가: #{예상금액} (부가세 포함)\n' +
+    '■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n' +
+    '■ 시공 시 혜택(1): LG가전 구독료 10% 할인 지원(최대 72개월 간 매월 10% 할인, 전 제품 대상)\n' +
+    '■ 시공 시 혜택(2): KCC홈씨씨 주방 시공 시 10% 할인 지원(최종 견적 금액에서 10% 할인 적용)\n\n' +
+    '▼ 나의 모바일 견적서 바로가기\n#{견적링크}\n\n' +
+    '※ 열람 시 고객님 본인 성함(#{고객명})과 휴대폰 번호로 로그인해 주세요.',
+};
+
+export function renderQuoteMessageTemplate(template, vars = {}) {
+  const tpl = String(template || '').trim();
+  if (!tpl) return '';
+  const priceStr =
+    vars.priceStr || `${Number(vars.totalPrice || 0).toLocaleString()}원`;
+  return tpl
+    .replace(/#\{고객명\}/g, String(vars.customerName ?? '고객'))
+    .replace(/#\{견적구분\}/g, String(vars.quoteType ?? '가견적'))
+    .replace(/#\{예상금액\}/g, priceStr)
+    .replace(/#\{견적링크\}/g, String(vars.quoteUrl ?? ''))
+    .replace(/#\{상품명\}/g, String(vars.product ?? '창호'));
+}
+
 function cleanDigits(val) {
   return String(val || '').replace(/\D/g, '');
 }
@@ -156,6 +190,10 @@ export function normalizeMessagingConfig(raw = {}, env = process.env) {
     kakaoWebhookUrl: pick('kakaoWebhookUrl', 'KAKAO_WEBHOOK_URL'),
     smsWebhookUrl: pick('smsWebhookUrl', 'SMS_WEBHOOK_URL'),
     webhookApiKey: pick('webhookApiKey', 'MESSAGING_API_KEY'),
+
+    // 문자·카톡 공통 발송 문구 템플릿 (어드민 편집)
+    msgTemplateBasic: String(safeRaw.msgTemplateBasic || '').trim(),
+    msgTemplateFinal: String(safeRaw.msgTemplateFinal || '').trim(),
   };
 }
 
@@ -205,6 +243,10 @@ export function getMessagingChannelStatus(cfg) {
     senderPhone: safe.senderPhone || '',
     hasBarobillYellowId: Boolean(safe.barobillYellowId),
     hasKakaoTemplate: hasAnyTpl,
+    templates: {
+      basic: String(safe.msgTemplateBasic || '').trim(),
+      final: String(safe.msgTemplateFinal || '').trim(),
+    },
   };
 }
 
@@ -240,6 +282,8 @@ export function sanitizeMessagingConfigForClient(cfg) {
     smsWebhookUrl: cfg.smsWebhookUrl || '',
     webhookApiKey: maskSecret(cfg.webhookApiKey),
     hasWebhookApiKey: Boolean(cfg.webhookApiKey),
+    msgTemplateBasic: cfg.msgTemplateBasic || '',
+    msgTemplateFinal: cfg.msgTemplateFinal || '',
     status,
   };
 }
@@ -288,6 +332,14 @@ export function mergeMessagingConfigUpdate(existingRaw = {}, incoming = {}) {
 
     kakaoWebhookUrl: String(incoming.kakaoWebhookUrl ?? prev.kakaoWebhookUrl ?? '').trim(),
     smsWebhookUrl: String(incoming.smsWebhookUrl ?? prev.smsWebhookUrl ?? '').trim(),
+    msgTemplateBasic:
+      incoming.msgTemplateBasic !== undefined
+        ? String(incoming.msgTemplateBasic).trim()
+        : String(prev.msgTemplateBasic || '').trim(),
+    msgTemplateFinal:
+      incoming.msgTemplateFinal !== undefined
+        ? String(incoming.msgTemplateFinal).trim()
+        : String(prev.msgTemplateFinal || '').trim(),
   };
 
   const keepSecret = (incomingVal, prevVal) => {

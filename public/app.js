@@ -1114,8 +1114,41 @@ function buildDraftMobileQuote(c, ed, totals) {
   };
 }
 
+const DEFAULT_QUOTE_MESSAGE_TEMPLATES = {
+  basic:
+    '[KCC홈씨씨] #{고객명} 고객님, 우리 집 맞춤 모바일 견적서가 도착했습니다.\n\n' +
+    '■ 견적 구분: #{견적구분}\n' +
+    '■ 예상 금액: #{예상금액} (부가세 포함)\n' +
+    '■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n' +
+    '■ 시공 시 혜택(1): LG가전 구독료 10% 할인 지원(최대 72개월 간 매월 10% 할인, 전 제품 대상)\n' +
+    '■ 시공 시 혜택(2): KCC홈씨씨 주방 시공 시 10% 할인 지원(최종 견적 금액에서 10% 할인 적용)\n\n' +
+    '▼ 나의 모바일 견적서 바로가기\n#{견적링크}\n\n' +
+    '※ 열람 시 고객님 본인 성함(#{고객명})과 휴대폰 번호로 로그인해 주세요.',
+  final:
+    '[KCC홈씨씨] #{고객명} 고객님, 현장 실측이 반영된 최종 모바일 견적서가 발행되었습니다.\n\n' +
+    '■ 견적 구분: #{견적구분}\n' +
+    '■ 확정 견적가: #{예상금액} (부가세 포함)\n' +
+    '■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n' +
+    '■ 시공 시 혜택(1): LG가전 구독료 10% 할인 지원(최대 72개월 간 매월 10% 할인, 전 제품 대상)\n' +
+    '■ 시공 시 혜택(2): KCC홈씨씨 주방 시공 시 10% 할인 지원(최종 견적 금액에서 10% 할인 적용)\n\n' +
+    '▼ 나의 모바일 견적서 바로가기\n#{견적링크}\n\n' +
+    '※ 열람 시 고객님 본인 성함(#{고객명})과 휴대폰 번호로 로그인해 주세요.'
+};
+
+function renderQuoteMessageTemplate(template, vars = {}) {
+  const tpl = String(template || '').trim();
+  if (!tpl) return '';
+  return tpl
+    .replace(/#\{고객명\}/g, String(vars.customerName ?? '고객'))
+    .replace(/#\{견적구분\}/g, String(vars.quoteType ?? '가견적'))
+    .replace(/#\{예상금액\}/g, String(vars.priceStr ?? '0원'))
+    .replace(/#\{견적링크\}/g, String(vars.quoteUrl ?? ''))
+    .replace(/#\{상품명\}/g, String(vars.product ?? '창호'));
+}
+
 function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUrl) {
   const priceStr = num(totalPrice) + '원';
+  const customTpls = sendState?.messagingStatus?.templates || messagingStatusCache?.templates || {};
   if (tplKey === 'measure') {
     return '[KCC홈씨씨] ' + cName + ' 고객님, 요청하신 ' + product + ' 가견적서와 방문실측 안내드립니다.\n\n' +
       '■ 견적 구분: ' + quoteType + '\n' +
@@ -1124,24 +1157,16 @@ function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUr
       '※ 본인 확인을 위해 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.\n' +
       '견적서 내 [상담 요청하기]로 희망 실측 일정을 남겨주시면 빠르게 안내드리겠습니다.';
   }
-  if (tplKey === 'final') {
-    return '[KCC홈씨씨] ' + cName + ' 고객님, 현장 실측이 반영된 최종 모바일 견적서가 발행되었습니다.\n\n' +
-      '■ 견적 구분: ' + (quoteType || '최종견적') + '\n' +
-      '■ 확정 견적가: ' + priceStr + ' (부가세 포함)\n' +
-      '■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n' +
-      '■ 시공 시 혜택(1): LG가전 구독료 10% 할인 지원(최대 72개월 간 매월 10% 할인, 전 제품 대상)\n' +
-      '■ 시공 시 혜택(2): KCC홈씨씨 주방 시공 시 10% 할인 지원(최종 견적 금액에서 10% 할인 적용)\n\n' +
-      '▼ 나의 모바일 견적서 바로가기\n' + quoteUrl + '\n\n' +
-      '※ 열람 시 고객님 본인 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.';
-  }
-  return '[KCC홈씨씨] ' + cName + ' 고객님, 우리 집 맞춤 모바일 견적서가 도착했습니다.\n\n' +
-    '■ 견적 구분: ' + quoteType + '\n' +
-    '■ 예상 금액: ' + priceStr + ' (부가세 포함)\n' +
-    '■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n' +
-    '■ 시공 시 혜택(1): LG가전 구독료 10% 할인 지원(최대 72개월 간 매월 10% 할인, 전 제품 대상)\n' +
-    '■ 시공 시 혜택(2): KCC홈씨씨 주방 시공 시 10% 할인 지원(최종 견적 금액에서 10% 할인 적용)\n\n' +
-    '▼ 나의 모바일 견적서 바로가기\n' + quoteUrl + '\n\n' +
-    '※ 열람 시 고객님 본인 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.';
+  const tplSource = tplKey === 'final'
+    ? (customTpls.final || DEFAULT_QUOTE_MESSAGE_TEMPLATES.final)
+    : (customTpls.basic || DEFAULT_QUOTE_MESSAGE_TEMPLATES.basic);
+  return renderQuoteMessageTemplate(tplSource, {
+    customerName: cName,
+    quoteType: tplKey === 'final' ? (quoteType || '최종견적') : (quoteType || '가견적'),
+    priceStr,
+    quoteUrl,
+    product: product || '창호'
+  });
 }
 
 function parseExternalQuoteLinks(raw) {
@@ -1536,6 +1561,8 @@ async function openMessagingIntegrationDialog() {
     smsWebhookUrl: '',
     kakaoWebhookUrl: '',
     webhookApiKey: '',
+    msgTemplateBasic: '',
+    msgTemplateFinal: '',
     status: null
   };
   try {
@@ -1645,6 +1672,25 @@ async function openMessagingIntegrationDialog() {
         '<div data-sms-provider="webhook">' +
           field('문자(LMS/SMS) 발송 Webhook URL', 'smsWebhookUrl', cfg.smsWebhookUrl || '', 'url') +
           field('웹훅 Bearer 인증키 (선택)', 'webhookApiKey', cfg.webhookApiKey || '', 'password') +
+        '</div>' +
+      '</div>' +
+
+      '<div style="background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">' +
+          '<b style="font-size:12.5px;color:var(--navy)">3. 문자 · 카카오 알림톡 공통 발송 문구</b>' +
+          '<button type="button" class="btn sm soft" data-action="reset-msg-templates">기본 문구 복원</button>' +
+        '</div>' +
+        '<div class="notice-text" style="margin:0 0 10px;font-size:11.5px;line-height:1.55">' +
+          '견적 발송 모달의 <b>문자·카톡 기본 문구</b>에 공통 적용됩니다. ' +
+          '사용 가능한 치환 변수: <code>#{고객명}</code> <code>#{견적구분}</code> <code>#{예상금액}</code> <code>#{견적링크}</code> <code>#{상품명}</code>' +
+        '</div>' +
+        '<div class="field" style="margin-bottom:10px">' +
+          '<label for="msgTemplateBasic">가견적 공통 문구 (문자 · 카톡)</label>' +
+          '<textarea class="input" id="msgTemplateBasic" name="msgTemplateBasic" style="min-height:145px;line-height:1.6;font-size:12px">' + esc(cfg.msgTemplateBasic || DEFAULT_QUOTE_MESSAGE_TEMPLATES.basic) + '</textarea>' +
+        '</div>' +
+        '<div class="field" style="margin-bottom:0">' +
+          '<label for="msgTemplateFinal">최종견적 공통 문구 (문자 · 카톡)</label>' +
+          '<textarea class="input" id="msgTemplateFinal" name="msgTemplateFinal" style="min-height:145px;line-height:1.6;font-size:12px">' + esc(cfg.msgTemplateFinal || DEFAULT_QUOTE_MESSAGE_TEMPLATES.final) + '</textarea>' +
         '</div>' +
       '</div>' +
 
@@ -5307,7 +5353,7 @@ function settingsPage(){
       : badge('미연결', 'gray');
     content=`<div class="panel-head"><div><h3>외부 서비스 연동</h3><p>실제 서비스 개통 상태와 운영 연결을 관리합니다.</p></div></div><div class="panel-pad">${[
       ['카드결제 PG','신규 결제 요청·승인·취소·정산','credit',badge('미연결','gray'),'연결 안내'],
-      ['문자·알림톡','견적 안내(카톡: 바로빌 / 문자: 알리고)','send',msgBadge,'연동 설정'],
+      ['문자·알림톡','견적 안내(카톡: 바로빌 / 문자: 알리고) · 공통 발송 문구 관리','send',msgBadge,'연동·문구 설정'],
       ['렌탈사 접수','심사·약정·정산 결과 연결','file',badge('미연결','gray'),'연결 안내'],
       ['랜딩페이지 수집','상담 신청·유입 이벤트 연결','link',badge('미연결','gray'),'연결 안내']
     ].map(([n,t,i,b,btnLabel])=>`<div class="settings-row">${icon(i)}<div class="grow"><b>${n}</b><small>${t}</small></div>${b}${btn(btnLabel,'integration','info','sm',`data-name="${n}"`)}</div>`).join('')}</div>`;
@@ -8026,6 +8072,17 @@ case'clear-quote-phone':{
     toast('서버 URL을 복사했습니다: ' + url);
     break;
   }
+  case'reset-msg-templates':{
+    const form = $('#edit-form[data-submit="messaging-config"]');
+    if (form) {
+      const basicEl = form.querySelector('[name="msgTemplateBasic"]');
+      const finalEl = form.querySelector('[name="msgTemplateFinal"]');
+      if (basicEl) basicEl.value = DEFAULT_QUOTE_MESSAGE_TEMPLATES.basic;
+      if (finalEl) finalEl.value = DEFAULT_QUOTE_MESSAGE_TEMPLATES.final;
+      toast('기본 견적 안내 문구로 복원했습니다. 하단의 [연동 설정 저장]을 눌러 반영하세요.');
+    }
+    break;
+  }
   case'test-messaging-send':{
     const form = $('#edit-form[data-submit="messaging-config"]');
     const testPhone = ($('#test-msg-phone')?.value || '').trim();
@@ -10521,7 +10578,9 @@ case'messaging-config':{
           bridgeSecret: (d.bridgeSecret || '').trim(),
           kakaoWebhookUrl: (d.kakaoWebhookUrl || '').trim(),
           smsWebhookUrl: (d.smsWebhookUrl || '').trim(),
-          webhookApiKey: (d.webhookApiKey || '').trim()
+          webhookApiKey: (d.webhookApiKey || '').trim(),
+          msgTemplateBasic: (d.msgTemplateBasic || '').trim(),
+          msgTemplateFinal: (d.msgTemplateFinal || '').trim()
         }
       });
       const resData = await res.json().catch(() => ({}));
