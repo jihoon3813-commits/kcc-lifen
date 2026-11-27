@@ -211,8 +211,8 @@
   margin-top: 2px;
 }
 .quote-switcher {
-  margin-top: 14px;
-  padding: 12px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
   background: #f6f8fa;
   border-radius: 9px;
   border: 1px solid #e3e7eb;
