@@ -62,17 +62,52 @@ export default async function handler(req, res) {
   const sub = String(slug[1] || "").trim();
 
   try {
-    // 1. /api/settings/labels
+    // 1. /api/settings/labels & /:id
     if (section === "labels") {
-      const settings = await convexClient.query(api.settings.listAllSettings, {});
-      return res.status(200).json({
-        labels: (settings.labels || []).map((l) => ({
-          id: l._id,
-          name: l.name,
-          color: l.color,
-          sortOrder: l.sortOrder,
-        })),
+      const mapLabelRow = (l, idx = 0) => ({
+        id: l._id || l.id || String(idx + 1),
+        name: l.name,
+        color: l.color || "#2563eb",
+        sortOrder: l.sortOrder ?? idx + 1,
       });
+      if (req.method === "GET") {
+        const settings = await convexClient.query(api.settings.listAllSettings, {});
+        return res.status(200).json({
+          labels: (settings.labels || []).map(mapLabelRow),
+        });
+      }
+      if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
+        const body = parseBody(req) || {};
+        if (!String(body.name || "").trim()) {
+          return res.status(400).json({ error: "라벨명을 입력해 주세요." });
+        }
+        const id = await convexClient.mutation(api.settings.upsertLabel, {
+          idOrName: sub || undefined,
+          name: String(body.name).trim(),
+          color: body.color ? String(body.color) : "#2563eb",
+          sortOrder: body.sortOrder !== undefined ? Number(body.sortOrder) : undefined,
+        });
+        const settings = await convexClient.query(api.settings.listAllSettings, {});
+        return res.status(200).json({
+          id,
+          labels: (settings.labels || []).map(mapLabelRow),
+          message: "진행라벨이 저장되었습니다.",
+        });
+      }
+      if (req.method === "DELETE" && sub) {
+        const result = await convexClient.mutation(api.settings.deleteLabel, {
+          idOrName: sub,
+          userName: auth.user.name || "관리자",
+        });
+        if (result?.reason === "min_limit") {
+          return res.status(400).json({ error: "최소 1개 이상의 라벨은 유지되어야 합니다." });
+        }
+        const settings = await convexClient.query(api.settings.listAllSettings, {});
+        return res.status(200).json({
+          deleted: true,
+          labels: (settings.labels || []).map(mapLabelRow),
+        });
+      }
     }
 
     // 1b. /api/settings/stages & /:id

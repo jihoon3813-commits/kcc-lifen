@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server.js";
 import { v } from "convex/values";
+import { recordDeletedArchive, recordEntitySnapshot } from "./archive.js";
 
 export const getSetting = query({
   args: { key: v.string() },
@@ -29,6 +30,17 @@ export const setSetting = mutation({
       .first();
     const now = new Date().toISOString();
     if (existing) {
+      if (existing.value !== args.value) {
+        await recordEntitySnapshot(ctx, {
+          entityType: "setting",
+          entityKey: `setting:${args.key}`,
+          action: "overwrite_backup",
+          title: `시스템 설정 백업 (${args.key})`,
+          snapshot: { key: existing.key, value: existing.value, updatedAt: existing.updatedAt },
+          savedBy: "시스템",
+          createdAt: now,
+        });
+      }
       await ctx.db.patch(existing._id, {
         value: args.value,
         updatedAt: now,
@@ -153,7 +165,7 @@ export const upsertStage = mutation({
 });
 
 export const deleteStage = mutation({
-  args: { idOrName: v.string() },
+  args: { idOrName: v.string(), userName: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const all = await ctx.db.query("systemStages").collect();
     if (all.length <= 1) return { deleted: false, reason: "min_limit" };
@@ -161,6 +173,79 @@ export const deleteStage = mutation({
       (s) => String(s._id) === args.idOrName || s.name === args.idOrName
     );
     if (!target) return { deleted: false };
+    await recordDeletedArchive(ctx, {
+      archiveType: "setting",
+      targetKey: `stage:${target.name}`,
+      title: `진행구분 상태값 · ${target.name}`,
+      summary: `색상 ${target.color || "blue"} · 정렬순서 ${target.sortOrder}`,
+      payload: { tableName: "systemStages", doc: target },
+      deletedBy: args.userName || "관리자",
+    });
+    await ctx.db.delete(target._id);
+    return { deleted: true, deletedName: target.name };
+  },
+});
+
+export const upsertLabel = mutation({
+  args: {
+    idOrName: v.optional(v.string()),
+    name: v.string(),
+    color: v.optional(v.string()),
+    sortOrder: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const cleanName = args.name.trim();
+    if (!cleanName) return null;
+    const all = await ctx.db.query("systemLabels").collect();
+    if (args.idOrName) {
+      const target = all.find(
+        (l) => String(l._id) === args.idOrName || l.name === args.idOrName
+      );
+      if (target) {
+        await ctx.db.patch(target._id, {
+          name: cleanName,
+          color: args.color ?? target.color,
+          sortOrder: args.sortOrder ?? target.sortOrder,
+        });
+        return target._id;
+      }
+    }
+    const existing = await ctx.db
+      .query("systemLabels")
+      .withIndex("by_name", (q) => q.eq("name", cleanName))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        color: args.color ?? existing.color,
+        sortOrder: args.sortOrder ?? existing.sortOrder,
+      });
+      return existing._id;
+    }
+    return await ctx.db.insert("systemLabels", {
+      name: cleanName,
+      color: args.color || "#2563eb",
+      sortOrder: args.sortOrder ?? all.length + 1,
+    });
+  },
+});
+
+export const deleteLabel = mutation({
+  args: { idOrName: v.string(), userName: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const all = await ctx.db.query("systemLabels").collect();
+    if (all.length <= 1) return { deleted: false, reason: "min_limit" };
+    const target = all.find(
+      (l) => String(l._id) === args.idOrName || l.name === args.idOrName
+    );
+    if (!target) return { deleted: false };
+    await recordDeletedArchive(ctx, {
+      archiveType: "setting",
+      targetKey: `label:${target.name}`,
+      title: `진행라벨 · ${target.name}`,
+      summary: `색상 ${target.color || "#2563eb"} · 정렬순서 ${target.sortOrder}`,
+      payload: { tableName: "systemLabels", doc: target },
+      deletedBy: args.userName || "관리자",
+    });
     await ctx.db.delete(target._id);
     return { deleted: true, deletedName: target.name };
   },
@@ -244,13 +329,21 @@ export const upsertContractStatus = mutation({
 });
 
 export const deleteContractStatus = mutation({
-  args: { idOrName: v.string() },
+  args: { idOrName: v.string(), userName: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const all = await ctx.db.query("systemContractStatuses").collect();
     const target = all.find(
       (s) => String(s._id) === args.idOrName || s.name === args.idOrName
     );
     if (!target) return { deleted: false };
+    await recordDeletedArchive(ctx, {
+      archiveType: "setting",
+      targetKey: `contractStatus:${target.name}`,
+      title: `계약·수납 상태값 · ${target.name}`,
+      summary: `색상 ${target.color || "#2563eb"} · 정렬순서 ${target.sortOrder}`,
+      payload: { tableName: "systemContractStatuses", doc: target },
+      deletedBy: args.userName || "관리자",
+    });
     await ctx.db.delete(target._id);
     return { deleted: true };
   },
@@ -336,13 +429,21 @@ export const upsertConsentForm = mutation({
 });
 
 export const deleteConsentForm = mutation({
-  args: { formId: v.string() },
+  args: { formId: v.string(), userName: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("consentForms")
       .withIndex("by_formId", (q) => q.eq("formId", args.formId))
       .first();
     if (!existing) return { deleted: false };
+    await recordDeletedArchive(ctx, {
+      archiveType: "setting",
+      targetKey: `form:${existing.formId}`,
+      title: `전자동의 양식 · ${existing.name} (v${existing.version || 1})`,
+      summary: `파일명 ${existing.fileName || "없음"} · 양식코드 ${existing.formId}`,
+      payload: { tableName: "consentForms", doc: existing },
+      deletedBy: args.userName || "관리자",
+    });
     await ctx.db.delete(existing._id);
     return { deleted: true };
   },

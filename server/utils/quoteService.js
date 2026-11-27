@@ -32,9 +32,11 @@ export async function createQuoteInConvex(convexClient, api, { body, user, partn
     quoteType = '가견적',
     items,
     marginRate = 100.0,
+    marginScope = 'material',
     discountAmount = 0,
     supplyCost = 0,
     excelSubtotal = 0,
+    sourceFileName = '',
     meta = null,
     memo,
     isPublish = true,
@@ -74,7 +76,19 @@ export async function createQuoteInConvex(convexClient, api, { body, user, partn
   const safeType = ['가견적', '최종견적', '비교안'].includes(quoteType) ? quoteType : '가견적';
   const status = isPublish ? 'published' : 'draft';
   const accessToken = `tok_${pId}_${Date.now().toString(36)}_${crypto.randomBytes(6).toString('hex')}`;
-  const metaJsonStr = parsedMeta ? JSON.stringify(parsedMeta) : undefined;
+  const enrichedMeta = {
+    ...(parsedMeta || {}),
+    editor_state: {
+      marginScope: marginScope === 'all' ? 'all' : 'material',
+      marginRate: Number(marginRate ?? 100),
+      discountAmount: safeDiscount,
+      supplyCost: calculated.supply_cost,
+      excelSubtotal: calculated.total_cost,
+      sourceFileName: sourceFileName ? String(sourceFileName) : (parsedMeta?.editor_state?.sourceFileName || ''),
+      savedAt: new Date().toISOString(),
+    },
+  };
+  const metaJsonStr = JSON.stringify(enrichedMeta);
 
   const convexItems = calculated.items.map((item) => ({
     sortOrder: item.sort_order,
@@ -219,7 +233,12 @@ export async function getProjectQuotePreviewFromConvex(
     return { status: 403, data: { error: '접근 권한이 없습니다.' } };
   }
 
-  const allQuotes = data.quotes || [];
+  const canEditQuote = !partnerOrgId && Boolean(user) && user.role !== 'partner';
+  const publishedQuotes = data.quotes || [];
+  const editorCandidateQuotes = canEditQuote && Array.isArray(data.allQuotes) && data.allQuotes.length
+    ? data.allQuotes
+    : publishedQuotes;
+  const allQuotes = publishedQuotes.length ? publishedQuotes : editorCandidateQuotes;
   if (!allQuotes.length) {
     return { status: 404, data: { error: '해당 고객에게 발행된 견적서가 없습니다. 먼저 견적을 발행해 주세요.' } };
   }
@@ -228,10 +247,11 @@ export async function getProjectQuotePreviewFromConvex(
   let isSimulatedType = false;
 
   if (requestedQuoteId) {
-    const byId = allQuotes.find((q) => Number(q.version) === Number(requestedQuoteId));
+    const byId = editorCandidateQuotes.find((q) => Number(q.version) === Number(requestedQuoteId));
     if (byId) quote = byId;
   } else if (requestedType) {
-    const byType = allQuotes.find((q) => (q.quoteType || '가견적') === requestedType);
+    const byType = allQuotes.find((q) => (q.quoteType || '가견적') === requestedType)
+      || (canEditQuote ? editorCandidateQuotes.find((q) => (q.quoteType || '가견적') === requestedType) : null);
     if (byType) {
       quote = byType;
     } else {
@@ -282,9 +302,8 @@ export async function getProjectQuotePreviewFromConvex(
     sent_at: d.createdAt ? String(d.createdAt).slice(0, 16).replace('T', ' ') : '',
   }));
 
-  const isHqAdmin = !partnerOrgId && user?.role === 'hq_admin';
   let adminEditorQuote = null;
-  if (isHqAdmin && quote) {
+  if (canEditQuote && quote) {
     let parsedMeta = null;
     if (quote.metaJson) {
       try { parsedMeta = JSON.parse(quote.metaJson); } catch {}
@@ -317,6 +336,7 @@ export async function getProjectQuotePreviewFromConvex(
     adminEditorQuote = {
       id: quote.version,
       version: quote.version,
+      status: quote.status || 'published',
       quote_type: quote.quoteType || '가견적',
       title: quote.title || '',
       memo: quote.memo || '',
@@ -324,6 +344,8 @@ export async function getProjectQuotePreviewFromConvex(
         quote.marginRate !== undefined && quote.marginRate !== null
           ? Number(quote.marginRate)
           : 100,
+      margin_scope: parsedMeta?.editor_state?.marginScope || null,
+      source_file: parsedMeta?.editor_state?.sourceFileName || '',
       discount_amount: Number(quote.discountAmount) || 0,
       supply_cost: Number(quote.supplyCost) || 0,
       total_cost: Number(quote.totalCost) || 0,

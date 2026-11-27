@@ -433,7 +433,10 @@ router.post('/bulk-delete', requireAuth, checkPartnerAccess, async (req, res) =>
     if (projectIds.length === 0) {
       return res.status(400).json({ error: '삭제할 고객 ID 목록이 필요합니다.' });
     }
-    const result = await convexClient.mutation(api.crm.deleteProjects, { projectIds });
+    const result = await convexClient.mutation(api.crm.deleteProjects, {
+      projectIds,
+      userName: req.user?.name || '관리자',
+    });
     res.json({ success: true, deleted: result?.deleted ?? projectIds.length, deletedIds: projectIds });
   } catch (err) {
     console.error('[Convex] POST /api/customers/bulk-delete error:', err);
@@ -448,7 +451,10 @@ router.delete('/:id', requireAuth, checkPartnerAccess, async (req, res) => {
     if (!projectId || Number.isNaN(projectId)) {
       return res.status(400).json({ error: '유효하지 않은 프로젝트 ID입니다.' });
     }
-    const result = await convexClient.mutation(api.crm.deleteProjects, { projectIds: [projectId] });
+    const result = await convexClient.mutation(api.crm.deleteProjects, {
+      projectIds: [projectId],
+      userName: req.user?.name || '관리자',
+    });
     res.json({ success: true, deleted: result?.deleted ?? 1 });
   } catch (err) {
     console.error('[Convex] DELETE /api/customers/:id error:', err);

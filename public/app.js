@@ -721,7 +721,9 @@ async function syncFromServer() {
     }
     if (lRes.ok) {
       const data = await lRes.json();
-      db.labels = data.labels;
+      if (Array.isArray(data.labels) && data.labels.length > 0) {
+        db.labels = data.labels;
+      }
     }
     if (stRes && stRes.ok) {
       const data = await stRes.json();
@@ -2068,7 +2070,8 @@ function customersPage(){
   const linkFilterBanner = linkFilter ? `<div class="active-link-filter-bar"><div>${icon('link')}<span>선택된 광고링크 유입 고객만 보는 중:</span> <span class="ch-pill ${channelTone(activeLinkObj?.channel || sourceFilter)}">${esc(activeLinkObj?.channel || sourceFilter || '광고링크')}</span> <b>${esc(activeLinkObj?.name || ('링크 #' + linkFilter))}</b></div><button type="button" class="btn sm" data-action="clear-link-filter">${icon('close')}필터 해제 (전체 보기)</button></div>` : '';
   const filteredList = filteredCustomers();
   const allCustSelected = filteredList.length > 0 && filteredList.every(x => selected.has(x.id));
-  return pageHead('고객관리','고객의 첫 문의부터 계약까지, 한눈에 관리하세요.',btn('새로고침','refresh-data','refresh','secondary')+btn('당근 리드 연동','open-daangn-sync','link','secondary')+btn('일정 보기','calendar','calendar','secondary')+btn('고객 등록','new-customer','plus','primary'),'CUSTOMER MANAGEMENT')+`<div class="metrics">${metric('전체 고객',c.length,'건','현재 등록된 전체 공사건','users','','filter-all')}${metric('견적 요청 대기',c.filter(x=>x.status==='가견적요청').length,'건','<span class="accent">원본 견적 수령</span>이 필요해요','file','orange','filter-stage','data-value="가견적요청"')}${metric('실측 예정',c.filter(x=>x.status==='실측예정').length,'건','담당팀과 방문 일정을 확인하세요','calendar','purple','filter-stage','data-value="실측예정"')}${metric('계약 진행',c.filter(x=>x.status==='계약진행').length,'건','서류 검토와 수납 상태 확인','contract','green','filter-stage','data-value="계약진행"')}</div><section class="panel"><div class="tabs">${custTabs.map(([v,l,cnt,isAlert])=>`<button class="tab ${customerTab===v?'active':''}" data-action="customer-tab" data-value="${v}">${l}${cnt>0?`<span class="count${isAlert?' count-red':''}">${cnt}</span>`:''}</button>`).join('')}</div><div class="filters"><div class="search-field">${icon('search')}<input class="input" id="customer-search" value="${esc(query)}" placeholder="고객명, 연락처, 주소, 광고채널 검색" aria-label="고객 검색"></div><select class="select" id="filter-period" aria-label="등록 기간"><option value="all" ${periodFilter==='all'?'selected':''}>등록 기간 전체</option><option value="today" ${periodFilter==='today'?'selected':''}>오늘</option><option value="7" ${periodFilter==='7'?'selected':''}>최근 7일</option></select><select class="select" id="filter-product" aria-label="상품군">${options(['창호','그린리모델링','주방','욕실'],productFilter,'상품군 전체')}</select><select class="select" id="filter-stage" aria-label="진행구분">${options(getStageNames(),stageFilter,'진행구분 전체')}</select><select class="select" id="filter-source" aria-label="유입채널">${options(channelOptions,sourceFilter,'유입채널 전체')}</select>${role==='본사 관리자'?`<select class="select" id="filter-partner" aria-label="소속 파트너">${options(['직영',...db.partners.map(p=>p.name)],partnerFilter,'파트너 전체')}</select>`:''}<button class="icon-btn" data-action="reset-filters" title="필터 초기화" aria-label="필터 초기화">${icon('refresh')}</button></div>${linkFilterBanner}<div class="toolbar"><span id="list-count" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="customers" ${allCustSelected?'checked':''}> 전체 선택</label><span>검색 결과 <strong>${filteredList.length}</strong>건</span>${selected.size?`· <button type="button" data-action="assign" style="color:var(--blue)">${selected.size}명 담당자 배정</button>${customerTab==='all'?` · ${btn(`선택 고객 삭제 (${selected.size})`,'delete-selected','trash','sm danger')}`:(customerTab==='inquiries'?` · ${btn(`선택 문의 삭제 (${selected.size})`,'delete-selected','trash','sm danger')}`:'')}`:''}</span><div class="actions">${btn(selected.size?`선택 엑셀 (${selected.size})`:'엑셀용 CSV','export','download','sm')}<select class="sort" id="sort-order" aria-label="정렬 순서"><option value="new" ${sortOrder==='new'?'selected':''}>최근 등록순</option><option value="old" ${sortOrder==='old'?'selected':''}>고객번호 낮은순</option></select></div></div><div class="customers" id="customer-rows">${customerRows()}</div><div class="pagination"><span>전체 결과를 한 페이지에 표시합니다.</span><div class="pages"><button class="active" aria-label="현재 1페이지">1</button></div></div></section>`;
+  const isStaff = getActiveUser().role !== 'partner';
+  return pageHead('고객관리','고객의 첫 문의부터 계약까지, 한눈에 관리하세요.',btn('새로고침','refresh-data','refresh','secondary')+(isStaff?btn('복구 보관함','open-archive-vault','shield','secondary','data-type="project"'):'')+btn('당근 리드 연동','open-daangn-sync','link','secondary')+btn('일정 보기','calendar','calendar','secondary')+btn('고객 등록','new-customer','plus','primary'),'CUSTOMER MANAGEMENT')+`<div class="metrics">${metric('전체 고객',c.length,'건','현재 등록된 전체 공사건','users','','filter-all')}${metric('견적 요청 대기',c.filter(x=>x.status==='가견적요청').length,'건','<span class="accent">원본 견적 수령</span>이 필요해요','file','orange','filter-stage','data-value="가견적요청"')}${metric('실측 예정',c.filter(x=>x.status==='실측예정').length,'건','담당팀과 방문 일정을 확인하세요','calendar','purple','filter-stage','data-value="실측예정"')}${metric('계약 진행',c.filter(x=>x.status==='계약진행').length,'건','서류 검토와 수납 상태 확인','contract','green','filter-stage','data-value="계약진행"')}</div><section class="panel"><div class="tabs">${custTabs.map(([v,l,cnt,isAlert])=>`<button class="tab ${customerTab===v?'active':''}" data-action="customer-tab" data-value="${v}">${l}${cnt>0?`<span class="count${isAlert?' count-red':''}">${cnt}</span>`:''}</button>`).join('')}</div><div class="filters"><div class="search-field">${icon('search')}<input class="input" id="customer-search" value="${esc(query)}" placeholder="고객명, 연락처, 주소, 광고채널 검색" aria-label="고객 검색"></div><select class="select" id="filter-period" aria-label="등록 기간"><option value="all" ${periodFilter==='all'?'selected':''}>등록 기간 전체</option><option value="today" ${periodFilter==='today'?'selected':''}>오늘</option><option value="7" ${periodFilter==='7'?'selected':''}>최근 7일</option></select><select class="select" id="filter-product" aria-label="상품군">${options(['창호','그린리모델링','주방','욕실'],productFilter,'상품군 전체')}</select><select class="select" id="filter-stage" aria-label="진행구분">${options(getStageNames(),stageFilter,'진행구분 전체')}</select><select class="select" id="filter-source" aria-label="유입채널">${options(channelOptions,sourceFilter,'유입채널 전체')}</select>${role==='본사 관리자'?`<select class="select" id="filter-partner" aria-label="소속 파트너">${options(['직영',...db.partners.map(p=>p.name)],partnerFilter,'파트너 전체')}</select>`:''}<button class="icon-btn" data-action="reset-filters" title="필터 초기화" aria-label="필터 초기화">${icon('refresh')}</button></div>${linkFilterBanner}<div class="toolbar"><span id="list-count" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-select-all="customers" ${allCustSelected?'checked':''}> 전체 선택</label><span>검색 결과 <strong>${filteredList.length}</strong>건</span>${selected.size?`· <button type="button" data-action="assign" style="color:var(--blue)">${selected.size}명 담당자 배정</button>${customerTab==='all'?` · ${btn(`선택 고객 삭제 (${selected.size})`,'delete-selected','trash','sm danger')}`:(customerTab==='inquiries'?` · ${btn(`선택 문의 삭제 (${selected.size})`,'delete-selected','trash','sm danger')}`:'')}`:''}</span><div class="actions">${btn(selected.size?`선택 엑셀 (${selected.size})`:'엑셀용 CSV','export','download','sm')}<select class="sort" id="sort-order" aria-label="정렬 순서"><option value="new" ${sortOrder==='new'?'selected':''}>최근 등록순</option><option value="old" ${sortOrder==='old'?'selected':''}>고객번호 낮은순</option></select></div></div><div class="customers" id="customer-rows">${customerRows()}</div><div class="pagination"><span>전체 결과를 한 페이지에 표시합니다.</span><div class="pages"><button class="active" aria-label="현재 1페이지">1</button></div></div></section>`;
 }
 function renderQuotePreviewButtons(c, sizeCls = 'sm soft') {
   if (!c || !c.quote) return '';
@@ -2176,7 +2179,9 @@ function quotesPage() {
     ['all', '전체 견적', expandQuoteListRows(allRows).length, false],
     ['inquiries', '고객 문의', inquiryRows.length, inquiryRows.length > 0]
   ];
+  const isStaff = getActiveUser().role !== 'partner';
   const quoteHeadBtns =
+    (isStaff ? btn('복구 보관함', 'open-archive-vault', 'shield', 'secondary', `data-type="${quoteTab === 'inquiries' ? 'quote_inquiry' : 'quote'}"`) : '') +
     btn('계약 등록', 'new-contract', 'contract', 'soft', 'data-from="quotes"') +
     btn('견적 만들기', 'new-quote', 'plus', 'primary');
 
@@ -2361,7 +2366,9 @@ function contractsPage(){
     (a, b) => String(b.createdAt || b.date || '').localeCompare(String(a.createdAt || a.date || ''))
   );
 
+  const isStaff = getActiveUser().role !== 'partner';
   const headBtns =
+    (isStaff ? btn('복구 보관함', 'open-archive-vault', 'shield', 'secondary', 'data-type="contract"') : '') +
     (canEditSettings ? btn('계약·수납상태 설정', 'go-contract-settings', 'settings', 'secondary') : '') +
     btn('계약 등록', 'new-contract', 'plus', 'primary');
 
@@ -5335,6 +5342,7 @@ function renderQuotePhoneSettingsPanel(){
 
 function settingsPage(){
   const tabs=[
+    ['archive','복구 보관함','shield'],
     ['labels','진행라벨','box'],
     ['stages','진행구분','filter'],
     ['contract-statuses','계약·수납상태','contract'],
@@ -5345,7 +5353,8 @@ function settingsPage(){
     ['reset','초기화 설정','refresh']
   ];
   let content='';
-  if(settingsTab==='labels')content=`<div class="panel-head"><div><h3>진행라벨 관리</h3><p>고객의 특성을 표시하는 라벨입니다. 업무 단계와 별도로 관리합니다.</p></div>${btn('라벨 추가','new-label','plus','sm primary')}</div><div class="panel-pad">${db.labels.map(l=>`<div class="settings-row"><span class="color-dot" style="background:${l.color}"></span><div class="grow"><b>${esc(l.name)}</b><small>고객 목록과 상세 화면에 표시</small></div>${badge(l.name,'gray')}</div>`).join('')}</div>`;
+  if(settingsTab==='archive')content=`<div class="panel-head"><div><h3>오삭제 100% 복구 보관함 (Convex 영구 백업)</h3><p>견적서(세부 품목·마진구조 포함), 견적 문의, 고객 공사건, 계약·수납 원장, 파트너, 광고링크, 설정값 삭제 시 Convex에 원본 그대로 보존됩니다.</p></div>${btn('보관함 열기 · 복원하기','open-archive-vault','shield','sm primary','data-type="all"')}</div><div class="panel-pad"><div class="notice-text">모든 페이지의 저장·발행·수정 시점 스냅샷(<code>entitySnapshots</code>)과 삭제 시점 전체 원문 아카이브(<code>deletedArchives</code>)가 Convex 운영 DB에 실시간 자동 저장됩니다. 실수로 삭제한 데이터는 상단 <b>[보관함 열기 · 복원하기]</b> 버튼 또는 각 메뉴 우측 상단의 <b>[복구 보관함]</b>에서 1클릭으로 100% 원복할 수 있습니다.</div></div>`;
+  if(settingsTab==='labels')content=`<div class="panel-head"><div><h3>진행라벨 관리</h3><p>고객의 특성을 표시하는 라벨입니다. 업무 단계와 별도로 관리합니다.</p></div>${btn('라벨 추가','new-label','plus','sm primary')}</div><div class="panel-pad">${db.labels.map(l=>`<div class="settings-row"><span class="color-dot" style="background:${l.color}"></span><div class="grow"><b>${esc(l.name)}</b><small>고객 목록과 상세 화면에 표시</small></div>${badge(l.name,'gray')}${db.labels.length>1?`<button type="button" class="icon-btn sm" data-action="delete-label" data-id="${esc(l.id||l.name)}" title="라벨 삭제">${icon('trash')}</button>`:''}</div>`).join('')}</div>`;
   if(settingsTab==='stages')content=renderStagesSettingsPanel();
   if(settingsTab==='contract-statuses')content=renderContractStatusesSettingsPanel();
   if(settingsTab==='forms')content=renderFormsSettingsPanel();
@@ -5368,6 +5377,79 @@ function settingsPage(){
   }
   if(settingsTab==='reset')content=`<div class="panel-head"><h3>운영 데이터 초기화</h3></div><div class="panel-pad"><div class="notice-text">고객·견적·계약·렌탈·파트너·광고링크 데이터를 모두 비우고 기본 설정(최고관리자·기본 상품·동의서 양식)만 남깁니다.</div><div style="margin-top:20px">${btn('운영 데이터 초기화','reset-data','refresh','danger')}</div></div>`;
   return pageHead('설정','운영 기준과 사용자 권한을 관리하세요.','','SYSTEM SETTINGS')+`<div class="settings-layout"><nav class="settings-nav">${tabs.map(([v,t,i])=>`<button class="${settingsTab===v?'active':''}" data-action="settings-tab" data-value="${v}">${icon(i)}${t}</button>`).join('')}</nav><section class="panel">${content}</section></div>`;
+}
+
+const ARCHIVE_TYPE_LABELS = {
+  all: '전체',
+  quote: '견적서(품목·마진)',
+  quote_inquiry: '견적 문의',
+  project: '고객·공사건 전체',
+  contract: '계약·수납원장',
+  landing_link: '광고·랜딩링크',
+  partner: '파트너 조직',
+  setting: '시스템 설정'
+};
+
+async function openArchiveVaultDialog(filterType = 'all') {
+  const filterChips = Object.entries(ARCHIVE_TYPE_LABELS).map(([k, lbl]) =>
+    `<button type="button" class="tpl-chip ${filterType === k ? 'active' : ''}" data-action="filter-archive-vault" data-type="${k}">${lbl}</button>`
+  ).join('');
+
+  openDialog(
+    '오삭제 복구 보관함 (Convex 100% 원복)',
+    `<div class="dialog-body">
+      <div class="cust-picker-chips" style="margin-bottom:12px">${filterChips}</div>
+      <div class="empty" style="padding:36px 14px"><strong>Convex 복구 보관함을 불러오는 중입니다...</strong></div>
+    </div>`,
+    `<small>삭제된 모든 원본 데이터와 하위 품목·마진 구조가 Convex에 영구 보관됩니다.</small>${btn('닫기', 'close')}`,
+    'wide',
+    '실수로 삭제한 견적서·품목·마진구조·고객·계약 데이터를 클릭 한 번으로 즉시 원복합니다.'
+  );
+
+  try {
+    const res = await apiFetch('/api/archive?type=' + encodeURIComponent(filterType));
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || '보관함 조회 실패');
+    const items = Array.isArray(data.items) ? data.items : [];
+    const rowsHtml = items.length
+      ? items.map(it => {
+          const typeLabel = ARCHIVE_TYPE_LABELS[it.archiveType] || it.archiveType;
+          const badgeTone = it.archiveType === 'quote' ? 'blue'
+            : it.archiveType === 'project' ? 'red'
+            : it.archiveType === 'contract' ? 'green'
+            : it.archiveType === 'quote_inquiry' ? 'purple'
+            : 'gray';
+          const timeText = it.deletedAt ? formatShortKstClient(it.deletedAt) : '-';
+          return `<div class="settings-row" style="align-items:center;gap:12px;padding:12px 14px">
+            <div style="min-width:110px">${badge(typeLabel, badgeTone)}</div>
+            <div class="grow">
+              <b style="display:block;font-size:13.5px;color:#0f172a">${esc(it.title)}</b>
+              ${it.summary ? `<small style="display:block;color:#475569;margin-top:2px">${esc(it.summary)}</small>` : ''}
+              <small style="display:block;color:#94a3b8;margin-top:2px">삭제일시: ${esc(timeText)} · 삭제자: ${esc(it.deletedBy || '관리자')}</small>
+            </div>
+            <button type="button" class="btn sm primary" data-action="restore-archive-item" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-filter="${esc(filterType)}">${icon('refresh', 'sm')} 100% 즉시 복원</button>
+          </div>`;
+        }).join('')
+      : `<div class="empty" style="padding:36px 14px">${icon('shield')}<strong>현재 복구 대기 중인 삭제 데이터가 없습니다.</strong>앞으로 삭제되는 모든 견적·품목·마진·고객·계약·설정 데이터는 이곳에 자동 백업됩니다.</div>`;
+
+    openDialog(
+      '오삭제 복구 보관함 (Convex 100% 원복)',
+      `<div class="dialog-body">
+        <div class="cust-picker-chips" style="margin-bottom:12px">${filterChips}</div>
+        <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff">${rowsHtml}</div>
+      </div>`,
+      `<small>복원 즉시 원래 고객·견적·품목·마진·계약 테이블로 100% 되살아납니다.</small>${btn('닫기', 'close')}`,
+      'wide',
+      `조회된 복구 가능 항목 ${items.length}건`
+    );
+  } catch (err) {
+    openDialog(
+      '오삭제 복구 보관함 (Convex 100% 원복)',
+      `<div class="dialog-body"><div class="empty"><strong>${esc(err.message || '복구 보관함을 불러오지 못했습니다.')}</strong></div></div>`,
+      btn('닫기', 'close'),
+      'wide'
+    );
+  }
 }
 
 function openDialog(title,body,footer='',cls='',subtitle='',dark=false){
@@ -6128,14 +6210,18 @@ async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
       const hasExtraNon100 = eq.items.some(
         it => it.category === 'extra' && Number(it.margin_rate) !== 100 && Number(it.margin_rate) === Number(eq.margin_rate)
       );
+      const savedScope = eq.margin_scope || eq.meta?.editor_state?.marginScope;
+      const savedSource = eq.source_file || eq.meta?.editor_state?.sourceFileName || '';
       editor.margin = Number(eq.margin_rate ?? 100);
-      editor.marginScope = hasExtraNon100 ? 'all' : 'material';
+      editor.marginScope = savedScope === 'all' ? 'all' : (savedScope === 'material' ? 'material' : (hasExtraNon100 ? 'all' : 'material'));
       editor.discount = Number(eq.discount_amount) || 0;
       editor.type = eq.quote_type || editor.type || '가견적';
       editor.title = eq.title || editor.title;
       editor.memo = eq.memo || '';
       editor.meta = eq.meta || null;
-      editor.source = `기존 발행 견적 v${eq.version} (${eq.quote_type || '가견적'}) 불러옴`;
+      editor.source = savedSource
+        ? `${savedSource} (v${eq.version} ${eq.status === 'draft' ? '임시저장본' : eq.quote_type || '가견적'} 불러옴)`
+        : `기존 ${eq.status === 'draft' ? '임시저장' : '발행'} 견적 v${eq.version} (${eq.quote_type || '가견적'}) 불러옴`;
       editor.excelGrandTotal = eq.supply_cost > 0 ? Number(eq.supply_cost) : null;
       editor.excelSubtotal = eq.total_cost > 0 ? Number(eq.total_cost) : null;
       editor.items = eq.items.map(it => ({
@@ -6545,10 +6631,11 @@ function renderEditor() {
     </div>`;
 
   const footer = `
-    <small>${esc(c.name)} 고객 · 공급원가 및 마진 정보는 고객에게 비공개 처리됩니다.</small>
+    <small>${esc(c.name)} 고객 · 공급원가 및 마진 정보는 고객에게 비공개 처리되며 모든 내역은 Convex에 영구 보관됩니다.</small>
     ${btn('취소', 'close')}
     ${btn(editor.showLivePreview ? '미리보기 접기' : '실시간 미리보기', 'toggle-editor-live-preview', 'eye', 'soft')}
     ${btn('전체화면 미리보기', 'editor-preview', 'external', 'soft', `data-type="${esc(editor.type || '가견적')}"`)}
+    ${btn('임시저장 (서버보관)', 'save-quote-draft', 'check', 'secondary')}
     ${btn('견적 발행하기', 'publish-quote', 'send', 'primary')}`;
 
   openDialog(
@@ -8322,8 +8409,25 @@ case'save-customer':{
     }
     break;
   }
-case'save-description':{const c=accessibleC(id);c.description=$('#case-description').value;audit(id,'공사 희망사항 수정');toast('공사 정보를 저장했습니다.');break}
+case'save-description':{
+    const c=accessibleC(id);
+    if(!c)break;
+    const nextDesc=$('#case-description')?.value ?? '';
+    c.description=nextDesc;
+    (async()=>{
+      try{
+        const res=await apiFetch('/api/customers/'+id,{method:'PATCH',body:{description:nextDesc}});
+        if(res.ok) await syncFromServer();
+      }catch{}
+      save();
+    })();
+    audit(id,'공사 희망사항 수정');
+    toast('공사 정보를 Convex 서버에 저장했습니다.');
+    break;
+  }
+case'save-quote-draft':
 case'publish-quote':{
+    const isDraftSave = a === 'save-quote-draft';
     const c=accessibleC(editor?.cid),t=editorTotal();
     if(!c||!editor.items.length||!t.total||editor.items.some(i=>!String(i.name||'').trim()||!(parseNum(i.qty)>0))){
       toast('견적 품목과 수량·원가 금액을 먼저 입력하거나 엑셀 파일을 등록해 주세요.');
@@ -8350,18 +8454,26 @@ case'publish-quote':{
           projectId: editor.cid,
           items: payloadItems,
           marginRate: editor.margin ?? 100,
+          marginScope: editor.marginScope || 'material',
           discountAmount: editor.discount || 0,
           supplyCost: t.supplyCost,
           excelSubtotal: t.cost,
+          sourceFileName: editor.source || '',
           meta: editor.meta || null,
           quoteType: editor.type || '가견적',
           title: editor.title,
           memo: editor.memo,
-          isPublish: true
+          isPublish: !isDraftSave
         }
       });
       const qData = await res.json();
       if (res.ok) {
+        if (isDraftSave) {
+          save();
+          await syncFromServer();
+          toast(`견적 품목(${payloadItems.length}건)·마진 구조가 Convex 서버에 임시저장되었습니다. (v${qData.version})`);
+          break;
+        }
         c.quote = t.total;
         c.token = qData.access_token;
         c.quoteType = qData.quote_type || editor.type;
@@ -8376,7 +8488,7 @@ case'publish-quote':{
         toast('모바일 [' + (qData.quote_type || editor.type) + ']이 발행되었습니다. (v' + qData.version + ') 문자·카톡으로 바로 발송해보세요.');
         break;
       } else {
-        toast(qData.error || '견적 발행에 실패했습니다.');
+        toast(qData.error || '견적 저장에 실패했습니다.');
         break;
       }
     } catch (err) {
@@ -9417,7 +9529,81 @@ case'integration':{
     break;
   }
 case'reset-data':formDialog('운영 데이터 초기화',`<div class="notice-text" style="margin-bottom:20px">고객·견적·계약·렌탈·파트너·광고링크 데이터를 모두 비우고 기본 설정(최고관리자·기본 상품·동의서 양식)만 남깁니다.</div>${field('확인 문구 · 초기화','confirm','','text',true)}`,'reset');break;
-case'request-quote':{const c=accessibleC(id);c.status='가견적요청';audit(id,'파트너 가견적 요청');render();openCustomer(id,'quotes');toast('견적 요청을 등록했습니다.');break}
+case'open-archive-vault':{
+  const filterType = el.dataset.type || 'all';
+  openArchiveVaultDialog(filterType);
+  break;
+}
+case'filter-archive-vault':{
+  openArchiveVaultDialog(el.dataset.type || 'all');
+  break;
+}
+case'restore-archive-item':{
+  const archiveId = el.dataset.id;
+  const archiveTitle = el.dataset.title || '선택 항목';
+  const currentFilter = el.dataset.filter || 'all';
+  if (!archiveId) break;
+  if (!confirm(`[${archiveTitle}]\n\n보관된 원본 데이터(세부 품목·마진·연관 내역 전체)를 지금 100% 원복하시겠습니까?`)) break;
+  (async () => {
+    try {
+      const res = await apiFetch('/api/archive', { method: 'POST', body: { archiveId } });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resData.error || '복원에 실패했습니다.');
+      await syncFromServer();
+      toast(resData.detail || `[${archiveTitle}] 복원이 완료되었습니다.`);
+      openArchiveVaultDialog(currentFilter);
+      render();
+    } catch (err) {
+      toast(err.message || '데이터 복원 중 오류가 발생했습니다.');
+    }
+  })();
+  break;
+}
+case'delete-label':{
+  const labelId = el.dataset.id;
+  if (!labelId) break;
+  if ((db.labels || []).length <= 1) {
+    toast('최소 1개 이상의 라벨은 유지되어야 합니다.');
+    break;
+  }
+  (async () => {
+    try {
+      const res = await apiFetch('/api/settings/labels/' + encodeURIComponent(labelId), { method: 'DELETE' });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(resData.error || '라벨 삭제에 실패했습니다.');
+        return;
+      }
+      if (Array.isArray(resData.labels)) db.labels = resData.labels;
+      save();
+      render();
+      toast('진행라벨이 삭제되었습니다. (복구 보관함에 백업됨)');
+    } catch {
+      db.labels = (db.labels || []).filter(l => String(l.id || l.name) !== String(labelId));
+      save();
+      render();
+      toast('진행라벨을 삭제했습니다.');
+    }
+  })();
+  break;
+}
+case'request-quote':{
+  const c=accessibleC(id);
+  if(!c)break;
+  c.status='가견적요청';
+  (async()=>{
+    try{
+      const res=await apiFetch('/api/customers/'+id,{method:'PATCH',body:{status:'가견적요청'}});
+      if(res.ok) await syncFromServer();
+    }catch{}
+    save();
+  })();
+  audit(id,'파트너 가견적 요청');
+  render();
+  openCustomer(id,'quotes');
+  toast('견적 요청을 Convex 서버에 등록했습니다.');
+  break;
+}
 }});
 document.addEventListener('input',e=>{
   if (e.target.name === 'phone' || e.target.type === 'tel' || e.target.id === 'phone' || e.target.id?.includes('phone')) {
@@ -10390,7 +10576,22 @@ case'clone-link':{
     }
     break;
   }
-case'label':if(db.labels.some(l=>l.name===d.name.trim())){toast('이미 등록된 라벨입니다.');return}db.labels.push({name:d.name.trim(),color:d.color});save();closeDialog();render();toast('라벨을 추가했습니다.');break;
+case'label':{
+  const lblName=(d.name||'').trim();
+  const lblColor=d.color||'#7396dd';
+  if(!lblName){toast('라벨명을 입력해 주세요.');return}
+  if(db.labels.some(l=>l.name===lblName)){toast('이미 등록된 라벨입니다.');return}
+  try{
+    const res=await apiFetch('/api/settings/labels',{method:'POST',body:{name:lblName,color:lblColor}});
+    const resData=await res.json().catch(()=>({}));
+    if(res.ok){
+      if(Array.isArray(resData.labels)&&resData.labels.length) db.labels=resData.labels;
+      else db.labels.push({name:lblName,color:lblColor});
+      save();closeDialog();render();toast('라벨을 Convex 서버에 저장했습니다.');break;
+    }
+  }catch{}
+  db.labels.push({name:lblName,color:lblColor});save();closeDialog();render();toast('라벨을 추가했습니다.');break;
+}
 case'stage':{
     const stName = (d.name || '').trim();
     const stColor = (d.color || 'blue').trim();

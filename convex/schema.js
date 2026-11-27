@@ -334,4 +334,36 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_createdAt", ["createdAt"]),
+
+  // 23. 오삭제 100% 원복용 영구 복구 보관함 (모든 삭제 데이터의 원본 + 하위 품목 전체 보존)
+  deletedArchives: defineTable({
+    archiveType: v.string(), // 'quote' | 'quote_inquiry' | 'project' | 'contract' | 'landing_link' | 'partner' | 'setting'
+    targetKey: v.string(), // 예: '3108:v2', 'project:3108', 'contract:C-...'
+    projectId: v.optional(v.number()),
+    title: v.string(),
+    summary: v.optional(v.string()),
+    payloadJson: v.string(), // 원문 문서 + 연결된 하위 테이블(quoteItems, contractMeta 등) 전체 JSON
+    deletedBy: v.optional(v.string()),
+    deletedAt: v.string(),
+    restoredAt: v.optional(v.string()),
+    restoredBy: v.optional(v.string()),
+  })
+    .index("by_deletedAt", ["deletedAt"])
+    .index("by_archiveType_and_deletedAt", ["archiveType", "deletedAt"])
+    .index("by_projectId", ["projectId"]),
+
+  // 24. 전체 페이지 데이터 저장·수정 시점 영구 스냅샷 보관함 (견적 상세·마진구조·계약·고객·설정 버전 보존)
+  entitySnapshots: defineTable({
+    entityType: v.string(), // 'quote' | 'project' | 'contract' | 'payment_ledger' | 'partner' | 'setting'
+    entityKey: v.string(), // 예: '3108:v2', 'project:3108', 'contract:C-...'
+    projectId: v.optional(v.number()),
+    action: v.string(), // 'create' | 'publish' | 'draft' | 'update' | 'overwrite_backup'
+    title: v.string(),
+    snapshotJson: v.string(), // 해당 시점의 전체 상세 구조 JSON
+    savedBy: v.optional(v.string()),
+    createdAt: v.string(),
+  })
+    .index("by_entityType_and_entityKey", ["entityType", "entityKey"])
+    .index("by_projectId", ["projectId"])
+    .index("by_createdAt", ["createdAt"]),
 });

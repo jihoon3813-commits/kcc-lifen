@@ -602,6 +602,18 @@ export default async function handler(req, res) {
 
     if (!action && req.method === "DELETE") {
       const ledger = await loadPaymentLedger();
+      const archivedMeta = ledger.contractMeta?.[target.contractNo] || null;
+      const archivedOrders = (ledger.paymentOrders || []).filter(
+        (o) => o && o.contractNo === target.contractNo
+      );
+      await convexClient
+        .mutation(api.crm.deleteContract, {
+          contractNo: target.contractNo,
+          userName: auth.user.name || "관리자",
+          contractMetaJson: archivedMeta ? JSON.stringify(archivedMeta) : undefined,
+          paymentOrdersJson: archivedOrders.length ? JSON.stringify(archivedOrders) : undefined,
+        })
+        .catch(() => {});
       delete ledger.contractMeta[target.contractNo];
       ledger.paymentOrders = ledger.paymentOrders.map((o) =>
         o.contractNo === target.contractNo && o.status === "pending"
@@ -609,10 +621,7 @@ export default async function handler(req, res) {
           : o
       );
       await savePaymentLedger(ledger);
-      await convexClient
-        .mutation(api.crm.deleteContract, { contractNo: target.contractNo })
-        .catch(() => {});
-      return res.status(200).json({ deleted: true, message: "계약이 삭제되었습니다." });
+      return res.status(200).json({ deleted: true, message: "계약이 삭제되었습니다. (복구 보관함에 백업됨)" });
     }
 
     return res.status(405).json({ error: "Method not allowed" });

@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server.js";
 import { v } from "convex/values";
+import { recordDeletedArchive } from "./archive.js";
 
 function findPartnerOrg(orgs, rawId) {
   const numId = Number(rawId);
@@ -426,6 +427,17 @@ export const deletePartner = mutation({
     const linkedUsers = users.filter(
       (u) => Number(u.orgId) === targetOrgId && u.role === "partner"
     );
+    await recordDeletedArchive(ctx, {
+      archiveType: "partner",
+      targetKey: `partner:${targetOrgId}`,
+      title: `파트너 조직 · ${org.name} (${org.code || targetOrgId})`,
+      summary: `연결 계정 ${linkedUsers.length}개 · 연락처 ${org.phone || "-"}`,
+      payload: {
+        organization: org,
+        users: linkedUsers,
+      },
+      deletedBy: "관리자",
+    });
     for (const u of linkedUsers) {
       await ctx.db.delete(u._id);
     }

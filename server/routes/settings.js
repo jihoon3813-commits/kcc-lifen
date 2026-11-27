@@ -48,21 +48,72 @@ const pdfUpload = multer({
 });
 
 // 1. Get Labels
-router.get('/labels', requireAuth, (req, res) => {
-  const labels = db.prepare('SELECT name, color FROM system_labels ORDER BY id ASC').all();
+router.get('/labels', requireAuth, async (req, res) => {
+  try {
+    const settings = await convexClient.query(api.settings.listAllSettings, {});
+    if (Array.isArray(settings?.labels) && settings.labels.length > 0) {
+      return res.json({
+        labels: settings.labels.map((l, idx) => ({
+          id: l._id || String(idx + 1),
+          name: l.name,
+          color: l.color,
+          sortOrder: l.sortOrder ?? idx + 1,
+        })),
+      });
+    }
+  } catch {}
+  const labels = db.prepare('SELECT id, name, color FROM system_labels ORDER BY id ASC').all();
   res.json({ labels });
 });
 
 // Add Label
-router.post('/labels', requireAuth, requireMenu('settings'), (req, res) => {
-  const { name, color = '#7194dd' } = req.body;
+router.post('/labels', requireAuth, requireMenu('settings'), async (req, res) => {
+  const { name, color = '#7194dd' } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: '라벨명을 입력해 주세요.' });
 
   try {
-    db.prepare('INSERT INTO system_labels (name, color) VALUES (?, ?)').run(name.trim(), color);
-    res.status(201).json({ message: '라벨이 추가되었습니다.' });
+    await convexClient.mutation(api.settings.upsertLabel, {
+      name: name.trim(),
+      color,
+    });
+    const settings = await convexClient.query(api.settings.listAllSettings, {});
+    try { db.prepare('INSERT OR IGNORE INTO system_labels (name, color) VALUES (?, ?)').run(name.trim(), color); } catch {}
+    return res.status(201).json({
+      message: '라벨이 Convex 서버에 저장되었습니다.',
+      labels: (settings?.labels || []).map((l, idx) => ({
+        id: l._id || String(idx + 1),
+        name: l.name,
+        color: l.color,
+        sortOrder: l.sortOrder ?? idx + 1,
+      })),
+    });
   } catch {
-    res.status(400).json({ error: '이미 존재하는 라벨명입니다.' });
+    res.status(400).json({ error: '라벨 저장 중 오류가 발생했습니다.' });
+  }
+});
+
+// Delete Label
+router.delete('/labels/:id', requireAuth, requireMenu('settings'), async (req, res) => {
+  try {
+    const result = await convexClient.mutation(api.settings.deleteLabel, {
+      idOrName: req.params.id,
+      userName: req.user?.name || '관리자',
+    });
+    if (result?.reason === 'min_limit') {
+      return res.status(400).json({ error: '최소 1개 이상의 라벨은 유지되어야 합니다.' });
+    }
+    const settings = await convexClient.query(api.settings.listAllSettings, {});
+    return res.json({
+      deleted: true,
+      labels: (settings?.labels || []).map((l, idx) => ({
+        id: l._id || String(idx + 1),
+        name: l.name,
+        color: l.color,
+        sortOrder: l.sortOrder ?? idx + 1,
+      })),
+    });
+  } catch {
+    res.status(500).json({ error: '라벨 삭제 중 오류가 발생했습니다.' });
   }
 });
 

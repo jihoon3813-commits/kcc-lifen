@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server.js";
 import { v } from "convex/values";
+import { recordDeletedArchive, recordEntitySnapshot } from "./archive.js";
 
 // 프로젝트별 견적서 목록 조회
 export const listByProject = query({
@@ -286,17 +287,43 @@ export const upsertQuote = mutation({
     const now = new Date().toISOString();
 
     if (existing) {
+      const prevItems = await ctx.db
+        .query("quoteItems")
+        .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+        .filter((q) => q.eq(q.field("quoteVersion"), args.version))
+        .collect();
+      await recordEntitySnapshot(ctx, {
+        entityType: "quote",
+        entityKey: `${args.projectId}:v${args.version}`,
+        projectId: args.projectId,
+        action: "overwrite_backup",
+        title: existing.title || `견적 v${args.version}`,
+        snapshot: { quote: existing, quoteItems: prevItems },
+        savedBy: "시스템",
+        createdAt: now,
+      });
       await ctx.db.patch(existing._id, {
         ...args,
         updatedAt: now,
       });
       return existing._id;
     } else {
-      return await ctx.db.insert("quotes", {
+      const insertedId = await ctx.db.insert("quotes", {
         ...args,
         createdAt: now,
         updatedAt: now,
       });
+      await recordEntitySnapshot(ctx, {
+        entityType: "quote",
+        entityKey: `${args.projectId}:v${args.version}`,
+        projectId: args.projectId,
+        action: "upsert",
+        title: args.title,
+        snapshot: { quote: { ...args, createdAt: now, updatedAt: now }, quoteItems: [] },
+        savedBy: "관리자",
+        createdAt: now,
+      });
+      return insertedId;
     }
   },
 });
@@ -387,8 +414,9 @@ export const createProjectQuote = mutation({
       updatedAt: now,
     });
 
+    const insertedItems = [];
     for (const item of args.items) {
-      await ctx.db.insert("quoteItems", {
+      const row = {
         projectId: args.projectId,
         quoteVersion: nextVer,
         sortOrder: item.sortOrder,
@@ -402,8 +430,46 @@ export const createProjectQuote = mutation({
         costTotal: item.costTotal,
         saleUnitPrice: item.saleUnitPrice,
         saleTotal: item.saleTotal,
-      });
+      };
+      await ctx.db.insert("quoteItems", row);
+      insertedItems.push(row);
     }
+
+    await recordEntitySnapshot(ctx, {
+      entityType: "quote",
+      entityKey: `${args.projectId}:v${nextVer}`,
+      projectId: args.projectId,
+      action: args.isPublish ? "publish" : "draft",
+      title: `${project.customerName || "고객"} · ${quoteTitle} (v${nextVer})`,
+      snapshot: {
+        quote: {
+          projectId: args.projectId,
+          version: nextVer,
+          title: quoteTitle,
+          quoteType: args.quoteType,
+          status: args.status,
+          totalCost: args.totalCost,
+          supplyCost: args.supplyCost,
+          marginRate: args.marginRate,
+          materialSubtotal: args.materialSubtotal,
+          extraSubtotal: args.extraSubtotal,
+          salePrice: args.salePrice,
+          vat: args.vat,
+          originalPrice: args.originalPrice,
+          totalPrice: args.totalPrice,
+          discountAmount: args.discountAmount,
+          metaJson: args.metaJson,
+          memo: args.memo,
+          accessToken: args.accessToken,
+          publishedAt,
+          createdAt: now,
+          updatedAt: now,
+        },
+        quoteItems: insertedItems,
+      },
+      savedBy: args.userName || "관리자",
+      createdAt: now,
+    });
 
     const publicUrl = `/quote.html?token=${args.accessToken}`;
 
@@ -466,9 +532,8 @@ export const getPreviewByProject = query({
       ctx.db.query("users").collect(),
     ]);
 
-    const publishedQuotes = quotes
-      .filter((q) => q.status === "published")
-      .sort((a, b) => b.version - a.version);
+    const allSortedQuotes = [...quotes].sort((a, b) => b.version - a.version);
+    const publishedQuotes = allSortedQuotes.filter((q) => q.status === "published");
 
     const manager = users.find((u) => u.name === project.ownerName);
     const org = organizations.find((o) => Number(o.orgId) === Number(project.orgId));
@@ -476,6 +541,7 @@ export const getPreviewByProject = query({
     return {
       project,
       quotes: publishedQuotes,
+      allQuotes: allSortedQuotes,
       quoteItems,
       dispatches: dispatches.reverse().slice(0, 20),
       views,
@@ -552,24 +618,49 @@ export const deleteProjectQuotes = mutation({
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const quotes = await ctx.db
-        .query("quotes")
-        .withIndex("by_project", (q) => q.eq("projectId", pId))
-        .collect();
+      const [project, quotes, quoteItems] = await Promise.all([
+        ctx.db
+          .query("projects")
+          .withIndex("by_projectId", (q) => q.eq("projectId", pId))
+          .first(),
+        ctx.db
+          .query("quotes")
+          .withIndex("by_project", (q) => q.eq("projectId", pId))
+          .collect(),
+        ctx.db
+          .query("quoteItems")
+          .withIndex("by_project", (q) => q.eq("projectId", pId))
+          .collect(),
+      ]);
+
       const targetQuotes = quotes.filter((q) => Number(q.version) === ver);
+      const targetItems = quoteItems.filter((qi) => Number(qi.quoteVersion) === ver);
+
+      if (targetQuotes.length > 0) {
+        const primaryQuote = targetQuotes[0];
+        await recordDeletedArchive(ctx, {
+          archiveType: "quote",
+          targetKey: `${pId}:v${ver}`,
+          projectId: pId,
+          title: `${project?.customerName || `No.${pId}`} · ${primaryQuote.quoteType || "가견적"} v${ver} (${primaryQuote.title || "견적서"})`,
+          summary: `최종합계 ${Number(primaryQuote.totalPrice || 0).toLocaleString()}원 · 공급원가 ${Number(primaryQuote.supplyCost || 0).toLocaleString()}원 · 마진율 ${primaryQuote.marginRate ?? 100}% · 품목 ${targetItems.length}건`,
+          payload: {
+            quote: primaryQuote,
+            quoteItems: targetItems,
+            customerName: project?.customerName || "",
+          },
+          deletedBy: args.userName || "관리자",
+          deletedAt: now,
+        });
+      }
+
       for (const q of targetQuotes) {
         await ctx.db.delete(q._id);
         deleted += 1;
       }
 
-      const quoteItems = await ctx.db
-        .query("quoteItems")
-        .withIndex("by_project", (q) => q.eq("projectId", pId))
-        .collect();
-      for (const qi of quoteItems) {
-        if (Number(qi.quoteVersion) === ver) {
-          await ctx.db.delete(qi._id);
-        }
+      for (const qi of targetItems) {
+        await ctx.db.delete(qi._id);
       }
 
       if (targetQuotes.length > 0) {
@@ -577,7 +668,7 @@ export const deleteProjectQuotes = mutation({
           projectId: pId,
           userName: args.userName || "관리자",
           action: "견적서 삭제",
-          detail: `견적 v${ver} (${targetQuotes[0].quoteType || "가견적"}) 삭제`,
+          detail: `견적 v${ver} (${targetQuotes[0].quoteType || "가견적"}) 삭제 · 복구보관함 자동백업(품목 ${targetItems.length}건 포함)`,
           createdAt: now,
         });
       }
@@ -601,7 +692,7 @@ export const deleteQuoteInquiries = mutation({
     if (pidSet.size === 0) return { deleted: 0 };
 
     const consultations = await ctx.db.query("consultations").collect();
-    const deletedByProject = new Map();
+    const deletedRowsByProject = new Map();
     let deleted = 0;
 
     for (const c of consultations) {
@@ -611,18 +702,34 @@ export const deleteQuoteInquiries = mutation({
         typeof c.content === "string" &&
         c.content.startsWith("[모바일 견적서 상담 요청]")
       ) {
+        const list = deletedRowsByProject.get(pId) || [];
+        list.push(c);
+        deletedRowsByProject.set(pId, list);
         await ctx.db.delete(c._id);
         deleted += 1;
-        deletedByProject.set(pId, (deletedByProject.get(pId) || 0) + 1);
       }
     }
 
-    for (const [pId, count] of deletedByProject.entries()) {
+    for (const [pId, rows] of deletedRowsByProject.entries()) {
+      const proj = await ctx.db
+        .query("projects")
+        .withIndex("by_projectId", (q) => q.eq("projectId", pId))
+        .first();
+      await recordDeletedArchive(ctx, {
+        archiveType: "quote_inquiry",
+        targetKey: `inquiry:${pId}`,
+        projectId: pId,
+        title: `${proj?.customerName || `No.${pId}`} 고객 모바일 견적 문의 (${rows.length}건)`,
+        summary: String(rows[0]?.content || "").slice(0, 120),
+        payload: { consultations: rows },
+        deletedBy: args.userName || "관리자",
+        deletedAt: now,
+      });
       await ctx.db.insert("auditLogs", {
         projectId: pId,
         userName: args.userName || "관리자",
         action: "견적 문의 삭제",
-        detail: `모바일 견적서 문의 내역 ${count}건 삭제`,
+        detail: `모바일 견적서 문의 내역 ${rows.length}건 삭제 · 복구보관함 자동백업`,
         createdAt: now,
       });
     }

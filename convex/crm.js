@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server.js";
 import { v } from "convex/values";
+import { recordDeletedArchive, recordEntitySnapshot } from "./archive.js";
 
 // ---------------------------------------------------------------------------
 // 1. Customers & Projects
@@ -167,6 +168,31 @@ export const createCustomerProject = mutation({
       createdAt: now,
     });
 
+    await recordEntitySnapshot(ctx, {
+      entityType: "project",
+      entityKey: `project:${nextProjectId}`,
+      projectId: nextProjectId,
+      action: "create",
+      title: `${cleanName} 고객 (${product})`,
+      snapshot: {
+        projectId: nextProjectId,
+        customerName: cleanName,
+        customerPhone: cleanPhone,
+        customerAddress: cleanAddress,
+        product,
+        status: "신규접수",
+        source: resolvedSource,
+        adCampaign: args.adCampaign ? String(args.adCampaign).trim() : undefined,
+        partnerName,
+        orgId: args.orgId,
+        ownerName,
+        note: args.note || "",
+        createdAt: now,
+      },
+      savedBy: args.authorName || "관리자",
+      createdAt: now,
+    });
+
     return { projectId: nextProjectId };
   },
 });
@@ -275,6 +301,16 @@ export const updateProject = mutation({
         userName: args.userName || "관리자",
         action: "정보 변경",
         detail: logDetails.join(" · "),
+        createdAt: now,
+      });
+      await recordEntitySnapshot(ctx, {
+        entityType: "project",
+        entityKey: `project:${args.projectId}`,
+        projectId: args.projectId,
+        action: "update",
+        title: `${project.customerName} 고객 (No.${args.projectId})`,
+        snapshot: { ...project, ...patch },
+        savedBy: args.userName || "관리자",
         createdAt: now,
       });
     }
@@ -475,13 +511,24 @@ export const upsertLandingLink = mutation({
 });
 
 export const deleteLandingLink = mutation({
-  args: { linkId: v.number() },
+  args: {
+    linkId: v.number(),
+    userName: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("landingLinks")
       .withIndex("by_linkId", (q) => q.eq("linkId", args.linkId))
       .first();
     if (!existing) return { deleted: false };
+    await recordDeletedArchive(ctx, {
+      archiveType: "landing_link",
+      targetKey: `link:${existing.linkId}`,
+      title: `광고링크 · [${existing.channel}] ${existing.name} (${existing.code})`,
+      summary: `클릭수 ${existing.clicks || 0}회 · 파트너 ${existing.partnerName || "직영"}`,
+      payload: { landingLink: existing },
+      deletedBy: args.userName || "관리자",
+    });
     await ctx.db.delete(existing._id);
     return { deleted: true };
   },
@@ -585,6 +632,17 @@ export const upsertContract = mutation({
       result = { contractNo: args.contractNo };
     }
 
+    await recordEntitySnapshot(ctx, {
+      entityType: "contract",
+      entityKey: `contract:${args.contractNo}`,
+      projectId: args.projectId,
+      action: existing ? "update" : "create",
+      title: `${args.customerName} 고객 계약 (${args.contractNo})`,
+      snapshot: { ...args, updatedAt: now },
+      savedBy: "관리자",
+      createdAt: now,
+    });
+
     // 계약관리에 계약/렌탈 건이 등록되면 고객 진행구분(status)을 자동으로 '계약진행'으로 전환
     const project = await ctx.db
       .query("projects")
@@ -607,13 +665,69 @@ export const upsertContract = mutation({
 });
 
 export const deleteContract = mutation({
-  args: { contractNo: v.string() },
+  args: {
+    contractNo: v.string(),
+    userName: v.optional(v.string()),
+    contractMetaJson: v.optional(v.string()),
+    paymentOrdersJson: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("contracts")
       .withIndex("by_contractNo", (q) => q.eq("contractNo", args.contractNo))
       .first();
     if (!existing) return { deleted: false };
+
+    let contractMetaMap = {};
+    let paymentOrders = [];
+    if (args.contractMetaJson) {
+      try {
+        const parsed = JSON.parse(args.contractMetaJson);
+        if (parsed && typeof parsed === "object") {
+          contractMetaMap[args.contractNo] = parsed;
+        }
+      } catch {}
+    }
+    if (args.paymentOrdersJson) {
+      try {
+        const parsed = JSON.parse(args.paymentOrdersJson);
+        if (Array.isArray(parsed)) paymentOrders = parsed;
+      } catch {}
+    }
+    if (!Object.keys(contractMetaMap).length && !paymentOrders.length) {
+      const ledgerDoc = await ctx.db
+        .query("appSettings")
+        .withIndex("by_key", (q) => q.eq("key", "crm_payment_ledger_v1"))
+        .first();
+      if (ledgerDoc?.value) {
+        try {
+          const ledger = JSON.parse(ledgerDoc.value);
+          if (ledger?.contractMeta?.[args.contractNo]) {
+            contractMetaMap[args.contractNo] = ledger.contractMeta[args.contractNo];
+          }
+          if (Array.isArray(ledger?.paymentOrders)) {
+            paymentOrders = ledger.paymentOrders.filter(
+              (o) => o && o.contractNo === args.contractNo
+            );
+          }
+        } catch {}
+      }
+    }
+
+    await recordDeletedArchive(ctx, {
+      archiveType: "contract",
+      targetKey: `contract:${existing.contractNo}`,
+      projectId: existing.projectId,
+      title: `${existing.customerName} 고객 계약 (${existing.contractNo})`,
+      summary: `총 계약금 ${Number(existing.totalAmount || 0).toLocaleString()}원 · 상태 ${existing.status}`,
+      payload: {
+        contract: existing,
+        contractMeta: contractMetaMap,
+        paymentOrders,
+      },
+      deletedBy: args.userName || "관리자",
+    });
+
     await ctx.db.delete(existing._id);
     return { deleted: true };
   },
@@ -637,6 +751,7 @@ export const getAnalyticsData = query({
 export const deleteProjects = mutation({
   args: {
     projectIds: v.array(v.number()),
+    userName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const idSet = new Set(args.projectIds.map((id) => Number(id)));
@@ -653,25 +768,101 @@ export const deleteProjects = mutation({
       ["auditLogs", "by_project"],
     ];
 
+    const rentals = await ctx.db.query("rentalApplications").collect();
+    const ledgerDoc = await ctx.db
+      .query("appSettings")
+      .withIndex("by_key", (q) => q.eq("key", "crm_payment_ledger_v1"))
+      .first();
+    let parsedLedger = null;
+    let ledgerChanged = false;
+    if (ledgerDoc?.value) {
+      try {
+        parsedLedger = JSON.parse(ledgerDoc.value);
+      } catch {}
+    }
+
     let deletedProjects = 0;
+    const now = new Date().toISOString();
+
     for (const projectId of idSet) {
+      const bucket = {
+        projects: [],
+        quotes: [],
+        quoteItems: [],
+        contracts: [],
+        consultations: [],
+        quoteViews: [],
+        quoteDispatches: [],
+        auditLogs: [],
+        rentalApplications: [],
+        contractMeta: {},
+        paymentOrders: [],
+      };
+
       for (const [table, indexName] of tablesByIndex) {
         const rows = await ctx.db
           .query(table)
           .withIndex(indexName, (q) => q.eq("projectId", projectId))
           .collect();
-        for (const r of rows) {
+        bucket[table] = rows;
+      }
+
+      const matchedRentals = rentals.filter(
+        (ra) => ra.projectId !== undefined && Number(ra.projectId) === projectId
+      );
+      bucket.rentalApplications = matchedRentals;
+
+      if (parsedLedger && typeof parsedLedger === "object") {
+        const contractNos = new Set(bucket.contracts.map((c) => c.contractNo));
+        if (parsedLedger.contractMeta && typeof parsedLedger.contractMeta === "object") {
+          for (const cNo of contractNos) {
+            if (parsedLedger.contractMeta[cNo]) {
+              bucket.contractMeta[cNo] = parsedLedger.contractMeta[cNo];
+              delete parsedLedger.contractMeta[cNo];
+              ledgerChanged = true;
+            }
+          }
+        }
+        if (Array.isArray(parsedLedger.paymentOrders)) {
+          const relOrders = parsedLedger.paymentOrders.filter(
+            (o) => o && (Number(o.projectId) === projectId || contractNos.has(o.contractNo))
+          );
+          if (relOrders.length > 0) {
+            bucket.paymentOrders = relOrders;
+          }
+        }
+      }
+
+      if (bucket.projects.length > 0 || bucket.quotes.length > 0 || bucket.contracts.length > 0) {
+        const mainProj = bucket.projects[0];
+        await recordDeletedArchive(ctx, {
+          archiveType: "project",
+          targetKey: `project:${projectId}`,
+          projectId,
+          title: `${mainProj?.customerName || "고객"} (No.${projectId} · ${mainProj?.product || "창호"})`,
+          summary: `견적 ${bucket.quotes.length}건(품목 ${bucket.quoteItems.length}건) · 계약 ${bucket.contracts.length}건 · 상담 ${bucket.consultations.length}건 포함 전체 백업`,
+          payload: bucket,
+          deletedBy: args.userName || "관리자",
+          deletedAt: now,
+        });
+      }
+
+      for (const [table] of tablesByIndex) {
+        for (const r of bucket[table]) {
           await ctx.db.delete(r._id);
           if (table === "projects") deletedProjects += 1;
         }
       }
-    }
-
-    const rentals = await ctx.db.query("rentalApplications").collect();
-    for (const ra of rentals) {
-      if (ra.projectId !== undefined && idSet.has(Number(ra.projectId))) {
+      for (const ra of matchedRentals) {
         await ctx.db.delete(ra._id);
       }
+    }
+
+    if (ledgerChanged && ledgerDoc && parsedLedger) {
+      await ctx.db.patch(ledgerDoc._id, {
+        value: JSON.stringify(parsedLedger),
+        updatedAt: now,
+      });
     }
 
     return { deleted: deletedProjects };

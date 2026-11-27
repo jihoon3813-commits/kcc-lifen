@@ -81,7 +81,10 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: "소속 파트너 링크만 삭제할 수 있습니다." });
       }
 
-      await convexClient.mutation(api.crm.deleteLandingLink, { linkId });
+      await convexClient.mutation(api.crm.deleteLandingLink, {
+        linkId,
+        userName: auth.user.name || "관리자",
+      });
       const refreshed = await convexClient.query(api.crm.listProductsAndLinks, {});
       const formatted = formatProductsAndLinks(refreshed, auth.user);
       return res.status(200).json({ deleted: true, landingLinks: formatted.landingLinks });

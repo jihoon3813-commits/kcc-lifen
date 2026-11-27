@@ -41,6 +41,7 @@ export default async function handler(req, res) {
 
     const result = await convexClient.mutation(api.crm.deleteProjects, {
       projectIds: allowedIds,
+      userName: auth.user.name || "관리자",
     });
     return res.status(200).json({
       success: true,
