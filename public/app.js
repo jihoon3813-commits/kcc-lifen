@@ -1126,15 +1126,20 @@ function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUr
   }
   if (tplKey === 'final') {
     return '[KCC홈씨씨] ' + cName + ' 고객님, 현장 실측이 반영된 최종 모바일 견적서가 발행되었습니다.\n\n' +
-      '■ 견적 구분: 최종견적\n' +
-      '■ 확정 견적가: ' + priceStr + ' (일시불 할인,60개월 렌탈,그린리모델링 비교 가능)\n\n' +
-      '▼ 내 모바일 견적서 확인하기\n' + quoteUrl + '\n\n' +
-      '※ 고객님 성함(' + cName + ')과 휴대폰 번호 입력 후 상세 창호 사양을 확인하실 수 있습니다.';
+      '■ 견적 구분: ' + (quoteType || '최종견적') + '\n' +
+      '■ 확정 견적가: ' + priceStr + ' (부가세 포함)\n' +
+      '■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n' +
+      '■ 시공 시 혜택(1): LG가전 구독료 10% 할인 지원(최대 72개월 간 매월 10% 할인, 전 제품 대상)\n' +
+      '■ 시공 시 혜택(2): KCC홈씨씨 주방 시공 시 10% 할인 지원(최종 견적 금액에서 10% 할인 적용)\n\n' +
+      '▼ 나의 모바일 견적서 바로가기\n' + quoteUrl + '\n\n' +
+      '※ 열람 시 고객님 본인 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.';
   }
-  return '[KCC홈씨씨] ' + cName + ' 고객님, 우리 집 맞춤 ' + product + ' 모바일 견적서가 도착했습니다.\n\n' +
+  return '[KCC홈씨씨] ' + cName + ' 고객님, 우리 집 맞춤 모바일 견적서가 도착했습니다.\n\n' +
     '■ 견적 구분: ' + quoteType + '\n' +
     '■ 예상 금액: ' + priceStr + ' (부가세 포함)\n' +
     '■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n' +
+    '■ 시공 시 혜택(1): LG가전 구독료 10% 할인 지원(최대 72개월 간 매월 10% 할인, 전 제품 대상)\n' +
+    '■ 시공 시 혜택(2): KCC홈씨씨 주방 시공 시 10% 할인 지원(최종 견적 금액에서 10% 할인 적용)\n\n' +
     '▼ 나의 모바일 견적서 바로가기\n' + quoteUrl + '\n\n' +
     '※ 열람 시 고객님 본인 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.';
 }
@@ -1395,11 +1400,7 @@ function renderSendDialog() {
     '<small>' + (s.finalQuote ? '클릭 시 최종견적 링크·문구로 전환' : '클릭 시 우측에 최종견적 예시 화면 표시') + '</small>' +
   '</button>';
 
-  const kakaoEnabled = Boolean(ms.kakaoReady);
-  if (!kakaoEnabled && s.channel === 'kakao') {
-    s.channel = 'sms';
-  }
-  const kakaoStateBadge = kakaoEnabled ? badge('실발송 연결됨', 'green') : badge('연동 개발중', 'gray');
+  const kakaoStateBadge = ms.kakaoReady ? badge('실발송 연결됨', 'green') : badge('연동 필요', 'gray');
   const smsStateBadge = ms.smsReady ? badge('실발송 연결됨', 'green') : badge('연동 필요', 'gray');
 
   const body = '<div class="dialog-body"><div class="send-layout">' +
@@ -1412,8 +1413,8 @@ function renderSendDialog() {
           '<button type="button" class="channel-card sms ' + (s.channel === 'sms' ? 'active' : '') + '" data-action="switch-send-ch" data-value="sms">' +
             '<span class="ch-badge sms">LMS</span><div style="flex:1"><b>문자 메시지 (LMS)</b><small>장문 안내 문자 및 전용 링크 발송</small></div>' + smsStateBadge +
           '</button>' +
-          '<button type="button" class="channel-card kakao ' + (kakaoEnabled ? (s.channel === 'kakao' ? 'active' : '') : 'is-disabled') + '" data-action="switch-send-ch" data-value="kakao"' + (kakaoEnabled ? '' : ' aria-disabled="true" title="카카오 알림톡 연동 개발중 (연동 완료 후 오픈)"') + '>' +
-            '<span class="ch-badge kakao">TALK</span><div style="flex:1"><b>카카오 알림톡 · 카톡</b><small>' + (kakaoEnabled ? '버튼형 모바일 견적 링크 발송' : '연동 개발중 · 완료 시 오픈 예정') + '</small></div>' + kakaoStateBadge +
+          '<button type="button" class="channel-card kakao ' + (s.channel === 'kakao' ? 'active' : '') + '" data-action="switch-send-ch" data-value="kakao">' +
+            '<span class="ch-badge kakao">TALK</span><div style="flex:1"><b>카카오 알림톡 · 카톡</b><small>버튼형 모바일 견적 링크 발송</small></div>' + kakaoStateBadge +
           '</button>' +
         '</div>' +
       '</div>' +
@@ -7973,10 +7974,6 @@ case'clear-quote-phone':{
   }
   case'switch-send-ch':{
     if (sendState) {
-      if (v === 'kakao' && !sendState.messagingStatus?.kakaoReady) {
-        toast('카카오 알림톡 발송은 현재 연동 개발중입니다. 연동 완료 후 오픈됩니다.');
-        break;
-      }
       sendState.channel = v === 'sms' ? 'sms' : 'kakao';
       renderSendDialog();
     }
@@ -8084,10 +8081,6 @@ case'clear-quote-phone':{
   }
   case'submit-send-quote':{
     if (!sendState) break;
-    if (sendState.channel === 'kakao' && !sendState.messagingStatus?.kakaoReady) {
-      toast('카카오 알림톡 발송은 현재 연동 개발중입니다. 문자 메시지(LMS)를 이용해 주세요.');
-      break;
-    }
     const phoneVal = ($('#send-phone')?.value || sendState.recipientPhone || '').trim();
     const msgVal = ($('#send-message')?.value || sendState.message || '').trim();
     if (phoneVal.replace(/\D/g, '').length < 10) {

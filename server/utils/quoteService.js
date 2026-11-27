@@ -400,13 +400,24 @@ export async function sendProjectQuoteViaConvex(
   const resolvedOrigin = origin || baseOrigin;
   const quoteUrl = `${resolvedOrigin}/quote.html`;
   const safeQuoteType = quote.quoteType || '가견적';
-  const defaultMsg =
-    `[KCC홈씨씨] ${targetName} 고객님, 우리 집 맞춤 ${data.project.product || '창호'} 모바일 견적서가 도착했습니다.\n\n` +
-    `■ 견적 구분: ${safeQuoteType}\n` +
-    `■ 예상 금액: ${Number(quote.totalPrice || 0).toLocaleString()}원 (부가세 포함)\n` +
-    `■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n` +
-    `▼ 나의 모바일 견적서 바로가기\n${quoteUrl}\n\n` +
-    `※ 열람 시 고객님 본인 성함(${targetName})과 휴대폰 번호로 로그인해 주세요.`;
+  const priceText = `${Number(quote.totalPrice || 0).toLocaleString()}원`;
+  const defaultMsg = safeQuoteType === '최종견적'
+    ? `[KCC홈씨씨] ${targetName} 고객님, 현장 실측이 반영된 최종 모바일 견적서가 발행되었습니다.\n\n` +
+      `■ 견적 구분: ${safeQuoteType}\n` +
+      `■ 확정 견적가: ${priceText} (부가세 포함)\n` +
+      `■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n` +
+      `■ 시공 시 혜택(1): LG가전 구독료 10% 할인 지원(최대 72개월 간 매월 10% 할인, 전 제품 대상)\n` +
+      `■ 시공 시 혜택(2): KCC홈씨씨 주방 시공 시 10% 할인 지원(최종 견적 금액에서 10% 할인 적용)\n\n` +
+      `▼ 나의 모바일 견적서 바로가기\n${quoteUrl}\n\n` +
+      `※ 열람 시 고객님 본인 성함(${targetName})과 휴대폰 번호로 로그인해 주세요.`
+    : `[KCC홈씨씨] ${targetName} 고객님, 우리 집 맞춤 모바일 견적서가 도착했습니다.\n\n` +
+      `■ 견적 구분: ${safeQuoteType}\n` +
+      `■ 예상 금액: ${priceText} (부가세 포함)\n` +
+      `■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n` +
+      `■ 시공 시 혜택(1): LG가전 구독료 10% 할인 지원(최대 72개월 간 매월 10% 할인, 전 제품 대상)\n` +
+      `■ 시공 시 혜택(2): KCC홈씨씨 주방 시공 시 10% 할인 지원(최종 견적 금액에서 10% 할인 적용)\n\n` +
+      `▼ 나의 모바일 견적서 바로가기\n${quoteUrl}\n\n` +
+      `※ 열람 시 고객님 본인 성함(${targetName})과 휴대폰 번호로 로그인해 주세요.`;
   const finalMessage = String(message || defaultMsg).trim();
 
   const dispatchResult = await dispatchMessage(
