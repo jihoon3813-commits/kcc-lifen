@@ -9,6 +9,7 @@ import {
   deriveCsrfToken,
   resolveCustomerViewer
 } from '../utils/rentalSecurity.js';
+import { notifyNewQuoteInquiry } from '../../api/_lib/discordHelper.js';
 
 const router = express.Router();
 
@@ -272,7 +273,7 @@ router.post('/login', (req, res) => {
 });
 
 // 3. Submit Consultation Request from Mobile Estimate
-router.post('/consult', (req, res) => {
+router.post('/consult', async (req, res) => {
   const {
     token,
     viewerToken,
@@ -364,6 +365,17 @@ router.post('/consult', (req, res) => {
     `${safeTopics.length ? safeTopics.join(', ') : '견적 상담'} / 희망시간: ${safeTime}`,
     String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')
   );
+
+  await notifyNewQuoteInquiry({
+    projectId: quote.project_id,
+    customerName: quote.customer_name,
+    phone: quote.customer_phone,
+    product: quote.product || '창호',
+    topics: safeTopics,
+    preferredTime: safeTime,
+    planSummary: safePlan,
+    memo: safeMemo
+  }).catch(() => {});
 
   res.status(201).json({
     success: true,
