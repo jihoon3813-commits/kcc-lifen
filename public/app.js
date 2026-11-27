@@ -1128,7 +1128,7 @@ function makeSendTemplate(tplKey, cName, product, quoteType, totalPrice, quoteUr
   return '[KCC홈씨씨] ' + cName + ' 고객님, 우리 집 맞춤 ' + product + ' 모바일 견적서가 도착했습니다.\n\n' +
     '■ 견적 구분: ' + quoteType + '\n' +
     '■ 예상 금액: ' + priceStr + ' (부가세 포함)\n' +
-    '■ 결제 비교: 일시불 · 스마트 구독 · 60개월 렌탈\n\n' +
+    '■ 결제 비교: 일시불 할인,60개월 렌탈,그린리모델링 비교 가능\n\n' +
     '▼ 나의 모바일 견적서 바로가기\n' + quoteUrl + '\n\n' +
     '※ 열람 시 고객님 본인 성함(' + cName + ')과 휴대폰 번호로 로그인해 주세요.';
 }
