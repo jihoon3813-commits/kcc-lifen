@@ -667,7 +667,7 @@ async function syncFromServer() {
         return;
       }
     }
-    const [cRes, pRes, kRes, aRes, prRes, lRes, stRes, csRes, uRes, rRes, fRes, anRes, qpRes, payRes] = await Promise.all([
+    const [cRes, pRes, kRes, aRes, prRes, lRes, stRes, csRes, uRes, rRes, fRes, anRes, qpRes, payRes, msgRes] = await Promise.all([
       apiFetch('/api/customers'),
       apiFetch('/api/partners'),
       apiFetch('/api/contracts'),
@@ -681,7 +681,8 @@ async function syncFromServer() {
       apiFetch('/api/settings/forms'),
       apiFetch('/api/analytics/overview?period=' + encodeURIComponent(typeof statsPeriod !== 'undefined' ? statsPeriod : '30')),
       apiFetch('/api/settings/quote-phone'),
-      apiFetch('/api/payments').catch(() => ({ ok: false }))
+      apiFetch('/api/payments').catch(() => ({ ok: false })),
+      apiFetch('/api/settings/integrations').catch(() => ({ ok: false }))
     ]);
 
     if (cRes.ok) {
@@ -700,6 +701,11 @@ async function syncFromServer() {
       const payData = await payRes.json().catch(() => ({}));
       db.paymentOrders = Array.isArray(payData.orders) ? payData.orders : [];
       db.pgConfig = payData.pgConfig || { liveReady: false };
+    }
+    if (msgRes && msgRes.ok) {
+      const msgData = await msgRes.json().catch(() => ({}));
+      const msg = msgData.configs?.messaging || msgData.messaging || {};
+      if (msg.status) messagingStatusCache = msg.status;
     }
     if (aRes.ok) {
       const data = await aRes.json();
