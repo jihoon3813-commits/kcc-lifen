@@ -6182,10 +6182,6 @@ function openEditor(id, presetType = '', presetQuoteId = null) {
     }
     return;
   }
-  if (page !== 'quotes') {
-    toast('견적 작성은 견적관리 메뉴에서만 이용할 수 있습니다.');
-    return;
-  }
   if (!id) {
     openQuoteCustomerPicker(presetType);
     return;
@@ -8744,8 +8740,10 @@ case'go-quote-editor':{
       break;
     }
     closeDialog();
-    page = 'quotes';
-    render();
+    if (page !== 'customers') {
+      page = 'customers';
+      render();
+    }
     openEditor(id, el.dataset.type || '', el.dataset.quoteId ? Number(el.dataset.quoteId) : null);
     window.scrollTo(0, 0);
     break;
