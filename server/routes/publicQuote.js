@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../db/index.js';
+import { convexClient, api } from '../convex.js';
 import { config } from '../config.js';
 import { maskName, maskPhone, formatCustomerSafeQuote } from '../utils/mobileQuoteFormatter.js';
 import {
@@ -287,14 +288,17 @@ router.post('/consult', async (req, res) => {
 
   // Verify HttpOnly session cookie or viewerToken first (or fallback to valid access_token)
   let verifiedQuoteId = null;
+  let accessToken = token ? String(token).trim() : '';
   const cookieViewer = resolveCustomerViewer(req);
   if (cookieViewer) {
-    verifiedQuoteId = cookieViewer.decoded.quoteId;
+    verifiedQuoteId = cookieViewer.decoded.quoteId || null;
+    if (cookieViewer.decoded.accessToken) accessToken = cookieViewer.decoded.accessToken;
   } else if (viewerToken) {
     try {
       const decoded = jwt.verify(viewerToken, config.jwtSecret);
-      if (decoded.scope === 'customer_quote_viewer' && decoded.quoteId) {
-        verifiedQuoteId = decoded.quoteId;
+      if (decoded.scope === 'customer_quote_viewer') {
+        if (decoded.quoteId) verifiedQuoteId = decoded.quoteId;
+        if (decoded.accessToken) accessToken = decoded.accessToken;
       }
     } catch {
       return res.status(401).json({ error: '로그인 세션이 만료되었습니다. 다시 본인확인 로그인을 진행해 주세요.' });
@@ -303,11 +307,23 @@ router.post('/consult', async (req, res) => {
 
   const quote = verifiedQuoteId
     ? db.prepare(getPublishedQuoteQuery('q.id = ?')).get(verifiedQuoteId)
-    : token
-    ? db.prepare(getPublishedQuoteQuery('q.access_token = ?')).get(String(token).trim())
+    : accessToken
+    ? db.prepare(getPublishedQuoteQuery('q.access_token = ?')).get(accessToken)
     : null;
 
-  if (!quote) {
+  let convexBundle = null;
+  const lookupToken = quote?.access_token || accessToken;
+  if (lookupToken) {
+    try {
+      convexBundle = await convexClient.query(api.quotes.getPublicBundleByToken, {
+        accessToken: lookupToken
+      });
+    } catch (err) {
+      console.warn('[Consult] Convex bundle lookup warning:', err?.message || err);
+    }
+  }
+
+  if (!quote && !convexBundle) {
     return res.status(404).json({ error: '유효한 견적 정보를 확인할 수 없습니다.' });
   }
 
@@ -322,55 +338,87 @@ router.post('/consult', async (req, res) => {
     ? Math.max(0, Math.round(Number(depositAmount)))
     : null;
 
-  const insertReq = db.prepare(`
-    INSERT INTO customer_consult_requests (
-      quote_id, project_id, customer_name, customer_phone,
-      payment_method, plan_summary, deposit_amount, topics_json, preferred_time, memo
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  const targetProjectId = convexBundle?.project?.projectId || quote?.project_id;
+  const targetCustomerName = convexBundle?.project?.customerName || quote?.customer_name || '고객';
+  const targetCustomerPhone = convexBundle?.project?.customerPhone || quote?.customer_phone || '';
+  const targetProduct = convexBundle?.project?.product || quote?.product || '창호';
+  const targetAddress = convexBundle?.project?.customerAddress || quote?.customer_address || '';
 
-  const result = insertReq.run(
-    quote.id,
-    quote.project_id,
-    quote.customer_name,
-    quote.customer_phone,
-    safeMethod,
-    safePlan,
-    safeDeposit,
-    JSON.stringify(safeTopics),
-    safeTime,
-    safeMemo
-  );
+  let sqliteRequestId = null;
+  if (quote) {
+    const insertReq = db.prepare(`
+      INSERT INTO customer_consult_requests (
+        quote_id, project_id, customer_name, customer_phone,
+        payment_method, plan_summary, deposit_amount, topics_json, preferred_time, memo
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
-  // Also record into CRM consultations & audit_logs so staff immediately sees it!
-  const summaryParts = [
-    `[모바일 견적서 상담 요청]`,
-    safePlan ? `선택 조건: ${safePlan}` : null,
-    `문의 항목: ${safeTopics.length ? safeTopics.join(', ') : '견적 전반 상담'}`,
-    `희망 연락시간: ${safeTime}`,
-    safeMemo ? `고객 메모: ${safeMemo}` : null
-  ].filter(Boolean);
+    const result = insertReq.run(
+      quote.id,
+      quote.project_id,
+      quote.customer_name,
+      quote.customer_phone,
+      safeMethod,
+      safePlan,
+      safeDeposit,
+      JSON.stringify(safeTopics),
+      safeTime,
+      safeMemo
+    );
+    sqliteRequestId = result.lastInsertRowid;
 
-  db.prepare(`
-    INSERT INTO consultations (project_id, author_name, type, content, is_important)
-    VALUES (?, ?, 'notes', ?, 1)
-  `).run(quote.project_id, `${quote.customer_name}(고객)`, summaryParts.join(' · '));
+    // Also record into CRM consultations & audit_logs so staff immediately sees it!
+    const summaryParts = [
+      `[모바일 견적서 상담 요청]`,
+      safePlan ? `선택 조건: ${safePlan}` : null,
+      `문의 항목: ${safeTopics.length ? safeTopics.join(', ') : '견적 전반 상담'}`,
+      `희망 연락시간: ${safeTime}`,
+      safeMemo ? `고객 메모: ${safeMemo}` : null
+    ].filter(Boolean);
 
-  db.prepare(`
-    INSERT INTO audit_logs (project_id, user_name, action, detail, ip_address)
-    VALUES (?, ?, '모바일 상담 접수', ?, ?)
-  `).run(
-    quote.project_id,
-    `${quote.customer_name}(고객)`,
-    `${safeTopics.length ? safeTopics.join(', ') : '견적 상담'} / 희망시간: ${safeTime}`,
-    String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')
-  );
+    db.prepare(`
+      INSERT INTO consultations (project_id, author_name, type, content, is_important)
+      VALUES (?, ?, 'notes', ?, 1)
+    `).run(quote.project_id, `${quote.customer_name}(고객)`, summaryParts.join(' · '));
+
+    db.prepare(`
+      INSERT INTO audit_logs (project_id, user_name, action, detail, ip_address)
+      VALUES (?, ?, '모바일 상담 접수', ?, ?)
+    `).run(
+      quote.project_id,
+      `${quote.customer_name}(고객)`,
+      `${safeTopics.length ? safeTopics.join(', ') : '견적 상담'} / 희망시간: ${safeTime}`,
+      String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')
+    );
+  }
+
+  // Sync consultation request to Convex (Dev/Prod) so Admin UI always displays it
+  if (targetProjectId) {
+    try {
+      await convexClient.mutation(api.quotes.recordPublicConsultRequest, {
+        projectId: Number(targetProjectId),
+        customerName: targetCustomerName,
+        customerPhone: targetCustomerPhone,
+        product: targetProduct,
+        address: targetAddress,
+        planSummary: safePlan,
+        topics: safeTopics,
+        preferredTime: safeTime,
+        memo: safeMemo
+      });
+    } catch (err) {
+      console.error('[Consult] Convex recordPublicConsultRequest error:', err);
+      if (!quote) {
+        return res.status(500).json({ error: '상담 요청 저장 중 오류가 발생했습니다.' });
+      }
+    }
+  }
 
   await notifyNewQuoteInquiry({
-    projectId: quote.project_id,
-    customerName: quote.customer_name,
-    phone: quote.customer_phone,
-    product: quote.product || '창호',
+    projectId: targetProjectId,
+    customerName: targetCustomerName,
+    phone: targetCustomerPhone,
+    product: targetProduct,
     topics: safeTopics,
     preferredTime: safeTime,
     planSummary: safePlan,
@@ -379,7 +427,7 @@ router.post('/consult', async (req, res) => {
 
   res.status(201).json({
     success: true,
-    request_id: result.lastInsertRowid,
+    request_id: sqliteRequestId,
     message: '상담 요청이 정상 접수되었습니다. 담당자가 확인 후 연락드리겠습니다.'
   });
 });
