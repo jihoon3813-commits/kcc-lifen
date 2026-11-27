@@ -1552,7 +1552,9 @@ async function openMessagingIntegrationDialog() {
         ? `연결됨 (${esc(hb.deviceName || '휴대폰')} · 방금 전 폴링)`
         : `마지막 연결: ${esc(hb.deviceName || '휴대폰')} (${new Date(hb.lastPollAt).toLocaleTimeString('ko-KR')})`)
     : '아직 휴대폰 브릿지 앱 연결 이력이 없습니다.';
-  const bridgeOrigin = typeof location !== 'undefined' ? location.origin : '';
+  const bridgeOrigin = (typeof location !== 'undefined' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1'))
+    ? 'https://pleasant-grouse-295.convex.site'
+    : 'https://savory-hedgehog-927.convex.site';
 
   openDialog(
     '문자(폰 브릿지·알리고) · 카카오 알림톡(바로빌) 연동 설정',

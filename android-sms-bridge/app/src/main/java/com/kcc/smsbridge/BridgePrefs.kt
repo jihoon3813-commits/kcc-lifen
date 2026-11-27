@@ -40,8 +40,8 @@ object BridgePrefs {
     private const val KEY_PENDING_ACKS = "pending_acks_json"
     private const val KEY_OUTBOUND_TIMESTAMPS = "outbound_timestamps_json"
 
-    const val DEFAULT_SERVER_URL = "https://resolute-orca-48.convex.site"
-    const val DEFAULT_DEV_SERVER_URL = "https://successful-marmot-772.convex.site"
+    const val DEFAULT_SERVER_URL = "https://savory-hedgehog-927.convex.site"
+    const val DEFAULT_DEV_SERVER_URL = "https://pleasant-grouse-295.convex.site"
     const val EXTERNAL_OWNER = "__external_hyowon__"
 
     private var outboundCacheLoaded = false
