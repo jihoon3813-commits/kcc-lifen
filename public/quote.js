@@ -7,7 +7,8 @@ const topics = [
   '결제 방식 비교',
   '제품이나 시공 범위 변경',
   '시공 일정과 소요 시간',
-  '시공 후 A/S와 보증 범위'
+  '시공 후 A/S와 보증 범위',
+  'LG 가전구독 할인 혜택'
 ];
 
 const params = new URLSearchParams(location.search);
@@ -638,6 +639,40 @@ document.querySelectorAll('[data-consult]').forEach(button => {
 document.querySelectorAll('.close-dialog,.close-success').forEach(button => {
   button.addEventListener('click', closeDialog);
 });
+
+// LG Electronics Appliance Subscription Promo Dialog
+const lgPromoDialog = document.getElementById('lg-promo-dialog');
+const lgPromoOpenBtn = document.getElementById('lg-promo-open-btn');
+const lgPromoApplyBtn = document.getElementById('lg-promo-apply-btn');
+
+if (lgPromoDialog && lgPromoOpenBtn) {
+  let focusBeforePromo = null;
+  lgPromoOpenBtn.addEventListener('click', () => {
+    focusBeforePromo = document.activeElement;
+    lgPromoDialog.showModal();
+    document.body.style.overflow = 'hidden';
+    lgPromoDialog.scrollTop = 0;
+  });
+
+  lgPromoDialog.querySelectorAll('.close-lg-promo').forEach(btn => {
+    btn.addEventListener('click', () => lgPromoDialog.close());
+  });
+
+  lgPromoDialog.addEventListener('close', () => {
+    if (!dialog.open) document.body.style.overflow = '';
+    if (focusBeforePromo) focusBeforePromo.focus({ preventScroll: true });
+  });
+
+  if (lgPromoApplyBtn) {
+    lgPromoApplyBtn.addEventListener('click', () => {
+      lgPromoDialog.close();
+      openConsult(
+        'LG 가전구독 할인 혜택',
+        'KCC 창호 시공 고객 한정 · LG전자 가전구독료 매월 10% 할인 (최대 72개월 / 전제품)'
+      );
+    });
+  }
+}
 
 document.getElementById('plan-cta').addEventListener('click', () => {
   const p = plans[selectedPlan];

@@ -739,3 +739,274 @@
     font-size: 11px;
   }
 }
+
+/* === LG Electronics Appliance Subscription Promo Section === */
+.lg-promo-section {
+  padding: 28px 36px;
+  background: #ffffff;
+}
+.lg-promo-banner {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  min-height: 330px;
+  background: #141d26;
+  color: #ffffff;
+  box-shadow: 0 14px 36px rgba(17, 29, 41, 0.16);
+  display: flex;
+  align-items: center;
+}
+.lg-promo-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 75% center;
+  z-index: 0;
+}
+.lg-promo-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    95deg,
+    rgba(16, 25, 34, 0.94) 0%,
+    rgba(16, 25, 34, 0.88) 48%,
+    rgba(16, 25, 34, 0.56) 76%,
+    rgba(16, 25, 34, 0.34) 100%
+  );
+}
+.lg-promo-content {
+  position: relative;
+  z-index: 2;
+  padding: 32px 30px;
+  max-width: 460px;
+}
+.lg-promo-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.lg-promo-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--orange);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.lg-promo-partner {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0.02em;
+}
+.lg-promo-content h2 {
+  font-size: 24px;
+  line-height: 1.38;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.055em;
+  word-break: keep-all;
+}
+.lg-promo-content h2 span {
+  color: #ff9c59;
+}
+.lg-promo-highlights {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lg-promo-highlights li {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(6px);
+  border-radius: 8px;
+  padding: 6px 11px;
+  font-size: 11px;
+  color: #f0f4f7;
+}
+.lg-promo-highlights li strong {
+  color: #ffae75;
+  font-weight: 800;
+}
+.lg-promo-desc {
+  margin-top: 15px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: rgba(236, 241, 245, 0.9);
+  word-break: keep-all;
+}
+.lg-promo-desc b {
+  color: #ffffff;
+  font-weight: 700;
+}
+.lg-promo-actions {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.lg-promo-btn {
+  min-height: 46px;
+  padding: 11px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 9px;
+  box-shadow: 0 8px 20px rgba(237, 116, 38, 0.35);
+}
+.lg-promo-direct {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  padding: 8px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.42);
+  transition: color 0.15s, border-color 0.15s;
+}
+.lg-promo-direct:hover {
+  color: #ffffff;
+  border-color: #ffffff;
+}
+
+/* LG Promo Detail Dialog */
+#lg-promo-dialog h2 {
+  font-size: 22px;
+  line-height: 1.4;
+}
+.lg-promo-modal-hero {
+  margin: 18px 0 16px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1b2a38 0%, #2b3f52 100%);
+  color: #ffffff;
+}
+.lg-promo-modal-hero span {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: #ffae75;
+  font-weight: 700;
+}
+.lg-promo-modal-hero strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 800;
+  margin-top: 4px;
+  letter-spacing: -0.04em;
+}
+.lg-promo-modal-hero small {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.78);
+}
+.lg-promo-spec {
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+.lg-promo-spec > div {
+  display: grid;
+  grid-template-columns: 78px 1fr;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.lg-promo-spec dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+.lg-promo-spec dd {
+  margin: 0;
+  color: var(--ink);
+  word-break: keep-all;
+}
+.lg-promo-spec dd b {
+  color: #d65e14;
+  font-weight: 750;
+}
+.lg-promo-tip {
+  margin: 16px 0 20px;
+  padding: 13px 15px;
+  border-radius: 10px;
+  background: #fff7f0;
+  border: 1px solid #f5decb;
+}
+.lg-promo-tip strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b54d11;
+}
+.lg-promo-tip p {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #6a4d3b;
+  word-break: keep-all;
+}
+
+@media (max-width: 960px) {
+  .lg-promo-section {
+    padding: 24px 28px;
+  }
+}
+@media (max-width: 480px) {
+  .lg-promo-section {
+    padding: 22px 18px;
+  }
+  .lg-promo-banner {
+    min-height: 360px;
+    align-items: flex-end;
+  }
+  .lg-promo-bg {
+    object-position: 68% center;
+  }
+  .lg-promo-shade {
+    background: linear-gradient(
+      180deg,
+      rgba(16, 25, 34, 0.35) 0%,
+      rgba(16, 25, 34, 0.78) 38%,
+      rgba(16, 25, 34, 0.95) 75%
+    );
+  }
+  .lg-promo-content {
+    padding: 24px 20px;
+    max-width: 100%;
+  }
+  .lg-promo-content h2 {
+    font-size: 21px;
+  }
+  .lg-promo-highlights li {
+    font-size: 11px;
+    padding: 5px 9px;
+  }
+  .lg-promo-desc {
+    font-size: 11px;
+  }
+  .lg-promo-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .lg-promo-btn {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .lg-promo-direct {
+    text-align: center;
+    border-bottom: 0;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+}
