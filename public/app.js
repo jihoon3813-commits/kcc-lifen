@@ -9039,6 +9039,10 @@ case'publish-quote':{
         audit(c.id, `견적서 v${qData.version} 발행 (${varDesc})`);
         save();
         await syncFromServer();
+        if (page !== 'customers') {
+          page = 'customers';
+          render();
+        }
         openPreview(c.id, null, 'quote', qData.quote_type || editor.type, qData.quote_id || null);
         toast(`모바일 [${qData.quote_type || editor.type}]이 발행되었습니다! (${varDesc})`);
         break;
