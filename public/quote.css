@@ -1123,12 +1123,24 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: 4px;
+  margin-left: 2px;
   padding: 2px 7px;
   border-radius: 4px;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.hero-copy .eyebrow {
+  flex-wrap: wrap;
+  row-gap: 5px;
+  column-gap: 6px;
+}
+.hero-copy .quote-badge {
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: 0;
 }
 .quote-variant-tier-pill.is-villaz {
   background: #fff1e6;
