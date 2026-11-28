@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from '../db/index.js';
+import { convexClient, api } from '../convex.js';
 import { config } from '../config.js';
 import { requireAuth, requireMenu } from '../middleware/auth.js';
 import { recordAuditLog } from '../middleware/audit.js';
@@ -296,7 +297,7 @@ router.post('/users', requireAuth, requireMenu('settings'), (req, res) => {
 });
 
 // 6. Update User Info & Allowed Menus
-function handleUpdateUser(req, res) {
+async function handleUpdateUser(req, res) {
   const userId = Number(req.params.id);
   if (!userId) {
     return res.status(400).json({ error: '유효하지 않은 사용자 ID입니다.' });
@@ -359,6 +360,17 @@ function handleUpdateUser(req, res) {
   }
 
   const updated = fetchUserById(userId);
+  if (notify_prefs !== undefined) {
+    try {
+      await convexClient.mutation(api.auth.updateUser, {
+        userId,
+        username: updated.username,
+        notifyPrefs: JSON.stringify(nextNotifyPrefs)
+      });
+    } catch (syncErr) {
+      console.warn('[Auth] Convex notifyPrefs sync skipped:', syncErr?.message || syncErr);
+    }
+  }
   const menuNames = nextMenus.map(k => MENU_LABEL_MAP[k] || k).join(', ');
 
   recordAuditLog({
