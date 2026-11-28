@@ -25,6 +25,75 @@ export function checkConvexPartnerAccess(partnerOrgId, user, project, organizati
   return allowedNames.has(project.partnerName);
 }
 
+export const QUOTE_VARIANT_DEFS = {
+  villaz: { key: 'villaz', label: '빌라즈 견적', subLabel: '프리미엄 창호' },
+  value: { key: 'value', label: '가성비 견적', subLabel: '합리적인 창호' },
+};
+
+function normalizeSingleVariantCalc(rawVar, fallbackTitle = '') {
+  if (!rawVar || typeof rawVar !== 'object') return null;
+  const vKey = rawVar.key === 'value' ? 'value' : 'villaz';
+  const def = QUOTE_VARIANT_DEFS[vKey];
+  const rawItems = Array.isArray(rawVar.items) ? rawVar.items : [];
+  if (!rawItems.length) return null;
+
+  const mRate = Number(rawVar.marginRate ?? 100);
+  const mScope = rawVar.marginScope === 'all' ? 'all' : 'material';
+  const sDiscount = Math.max(0, Math.round(Number(rawVar.discountAmount) || 0));
+  const pMeta = rawVar.meta && typeof rawVar.meta === 'object' ? rawVar.meta : null;
+  const rSupply = Math.max(0, Math.round(Number(rawVar.supplyCost || pMeta?.excel_grand_total || 0) || 0));
+  const rExcelSub = Math.max(0, Math.round(Number(rawVar.excelSubtotal || pMeta?.excel_subtotal || 0) || 0));
+
+  const calc = calculateQuote(rawItems, {
+    defaultMarginRate: mRate,
+    discountAmount: sDiscount,
+    supplyCost: rSupply,
+    excelSubtotal: rExcelSub,
+  });
+
+  // Strip nested quote_variants from per-variant meta to avoid recursion
+  let cleanMeta = null;
+  if (pMeta) {
+    const { quote_variants: _qv, editor_state: _es, ...restMeta } = pMeta;
+    cleanMeta = restMeta;
+  }
+
+  return {
+    key: vKey,
+    label: String(rawVar.label || def.label),
+    subLabel: String(rawVar.subLabel || def.subLabel),
+    title: String(rawVar.title || fallbackTitle || `${def.label} (${def.subLabel})`),
+    sourceFileName: rawVar.sourceFileName ? String(rawVar.sourceFileName) : '',
+    marginScope: mScope,
+    marginRate: calc.margin_rate,
+    discountAmount: calc.discount_amount,
+    supplyCost: calc.supply_cost,
+    totalCost: calc.total_cost,
+    materialSubtotal: calc.material_subtotal,
+    extraSubtotal: calc.extra_subtotal,
+    salePrice: calc.sale_price,
+    vat: calc.vat,
+    originalPrice: calc.original_price,
+    totalPrice: calc.total_price,
+    marginAmount: calc.margin_amount,
+    meta: cleanMeta,
+    items: calc.items.map((it) => ({
+      sort_order: it.sort_order,
+      name: String(it.name || ''),
+      spec: it.spec ? String(it.spec) : '',
+      category: it.category || 'window',
+      detail_json: it.detail_json || null,
+      quantity: Number(it.quantity) || 1,
+      margin_rate: Number(it.margin_rate ?? 100),
+      cost_unit_price: Number(it.cost_unit_price) || 0,
+      cost_total: Number(it.cost_total) || 0,
+      sale_unit_price: Number(it.sale_unit_price) || 0,
+      sale_total: Number(it.sale_total) || 0,
+    })),
+    _calculated: calc,
+  };
+}
+
 export async function createQuoteInConvex(convexClient, api, { body, user, partnerOrgId }) {
   const {
     projectId,
@@ -40,10 +109,22 @@ export async function createQuoteInConvex(convexClient, api, { body, user, partn
     meta = null,
     memo,
     isPublish = true,
+    variants: incomingVariants = null,
   } = body || {};
 
-  if (!projectId || !items || !Array.isArray(items) || items.length === 0) {
-    return { status: 400, data: { error: '공사건 ID와 견적 품목 목록이 필요합니다.' } };
+  // Build normalized variants if provided (1 or 2 tabs: villaz / value)
+  const validVariants = [];
+  if (Array.isArray(incomingVariants) && incomingVariants.length > 0) {
+    for (const vKey of ['villaz', 'value']) {
+      const found = incomingVariants.find((v) => v && v.key === vKey);
+      const norm = normalizeSingleVariantCalc(found, title);
+      if (norm) validVariants.push(norm);
+    }
+  }
+
+  const hasDirectItems = Array.isArray(items) && items.length > 0;
+  if (!projectId || (!hasDirectItems && validVariants.length === 0)) {
+    return { status: 400, data: { error: '공사건 ID와 최소 1개 이상의 견적(빌라즈 또는 가성비) 품목이 필요합니다.' } };
   }
 
   const pId = parseInt(projectId, 10);
@@ -61,32 +142,52 @@ export async function createQuoteInConvex(convexClient, api, { body, user, partn
     }
   }
 
-  const safeDiscount = Math.max(0, Math.round(Number(discountAmount) || 0));
-  const parsedMeta = meta && typeof meta === 'object' ? meta : null;
-  const resolvedSupplyCost = Math.max(0, Math.round(Number(supplyCost || parsedMeta?.excel_grand_total || 0) || 0));
-  const resolvedExcelSub = Math.max(0, Math.round(Number(excelSubtotal || parsedMeta?.excel_subtotal || 0) || 0));
+  // Primary quote calculation: use first populated variant (villaz preferred, else value), or fallback to direct body fields
+  let calculated;
+  let primarySourceFile = sourceFileName ? String(sourceFileName) : '';
+  let primaryMarginScope = marginScope === 'all' ? 'all' : 'material';
+  let primaryMarginRate = Number(marginRate ?? 100);
+  let safeDiscount = Math.max(0, Math.round(Number(discountAmount) || 0));
+  let parsedMeta = meta && typeof meta === 'object' ? meta : null;
 
-  const calculated = calculateQuote(items, {
-    defaultMarginRate: marginRate,
-    discountAmount: safeDiscount,
-    supplyCost: resolvedSupplyCost,
-    excelSubtotal: resolvedExcelSub,
-  });
+  if (validVariants.length > 0) {
+    const primaryVar = validVariants[0];
+    calculated = primaryVar._calculated;
+    primarySourceFile = primaryVar.sourceFileName;
+    primaryMarginScope = primaryVar.marginScope;
+    primaryMarginRate = primaryVar.marginRate;
+    safeDiscount = primaryVar.discountAmount;
+    parsedMeta = primaryVar.meta || parsedMeta;
+  } else {
+    const resolvedSupplyCost = Math.max(0, Math.round(Number(supplyCost || parsedMeta?.excel_grand_total || 0) || 0));
+    const resolvedExcelSub = Math.max(0, Math.round(Number(excelSubtotal || parsedMeta?.excel_subtotal || 0) || 0));
+    calculated = calculateQuote(items, {
+      defaultMarginRate: marginRate,
+      discountAmount: safeDiscount,
+      supplyCost: resolvedSupplyCost,
+      excelSubtotal: resolvedExcelSub,
+    });
+  }
 
   const safeType = ['가견적', '최종견적', '비교안'].includes(quoteType) ? quoteType : '가견적';
   const status = isPublish ? 'published' : 'draft';
   const accessToken = `tok_${pId}_${Date.now().toString(36)}_${crypto.randomBytes(6).toString('hex')}`;
+
+  const storedVariants = validVariants.map(({ _calculated, ...rest }) => rest);
+  const { quote_variants: _oldQv, ...cleanTopMeta } = parsedMeta || {};
+
   const enrichedMeta = {
-    ...(parsedMeta || {}),
+    ...cleanTopMeta,
     editor_state: {
-      marginScope: marginScope === 'all' ? 'all' : 'material',
-      marginRate: Number(marginRate ?? 100),
+      marginScope: primaryMarginScope,
+      marginRate: primaryMarginRate,
       discountAmount: safeDiscount,
       supplyCost: calculated.supply_cost,
       excelSubtotal: calculated.total_cost,
-      sourceFileName: sourceFileName ? String(sourceFileName) : (parsedMeta?.editor_state?.sourceFileName || ''),
+      sourceFileName: primarySourceFile || (parsedMeta?.editor_state?.sourceFileName || ''),
       savedAt: new Date().toISOString(),
     },
+    ...(storedVariants.length > 0 ? { quote_variants: storedVariants } : {}),
   };
   const metaJsonStr = JSON.stringify(enrichedMeta);
 
@@ -135,12 +236,18 @@ export async function createQuoteInConvex(convexClient, api, { body, user, partn
   try {
     const detail = await convexClient.query(api.crm.getCustomerDetail, { projectId: pId }).catch(() => null);
     const proj = detail?.project || null;
+    const variantSummaryTitle =
+      storedVariants.length > 1
+        ? `${result.title || title || safeType} (${storedVariants.map((v) => `${v.label} ${Math.round(v.totalPrice).toLocaleString('ko-KR')}원`).join(' / ')})`
+        : storedVariants.length === 1
+          ? `[${storedVariants[0].label}] ${result.title || title || `${safeType} v${result.version}`}`
+          : result.title || title || `${safeType} v${result.version}`;
     await notifyNewQuote({
       projectId: pId,
       customerName: proj?.customerName,
       phone: proj?.customerPhone,
       version: result.version,
-      title: result.title || title || `${safeType} v${result.version}`,
+      title: variantSummaryTitle,
       quoteType: result.quoteType || safeType,
       status,
       totalPrice: calculated.total_price,
@@ -351,6 +458,31 @@ export async function getProjectQuotePreviewFromConvex(
       total_cost: Number(quote.totalCost) || 0,
       margin_amount: Number(quote.marginAmount) || 0,
       meta: parsedMeta,
+      variants: Array.isArray(parsedMeta?.quote_variants)
+        ? parsedMeta.quote_variants.map((v) => ({
+            ...v,
+            items: (v.items || []).map((it) => {
+              let parsedDetail = null;
+              if (it.detail_json) {
+                try { parsedDetail = typeof it.detail_json === 'string' ? JSON.parse(it.detail_json) : it.detail_json; } catch {}
+              } else if (it.detail && typeof it.detail === 'object') {
+                parsedDetail = it.detail;
+              }
+              return {
+                name: it.name || '',
+                spec: it.spec || '',
+                category: it.category || 'window',
+                detail: parsedDetail,
+                qty: Number(it.quantity ?? it.qty) || 1,
+                price: Number(it.cost_unit_price ?? it.price) || 0,
+                cost_total: Number(it.cost_total) || 0,
+                margin_rate: it.margin_rate !== undefined && it.margin_rate !== null ? Number(it.margin_rate) : Number(v.marginRate ?? 100),
+                sale_unit_price: Number(it.sale_unit_price) || 0,
+                sale_total: Number(it.sale_total) || 0,
+              };
+            }),
+          }))
+        : null,
       items: quoteItemsForVersion,
     };
   }

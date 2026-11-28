@@ -996,6 +996,82 @@ function sanitizeDraftMeta(meta) {
   return Object.values(safe).some(v => String(v || '').trim() !== '') ? safe : null;
 }
 
+function buildDraftVariantSafeObj(c, vState, fallbackTitle) {
+  const vTotals = calcVariantStateTotal(vState);
+  const vCash = Number(vTotals.total) || 0;
+  const vDisc = Math.max(0, parseNum(vState.discount || 0));
+  const vOrig = Number(vTotals.originalPrice) > 0 ? Number(vTotals.originalPrice) : (vCash + vDisc);
+  const vDep = Math.round(vCash / 2);
+  const vBal = vCash - vDep;
+  const up111 = Math.max(0, vCash - 5000000);
+  const up222 = Math.max(0, vCash - 10000000);
+  const up333 = Math.max(0, vCash - 15000000);
+  const p111 = { key: 'plan111', tag: '월 111,000원', heading: '월 부담을 최소화하고 싶다면', mainLabel: '월 렌탈료', mainAmount: 111000, upfront: up111, months: 60, total: up111 + 111000 * 60, name: '월 111,000원 렌탈 플랜', detail: '초회납입금 ' + num(up111) + '원 + 월 111,000원 (60개월)', button: '월 111,000원 조건 상담하기' };
+  const p222 = { key: 'plan222', tag: '월 222,000원', heading: '초기비용과 월납부의 균형을 원한다면', mainLabel: '월 렌탈료', mainAmount: 222000, upfront: up222, months: 60, total: up222 + 222000 * 60, name: '월 222,000원 렌탈 플랜', detail: '초회납입금 ' + num(up222) + '원 + 월 222,000원 (60개월)', button: '월 222,000원 조건 상담하기' };
+  const p333 = { key: 'plan333', tag: '월 333,000원', heading: '처음 내는 목돈을 최소화하고 싶다면', mainLabel: '월 렌탈료', mainAmount: 333000, upfront: up333, months: 60, total: up333 + 333000 * 60, name: '월 333,000원 렌탈 플랜', detail: '초회납입금 ' + num(up333) + '원 + 월 333,000원 (60개월)', button: '월 333,000원 조건 상담하기' };
+  const vItems = (vState.items || []).map((it, idx) => {
+    const r = calcEditorItemRow(it, vState.margin ?? 100);
+    const amountVatInc = r.saleTotal + Math.round(r.saleTotal * 0.1);
+    return {
+      sort_order: idx + 1,
+      name: it.name || '품목',
+      spec: it.spec || '맞춤 규격',
+      category: r.isExtra ? 'extra' : 'window',
+      detail: it.detail || {
+        type: r.isExtra ? '기타견적 · 부대공사' : ((c.product || '창호') + ' 맞춤 사양'),
+        product: r.isExtra ? '기타견적' : (c.product || '창호'),
+        size: it.spec || '현장 실측 규격',
+        shape: r.qty + '식',
+        model: r.isExtra ? '현장 시공 및 장비' : 'KCC HOMECC 정품',
+        glass: r.isExtra ? '-' : '로이 복층유리',
+        handle: r.isExtra ? '-' : '표준 핸들',
+        mesh: r.isExtra ? '-' : '현장 기준',
+        panes: 2,
+        upgrade: false
+      },
+      quantity: r.qty,
+      sale_unit_price: r.saleUnit,
+      sale_total: r.saleTotal,
+      amount_vat_inc: amountVatInc
+    };
+  });
+  return {
+    key: vState.key,
+    label: vState.label,
+    sub_label: vState.subLabel,
+    title: fallbackTitle || `${vState.label} (${vState.subLabel})`,
+    material_subtotal: Number(vTotals.materialSubtotal) || 0,
+    extra_subtotal: Number(vTotals.extraSubtotal) || 0,
+    sale_price: Number(vTotals.sale) || 0,
+    vat: Number(vTotals.vat) || 0,
+    original_price: vOrig,
+    discount_amount: vDisc,
+    total_price: vCash,
+    split_deposit: vDep,
+    split_balance: vBal,
+    plans: {
+      cash: {
+        key: 'cash',
+        mainLabel: vDisc > 0 ? '일시불 할인 적용 금액' : '일시불 예상 금액',
+        mainAmount: vCash,
+        deposit: vDep,
+        balance: vBal,
+        total: vCash,
+        name: vDisc > 0 ? '일시불 특별 할인 결제' : '일시불 결제',
+        detail: (vDisc > 0 ? ('일시불 ' + num(vDisc) + '원 할인 적용 · ') : '') + '총 ' + num(vCash) + '원 (선금 50% / 잔금 50%)',
+        button: '일시불 결제 상담하기'
+      },
+      plan111: p111,
+      plan222: p222,
+      plan333: p333,
+      lowmonthly: { ...p111, key: 'lowmonthly' },
+      lowupfront: { ...p222, key: 'lowupfront' }
+    },
+    meta: sanitizeDraftMeta(vState.meta),
+    items: vItems
+  };
+}
+
 function buildDraftMobileQuote(c, ed, totals) {
   const cashPrice = Number(totals.total) || 0;
   const discountAmount = Math.max(0, parseNum(ed.discount || 0));
@@ -1136,7 +1212,20 @@ function buildDraftMobileQuote(c, ed, totals) {
     manager_phone: quoteConsultPhone || safeMeta?.supplier_phone || '1588-0000',
     partner_name: safeMeta?.supplier_name || (c.partner === '직영' ? '(주)라이프앤조이' : c.partner),
     published_at: safeMeta?.quote_date || new Date().toISOString().slice(0, 10),
-    items
+    items,
+    ...(() => {
+      if (!ed || !ed.variants) return {};
+      stashActiveEditorVariant();
+      const draftVars = ['villaz', 'value']
+        .map(k => ed.variants[k])
+        .filter(v => v && Array.isArray(v.items) && v.items.length > 0)
+        .map(v => buildDraftVariantSafeObj(c, v, ed.title));
+      if (!draftVars.length) return {};
+      return {
+        variants: draftVars,
+        active_variant: draftVars.some(v => v.key === ed.activeVariant) ? ed.activeVariant : draftVars[0].key
+      };
+    })()
   };
 }
 
@@ -6361,6 +6450,105 @@ function openQuoteCustomerPicker(presetType = '') {
   setTimeout(() => $('#quote-cust-picker-search')?.focus(), 40);
 }
 
+const QUOTE_VARIANT_META = {
+  villaz: { key: 'villaz', label: '빌라즈 견적', subLabel: '프리미엄 창호' },
+  value: { key: 'value', label: '가성비 견적', subLabel: '합리적인 창호' }
+};
+
+function createEmptyVariantState(key = 'villaz') {
+  const def = QUOTE_VARIANT_META[key] || QUOTE_VARIANT_META.villaz;
+  return {
+    key: def.key,
+    label: def.label,
+    subLabel: def.subLabel,
+    margin: 100,
+    marginScope: 'material',
+    discount: 0,
+    source: '',
+    meta: null,
+    excelGrandTotal: null,
+    excelSubtotal: null,
+    items: []
+  };
+}
+
+function stashActiveEditorVariant() {
+  if (!editor || !editor.variants) return;
+  const key = editor.activeVariant === 'value' ? 'value' : 'villaz';
+  const def = QUOTE_VARIANT_META[key];
+  editor.variants[key] = {
+    key,
+    label: def.label,
+    subLabel: def.subLabel,
+    margin: Number(editor.margin ?? 100),
+    marginScope: editor.marginScope === 'all' ? 'all' : 'material',
+    discount: Number(editor.discount || 0),
+    source: editor.source || '',
+    meta: editor.meta ? JSON.parse(JSON.stringify(editor.meta)) : null,
+    excelGrandTotal: editor.excelGrandTotal ?? null,
+    excelSubtotal: editor.excelSubtotal ?? null,
+    items: (editor.items || []).map(it => ({
+      ...it,
+      detail: it.detail ? JSON.parse(JSON.stringify(it.detail)) : undefined
+    }))
+  };
+}
+
+function applyVariantStateToEditor(vKey = 'villaz') {
+  if (!editor || !editor.variants) return;
+  const key = vKey === 'value' ? 'value' : 'villaz';
+  const st = editor.variants[key] || createEmptyVariantState(key);
+  editor.activeVariant = key;
+  editor.margin = Number(st.margin ?? 100);
+  editor.marginScope = st.marginScope === 'all' ? 'all' : 'material';
+  editor.discount = Number(st.discount || 0);
+  editor.source = st.source || '';
+  editor.meta = st.meta ? JSON.parse(JSON.stringify(st.meta)) : null;
+  editor.excelGrandTotal = st.excelGrandTotal ?? null;
+  editor.excelSubtotal = st.excelSubtotal ?? null;
+  editor.items = (st.items || []).map(it => ({
+    ...it,
+    detail: it.detail ? JSON.parse(JSON.stringify(it.detail)) : undefined
+  }));
+}
+
+function activateEditorVariant(vKey) {
+  if (!editor) return;
+  const nextKey = vKey === 'value' ? 'value' : 'villaz';
+  if (editor.activeVariant === nextKey) return;
+  stashActiveEditorVariant();
+  applyVariantStateToEditor(nextKey);
+  renderEditor();
+}
+
+function calcVariantStateTotal(vState) {
+  if (!vState || !Array.isArray(vState.items) || !vState.items.length) {
+    return { cost: 0, supplyCost: 0, materialSubtotal: 0, extraSubtotal: 0, sale: 0, vat: 0, originalPrice: 0, discount: 0, total: 0, profit: 0, itemCount: 0 };
+  }
+  let rawItemsCostSum = 0;
+  let materialSubtotal = 0;
+  let extraSubtotal = 0;
+  for (const it of vState.items) {
+    const r = calcEditorItemRow(it, vState.margin ?? 100);
+    rawItemsCostSum += r.rawCostTotal;
+    if (r.isExtra) extraSubtotal += r.saleTotal;
+    else materialSubtotal += r.saleTotal;
+  }
+  const cost = (vState.excelSubtotal !== null && vState.excelSubtotal !== undefined && Number(vState.excelSubtotal) > 0)
+    ? Math.round(Number(vState.excelSubtotal))
+    : Math.round(rawItemsCostSum);
+  const supplyCost = (vState.excelGrandTotal !== null && vState.excelGrandTotal !== undefined && Number(vState.excelGrandTotal) > 0)
+    ? Math.round(Number(vState.excelGrandTotal))
+    : (cost + Math.round(cost * 0.1));
+  const sale = materialSubtotal + extraSubtotal;
+  const vat = Math.round(sale * 0.1);
+  const originalPrice = sale + vat;
+  const discount = Math.min(originalPrice, Math.max(0, parseNum(vState.discount || 0)));
+  const total = Math.max(0, originalPrice - discount);
+  const profit = total - supplyCost;
+  return { cost, supplyCost, materialSubtotal, extraSubtotal, sale, vat, originalPrice, discount, total, profit, itemCount: vState.items.length };
+}
+
 async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
   if (!editor || Number(editor.cid) !== Number(cid)) return false;
   try {
@@ -6378,6 +6566,50 @@ async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
     }
 
     const eq = pData?.admin_editor_quote;
+    if (eq && Array.isArray(eq.variants) && eq.variants.length) {
+      editor.variants = {
+        villaz: createEmptyVariantState('villaz'),
+        value: createEmptyVariantState('value')
+      };
+      for (const sv of eq.variants) {
+        const k = sv.key === 'value' ? 'value' : 'villaz';
+        const def = QUOTE_VARIANT_META[k];
+        editor.variants[k] = {
+          key: k,
+          label: sv.label || def.label,
+          subLabel: sv.subLabel || def.subLabel,
+          margin: Number(sv.marginRate ?? 100),
+          marginScope: sv.marginScope === 'all' ? 'all' : 'material',
+          discount: Number(sv.discountAmount || 0),
+          source: sv.sourceFileName ? `${sv.sourceFileName} (v${eq.version} 불러옴)` : `기존 ${def.label} (v${eq.version}) 불러옴`,
+          meta: sv.meta || null,
+          excelGrandTotal: Number(sv.supplyCost) > 0 ? Number(sv.supplyCost) : null,
+          excelSubtotal: Number(sv.totalCost) > 0 ? Number(sv.totalCost) : null,
+          items: (sv.items || []).map(it => ({
+            name: it.name,
+            spec: it.spec || '',
+            category: it.category || 'window',
+            detail: it.detail,
+            qty: Number(it.qty) || 1,
+            price: Number(it.price) || 0,
+            cost_total: Number(it.cost_total) || 0,
+            margin_rate: it.margin_rate !== undefined && it.margin_rate !== null ? Number(it.margin_rate) : (Number(sv.marginRate) || 100)
+          }))
+        };
+      }
+      editor.type = eq.quote_type || editor.type || '가견적';
+      editor.title = eq.title || editor.title;
+      editor.memo = eq.memo || '';
+      const firstKey = eq.variants[0]?.key === 'value' ? 'value' : 'villaz';
+      applyVariantStateToEditor(firstKey);
+      editor.loadedFromExisting = true;
+      editor.loadingExisting = false;
+      stashActiveEditorVariant();
+      renderEditor();
+      toast(`기존 [${editor.type} v${eq.version}] 견적(${eq.variants.map(v => v.label).join(' · ')})을 불러왔습니다.`);
+      return true;
+    }
+
     if (eq && Array.isArray(eq.items) && eq.items.length) {
       const hasExtraNon100 = eq.items.some(
         it => it.category === 'extra' && Number(it.margin_rate) !== 100 && Number(it.margin_rate) === Number(eq.margin_rate)
@@ -6408,6 +6640,7 @@ async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
       }));
       editor.loadedFromExisting = true;
       editor.loadingExisting = false;
+      stashActiveEditorVariant();
       renderEditor();
       toast(`기존 [${editor.type} v${eq.version}] 견적과 마진·세부 조건을 불러왔습니다.`);
       return true;
@@ -6462,6 +6695,11 @@ function openEditor(id, presetType = '', presetQuoteId = null) {
   const initType = presetType || (c.finalQuote ? '최종견적' : (c.roughQuote ? '가견적' : '가견적'));
   editor = {
     cid: c.id,
+    activeVariant: 'villaz',
+    variants: {
+      villaz: createEmptyVariantState('villaz'),
+      value: createEmptyVariantState('value')
+    },
     margin: 100,
     marginScope: 'material', // 기본값: 자재만 적용 (기타견적 제외)
     discount: 0,
@@ -6529,7 +6767,19 @@ function editorSubtotalsBarHtml(t = editorTotal()) {
 }
 
 function editorSummary() {
+  stashActiveEditorVariant();
   const t = editorTotal();
+  if (editor?.variants) {
+    for (const k of ['villaz', 'value']) {
+      const pillEl = document.getElementById('tab-pill-' + k);
+      if (pillEl) {
+        const vt = calcVariantStateTotal(editor.variants[k]);
+        pillEl.textContent = vt.itemCount ? `${vt.itemCount}건 · ${won(vt.total)}` : '미작성';
+        const btnEl = pillEl.closest('.editor-bookmark-tab');
+        if (btnEl) btnEl.classList.toggle('has-items', vt.itemCount > 0);
+      }
+    }
+  }
   const profitClass = t.profit >= 0 ? 'is-pos' : 'is-neg';
   const profitSign = t.profit > 0 ? '+' : '';
   return `
@@ -6603,7 +6853,12 @@ function renderItemSpecChips(it) {
 function renderEditor() {
   const c = findC(editor.cid);
   if (!c) return;
+  stashActiveEditorVariant();
   const t = editorTotal();
+  const villazTot = calcVariantStateTotal(editor.variants?.villaz);
+  const valueTot = calcVariantStateTotal(editor.variants?.value);
+  const activeVarKey = editor.activeVariant === 'value' ? 'value' : 'villaz';
+  const activeVarMeta = QUOTE_VARIANT_META[activeVarKey];
   if (editor.showLivePreview) {
     const draftPayload = buildDraftMobileQuote(c, editor, t);
     sessionStorage.setItem('kcc_draft_quote_preview', JSON.stringify(draftPayload));
@@ -6698,19 +6953,50 @@ function renderEditor() {
           </div>
 
           <div class="field-grid" style="margin-top:12px">
-            ${selectField('견적 구분', 'quote-type', ['가견적', '최종견적', '비교안'], editor.type)}
+            ${selectField('견적 구분 (하나의 견적서에 빌라즈/가성비 탭 통합)', 'quote-type', ['가견적', '최종견적'], editor.type)}
             <div class="field">
-              <label for="quote-title">견적 제목</label>
+              <label for="quote-title">견적서 공통 제목</label>
               <input class="input" id="quote-title" value="${esc(editor.title)}">
             </div>
           </div>
+        </section>
+      </div>
 
-          <div class="dropzone ${editor.source ? 'is-loaded' : ''}">
-            ${icon('upload')}
-            <div style="flex:1">
-              <b id="upload-name">${editor.source ? esc(editor.source) : 'KCC 공식 창호 견적서(XLSX) 또는 CSV 파일 선택'}</b>
-              <small>파일 선택 즉시 기본정보·상세 사양·10원단위 절삭·모바일 견적 미리보기가 자동 실행됩니다.</small>
-            </div>
+      <div class="editor-bookmark-wrap">
+        <div class="editor-bookmark-bar">
+          <div class="editor-bookmark-tabs" role="tablist" aria-label="견적 등급 탭 선택">
+            <button type="button" role="tab" aria-selected="${activeVarKey === 'villaz'}" class="editor-bookmark-tab is-villaz ${activeVarKey === 'villaz' ? 'is-active' : ''} ${villazTot.itemCount ? 'has-items' : ''}" data-action="switch-editor-variant" data-variant="villaz">
+              <span class="editor-bookmark-dot"></span>
+              <span class="editor-bookmark-titles">
+                <b>빌라즈 견적</b>
+                <small>프리미엄 창호</small>
+              </span>
+              <span class="editor-bookmark-pill" id="tab-pill-villaz">${villazTot.itemCount ? `${villazTot.itemCount}건 · ${won(villazTot.total)}` : '미작성'}</span>
+            </button>
+            <button type="button" role="tab" aria-selected="${activeVarKey === 'value'}" class="editor-bookmark-tab is-value ${activeVarKey === 'value' ? 'is-active' : ''} ${valueTot.itemCount ? 'has-items' : ''}" data-action="switch-editor-variant" data-variant="value">
+              <span class="editor-bookmark-dot"></span>
+              <span class="editor-bookmark-titles">
+                <b>가성비 견적</b>
+                <small>합리적인 창호</small>
+              </span>
+              <span class="editor-bookmark-pill" id="tab-pill-value">${valueTot.itemCount ? `${valueTot.itemCount}건 · ${won(valueTot.total)}` : '미작성'}</span>
+            </button>
+          </div>
+          <div class="editor-bookmark-guide">
+            <span>1개만 작성 시 단일 견적 · 2개 모두 작성 시 <b>고객 화면에 책갈피 탭</b>으로 함께 발행</span>
+            ${editor.items.length ? `<button type="button" class="btn sm soft" data-action="clear-editor-variant" style="padding:4px 9px;font-size:11px">${icon('trash')}${esc(activeVarMeta.label)} 비우기</button>` : ''}
+          </div>
+        </div>
+
+        <div class="editor-bookmark-sheet">
+          <div class="editor-layout ${editor.showLivePreview ? 'with-live-preview' : ''}">
+            <section class="editor-main-col">
+              <div class="dropzone ${editor.source ? 'is-loaded' : ''}">
+                ${icon('upload')}
+                <div style="flex:1">
+                  <b id="upload-name">${editor.source ? esc(editor.source) : `[${activeVarMeta.label} · ${activeVarMeta.subLabel}] KCC 창호 견적서(XLSX/CSV) 선택`}</b>
+                  <small>현재 선택된 <b>${esc(activeVarMeta.label)}</b> 탭에 원본 품목·사양이 반영됩니다.</small>
+                </div>
             <div style="display:flex;gap:6px;align-items:center">
               <label class="btn sm primary" for="quote-file" style="cursor:pointer">${icon('upload')}파일 선택</label>
               <button type="button" class="btn sm ${editor.showLivePreview ? 'soft' : ''}" data-action="toggle-editor-live-preview">${icon('eye')}${editor.showLivePreview ? '미리보기 접기' : '모바일 미리보기'}</button>
@@ -6753,7 +7039,10 @@ function renderEditor() {
         </section>
 
         <aside class="summary-box">
-          <h3>마진율 · 일시불 할인 설정</h3>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px">
+            <h3 style="margin:0">${esc(activeVarMeta.label)} 설정</h3>
+            <span class="badge ${activeVarKey === 'villaz' ? 'orange' : 'green'}">${esc(activeVarMeta.subLabel)}</span>
+          </div>
           <div class="margin-scope-box" style="margin-bottom:12px;background:#f5f8fd;border:1px solid #d9e4f5;border-radius:8px;padding:9px 10px">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
               <label style="font-size:11px;font-weight:700;color:#2c3e55">마진율 적용 대상</label>
@@ -6799,6 +7088,8 @@ function renderEditor() {
             <iframe id="editor-live-preview-iframe" title="모바일 견적서 실시간 미리보기" src="${liveIframeSrc}"></iframe>
           </div>
         </aside>` : ''}
+          </div>
+        </div>
       </div>
     </div>`;
 
@@ -8634,41 +8925,95 @@ case'save-description':{
     toast('공사 정보를 Convex 서버에 저장했습니다.');
     break;
   }
+case'switch-editor-variant':{
+    const vKey = el.dataset.variant === 'value' ? 'value' : 'villaz';
+    activateEditorVariant(vKey);
+    break;
+  }
+case'clear-editor-variant':{
+    if (!editor) break;
+    const vKey = editor.activeVariant === 'value' ? 'value' : 'villaz';
+    const def = QUOTE_VARIANT_META[vKey];
+    if (!confirm(`[${def.label} (${def.subLabel})] 탭의 입력 품목을 모두 비우시겠습니까?`)) break;
+    editor.variants[vKey] = createEmptyVariantState(vKey);
+    applyVariantStateToEditor(vKey);
+    renderEditor();
+    toast(`${def.label} 탭을 비웠습니다.`);
+    break;
+  }
 case'save-quote-draft':
 case'publish-quote':{
     const isDraftSave = a === 'save-quote-draft';
-    const c=accessibleC(editor?.cid),t=editorTotal();
-    if(!c||!editor.items.length||!t.total||editor.items.some(i=>!String(i.name||'').trim()||!(parseNum(i.qty)>0))){
-      toast('견적 품목과 수량·원가 금액을 먼저 입력하거나 엑셀 파일을 등록해 주세요.');
+    const c = accessibleC(editor?.cid);
+    if (!c || !editor) break;
+    stashActiveEditorVariant();
+
+    const populatedVariants = [];
+    for (const vKey of ['villaz', 'value']) {
+      const vs = editor.variants?.[vKey];
+      if (!vs || !Array.isArray(vs.items) || vs.items.length === 0) continue;
+      const vt = calcVariantStateTotal(vs);
+      if (!vt.total || vs.items.some(i => !String(i.name || '').trim() || !(parseNum(i.qty) > 0))) {
+        toast(`[${vs.label}] 탭의 품목명·수량·원가 금액을 확인해 주세요.`);
+        activateEditorVariant(vKey);
+        populatedVariants.length = 0;
+        return;
+      }
+      const vItems = vs.items.map(it => {
+        const r = calcEditorItemRow(it, vs.margin ?? 100);
+        return {
+          name: String(it.name || '').trim(),
+          spec: String(it.spec || '').trim(),
+          category: r.isExtra ? 'extra' : 'window',
+          detail: it.detail,
+          qty: r.qty,
+          quantity: r.qty,
+          price: r.qty > 0 ? (r.rawCostTotal / r.qty) : r.rawCostTotal,
+          cost_total: r.rawCostTotal,
+          margin_rate: r.mRate
+        };
+      });
+      populatedVariants.push({
+        key: vKey,
+        label: vs.label,
+        subLabel: vs.subLabel,
+        title: editor.title,
+        items: vItems,
+        marginRate: vs.margin ?? 100,
+        marginScope: vs.marginScope || 'material',
+        discountAmount: vs.discount || 0,
+        supplyCost: vt.supplyCost,
+        excelSubtotal: vt.cost,
+        sourceFileName: vs.source || '',
+        meta: vs.meta || null,
+        _totals: vt
+      });
+    }
+
+    if (!populatedVariants.length) {
+      toast('빌라즈 견적 또는 가성비 견적 중 최소 1개 탭에 품목을 입력하거나 엑셀 파일을 등록해 주세요.');
       break;
     }
-    const payloadItems = editor.items.map(it => {
-      const r = calcEditorItemRow(it, editor.margin ?? 100);
-      return {
-        name: String(it.name || '').trim(),
-        spec: String(it.spec || '').trim(),
-        category: r.isExtra ? 'extra' : 'window',
-        detail: it.detail,
-        qty: r.qty,
-        quantity: r.qty,
-        price: r.qty > 0 ? (r.rawCostTotal / r.qty) : r.rawCostTotal,
-        cost_total: r.rawCostTotal,
-        margin_rate: r.mRate
-      };
-    });
+
+    const primaryVar = populatedVariants[0];
+    const t = primaryVar._totals;
+    const payloadItems = primaryVar.items;
+    const cleanVariantsForApi = populatedVariants.map(({ _totals, ...rest }) => rest);
+
     try {
       const res = await apiFetch('/api/quotes', {
         method: 'POST',
         body: {
           projectId: editor.cid,
           items: payloadItems,
-          marginRate: editor.margin ?? 100,
-          marginScope: editor.marginScope || 'material',
-          discountAmount: editor.discount || 0,
-          supplyCost: t.supplyCost,
-          excelSubtotal: t.cost,
-          sourceFileName: editor.source || '',
-          meta: editor.meta || null,
+          marginRate: primaryVar.marginRate,
+          marginScope: primaryVar.marginScope,
+          discountAmount: primaryVar.discountAmount,
+          supplyCost: primaryVar.supplyCost,
+          excelSubtotal: primaryVar.excelSubtotal,
+          sourceFileName: primaryVar.sourceFileName,
+          meta: primaryVar.meta,
+          variants: cleanVariantsForApi,
           quoteType: editor.type || '가견적',
           title: editor.title,
           memo: editor.memo,
@@ -8677,10 +9022,11 @@ case'publish-quote':{
       });
       const qData = await res.json();
       if (res.ok) {
+        const varDesc = populatedVariants.map(v => `${v.label} ${won(v._totals.total)}`).join(' / ');
         if (isDraftSave) {
           save();
           await syncFromServer();
-          toast(`견적 품목(${payloadItems.length}건)·마진 구조가 Convex 서버에 임시저장되었습니다. (v${qData.version})`);
+          toast(`견적서(${varDesc})가 Convex 서버에 임시저장되었습니다. (v${qData.version})`);
           break;
         }
         c.quote = t.total;
@@ -8690,11 +9036,11 @@ case'publish-quote':{
         if (!['계약진행', '계약완료', '시공예정', '시공완료'].includes(c.status)) {
           c.status = publishedType === '최종견적' ? '최종견적 생성함' : '가견적 생성함';
         }
-        audit(c.id, '견적서 v' + qData.version + ' 발행 · 최종 ' + won(t.total) + ' (공급원가 ' + won(t.supplyCost) + ', 마진금액 ' + won(t.profit) + ')');
+        audit(c.id, `견적서 v${qData.version} 발행 (${varDesc})`);
         save();
         await syncFromServer();
         openPreview(c.id, null, 'quote', qData.quote_type || editor.type, qData.quote_id || null);
-        toast('모바일 [' + (qData.quote_type || editor.type) + ']이 발행되었습니다. (v' + qData.version + ') 문자·카톡으로 바로 발송해보세요.');
+        toast(`모바일 [${qData.quote_type || editor.type}]이 발행되었습니다! (${varDesc})`);
         break;
       } else {
         toast(qData.error || '견적 저장에 실패했습니다.');

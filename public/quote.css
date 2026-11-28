@@ -1010,3 +1010,159 @@
     text-underline-offset: 4px;
   }
 }
+
+/* === Curved Top-Left Bookmark Tabs (빌라즈 견적 / 가성비 견적) === */
+.quote-bookmark-bar {
+  background: linear-gradient(180deg, #dcdad0 0%, #e5e3d9 100%);
+  padding: 11px 18px 0 18px;
+  position: relative;
+  z-index: 12;
+  overflow-x: clip;
+}
+.quote-bookmark-tabs {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 6px;
+}
+.quote-bookmark-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 20px 11px 16px;
+  border-radius: 16px 16px 0 0;
+  background: rgba(255, 255, 255, 0.44);
+  color: #626b67;
+  text-align: left;
+  transition: background 0.18s ease, color 0.18s ease, padding 0.18s ease;
+  user-select: none;
+  min-width: 0;
+}
+.quote-bookmark-tab:hover:not(.is-active) {
+  background: rgba(255, 255, 255, 0.72);
+  color: #192838;
+}
+.quote-bookmark-tab.is-active {
+  background: #f3f2ec;
+  color: #192838;
+  z-index: 3;
+  padding-top: 13px;
+  padding-bottom: 12px;
+  box-shadow: 0 -4px 14px rgba(25, 40, 56, 0.07);
+}
+/* Smooth outward-curved bookmark fillets connecting active tab into the hero page */
+.quote-bookmark-tab.is-active::before,
+.quote-bookmark-tab.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+.quote-bookmark-tab.is-active::before {
+  left: -14px;
+  background: radial-gradient(circle at 0 0, transparent 14px, #f3f2ec 14.5px);
+}
+.quote-bookmark-tab.is-active::after {
+  right: -14px;
+  background: radial-gradient(circle at 100% 0, transparent 14px, #f3f2ec 14.5px);
+}
+.quote-bookmark-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #a5ada8;
+  flex-shrink: 0;
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+.quote-bookmark-tab.is-villaz.is-active .quote-bookmark-dot {
+  background: #ed7426;
+  transform: scale(1.15);
+}
+.quote-bookmark-tab.is-value.is-active .quote-bookmark-dot {
+  background: #3d7770;
+  transform: scale(1.15);
+}
+.quote-bookmark-copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.24;
+  min-width: 0;
+}
+.quote-bookmark-copy strong {
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+}
+.quote-bookmark-copy small {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #77817d;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.quote-bookmark-tab.is-villaz.is-active .quote-bookmark-copy small {
+  color: #c95a14;
+  font-weight: 650;
+}
+.quote-bookmark-tab.is-value.is-active .quote-bookmark-copy small {
+  color: #2f665f;
+  font-weight: 650;
+}
+.quote-variant-tier-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.quote-variant-tier-pill.is-villaz {
+  background: #fff1e6;
+  border: 1px solid #f5cdb0;
+  color: #c85610;
+}
+.quote-variant-tier-pill.is-value {
+  background: #e9f4f1;
+  border: 1px solid #bddbd4;
+  color: #2c6860;
+}
+@keyframes quoteSheetTurn {
+  from {
+    opacity: 0.45;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.quote-page-sheet.is-switching {
+  animation: quoteSheetTurn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (max-width: 480px) {
+  .quote-bookmark-bar {
+    padding: 9px 12px 0 12px;
+  }
+  .quote-bookmark-tab {
+    padding: 9px 14px 9px 12px;
+    gap: 7px;
+    border-radius: 14px 14px 0 0;
+  }
+  .quote-bookmark-tab.is-active {
+    padding-top: 11px;
+    padding-bottom: 10px;
+  }
+  .quote-bookmark-copy strong {
+    font-size: 12.5px;
+  }
+  .quote-bookmark-copy small {
+    font-size: 9.5px;
+  }
+}

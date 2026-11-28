@@ -29,6 +29,8 @@ function setPreviewDevice(mode) {
 }
 
 let currentQuote = null;
+let rootQuoteBundle = null;
+let activeVariantKey = '';
 let configuredConsultPhone = '';
 let configuredManagerName = '';
 let viewerToken = '';
@@ -139,7 +141,88 @@ function choosePlan(key) {
   }
 }
 
-function renderQuote(q) {
+function buildVariantMergedQuote(baseQ, vKey) {
+  if (!baseQ || !Array.isArray(baseQ.variants) || !baseQ.variants.length) return baseQ;
+  const chosen = baseQ.variants.find(v => v.key === vKey) || baseQ.variants[0];
+  if (!chosen) return baseQ;
+  return {
+    ...baseQ,
+    title: chosen.title || baseQ.title,
+    material_subtotal: chosen.material_subtotal,
+    extra_subtotal: chosen.extra_subtotal,
+    sale_price: chosen.sale_price,
+    vat: chosen.vat,
+    original_price: chosen.original_price,
+    discount_amount: chosen.discount_amount,
+    total_price: chosen.total_price,
+    split_deposit: chosen.split_deposit,
+    split_balance: chosen.split_balance,
+    plans: chosen.plans || baseQ.plans,
+    meta: chosen.meta || baseQ.meta,
+    items: Array.isArray(chosen.items) ? chosen.items : baseQ.items,
+    variant_key: chosen.key,
+    variant_label: chosen.label || (chosen.key === 'value' ? '가성비 견적' : '빌라즈 견적'),
+    variant_sub_label: chosen.sub_label || (chosen.key === 'value' ? '합리적인 창호' : '프리미엄 창호')
+  };
+}
+
+function renderVariantBookmarkBar(baseQ, selectedKey) {
+  const bar = document.getElementById('quote-variant-bar');
+  const tabsWrap = document.getElementById('quote-bookmark-tabs');
+  if (!bar || !tabsWrap) return;
+
+  const variants = Array.isArray(baseQ?.variants) ? baseQ.variants : [];
+  if (!variants.length) {
+    bar.hidden = true;
+    tabsWrap.innerHTML = '';
+    return;
+  }
+
+  bar.hidden = false;
+  tabsWrap.innerHTML = variants.map(v => {
+    const isActive = v.key === selectedKey;
+    const isValue = v.key === 'value';
+    const label = v.label || (isValue ? '가성비 견적' : '빌라즈 견적');
+    const subLabel = v.sub_label || (isValue ? '합리적인 창호' : '프리미엄 창호');
+    return `<button type="button" role="tab" aria-selected="${isActive}" class="quote-bookmark-tab ${isValue ? 'is-value' : 'is-villaz'} ${isActive ? 'is-active' : ''}" data-variant-key="${esc(v.key)}">
+      <span class="quote-bookmark-dot" aria-hidden="true"></span>
+      <span class="quote-bookmark-copy">
+        <strong>${esc(label)}</strong>
+        <small>${esc(subLabel)}</small>
+      </span>
+    </button>`;
+  }).join('');
+
+  tabsWrap.querySelectorAll('[data-variant-key]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const nextKey = btn.dataset.variantKey;
+      if (!nextKey || nextKey === activeVariantKey || !rootQuoteBundle) return;
+      activeVariantKey = nextKey;
+      const sheet = document.getElementById('quote-page-sheet');
+      if (sheet) {
+        sheet.classList.remove('is-switching');
+        void sheet.offsetWidth;
+        sheet.classList.add('is-switching');
+      }
+      renderVariantBookmarkBar(rootQuoteBundle, activeVariantKey);
+      renderQuote(buildVariantMergedQuote(rootQuoteBundle, activeVariantKey), { fromVariantSwitch: true });
+    });
+  });
+}
+
+function renderQuote(q, opts = {}) {
+  if (!opts.fromVariantSwitch) {
+    rootQuoteBundle = q;
+    if (Array.isArray(q?.variants) && q.variants.length > 0) {
+      const pref = opts.preferredVariant || q.active_variant || '';
+      activeVariantKey = q.variants.some(v => v.key === pref) ? pref : q.variants[0].key;
+      renderVariantBookmarkBar(q, activeVariantKey);
+      q = buildVariantMergedQuote(q, activeVariantKey);
+    } else {
+      activeVariantKey = '';
+      renderVariantBookmarkBar(null, '');
+    }
+  }
   currentQuote = q;
   const product = q.product || '창호';
   const items = Array.isArray(q.items) ? q.items : [];
@@ -174,7 +257,18 @@ function renderQuote(q) {
   const heroBadge = document.getElementById('hero-badge');
   heroBadge.textContent = isFinal ? '최종견적 · 실측확정' : (quoteType === '가견적' ? '가견적 · 실측전' : quoteType);
   heroBadge.className = `quote-badge ${isFinal ? 'is-final' : 'is-rough'}`;
-  document.getElementById('hero-greeting').textContent = `${customerName} 고객님을 위한 ${quoteType} 제안`;
+  const existingTierPill = document.getElementById('hero-tier-pill');
+  if (existingTierPill) existingTierPill.remove();
+  if (q.variant_label) {
+    const pill = document.createElement('span');
+    pill.id = 'hero-tier-pill';
+    pill.className = `quote-variant-tier-pill ${q.variant_key === 'value' ? 'is-value' : 'is-villaz'}`;
+    pill.textContent = `${q.variant_label} · ${q.variant_sub_label || ''}`;
+    heroBadge.insertAdjacentElement('afterend', pill);
+  }
+  document.getElementById('hero-greeting').textContent = q.variant_label
+    ? `${customerName} 고객님을 위한 ${q.variant_label} (${q.variant_sub_label || product})`
+    : `${customerName} 고객님을 위한 ${quoteType} 제안`;
   document.getElementById('hero-heading').innerHTML = `우리 집 ${esc(product)} 교체,<br>비용과 결제 방법을<br><span>한눈에.</span>`;
 
   // Address & No.
@@ -616,8 +710,13 @@ function openConsult(topic, context = '', methodKey = 'undecided', depositAmt = 
   });
 
   const qNo = currentQuote?.quote_no || '0000';
+  const variantTag = currentQuote?.variant_label
+    ? `[${currentQuote.variant_label} · ${currentQuote.variant_sub_label || ''}] `
+    : '';
+  const baseText = context || (topics.includes(topic) || topic === '견적 상담' ? `견적 No. ${qNo} · ${topic}` : topic);
+  activeContext = variantTag + baseText;
   const selected = document.getElementById('selected-plan');
-  selected.textContent = context || (topics.includes(topic) || topic === '견적 상담' ? `견적 No. ${qNo} · ${topic}` : topic);
+  selected.textContent = activeContext;
 
   dialog.showModal();
   document.body.style.overflow = 'hidden';
@@ -992,15 +1091,15 @@ async function fetchAdminPreviewQuote(typeFilter = '', quoteIdFilter = '', retri
 document.getElementById('btn-prev-quote')?.addEventListener('click', () => setScreenView('quote'));
 document.getElementById('btn-prev-login')?.addEventListener('click', () => setScreenView('login'));
 document.getElementById('btn-prev-rough')?.addEventListener('click', async () => {
-  if (isDraftPreview && currentQuote) {
-    renderQuote({ ...currentQuote, quote_type: '가견적' });
+  if (isDraftPreview && (rootQuoteBundle || currentQuote)) {
+    renderQuote({ ...(rootQuoteBundle || currentQuote), quote_type: '가견적' }, { preferredVariant: activeVariantKey });
   } else {
     await fetchAdminPreviewQuote('가견적');
   }
 });
 document.getElementById('btn-prev-final')?.addEventListener('click', async () => {
-  if (isDraftPreview && currentQuote) {
-    renderQuote({ ...currentQuote, quote_type: '최종견적' });
+  if (isDraftPreview && (rootQuoteBundle || currentQuote)) {
+    renderQuote({ ...(rootQuoteBundle || currentQuote), quote_type: '최종견적' }, { preferredVariant: activeVariantKey });
   } else {
     await fetchAdminPreviewQuote('최종견적');
   }
@@ -1015,8 +1114,8 @@ window.addEventListener('message', async event => {
   } else if (msg.type === 'SET_PREVIEW_DEVICE') {
     setPreviewDevice(msg.device);
   } else if (msg.type === 'SET_PREVIEW_QUOTE_TYPE') {
-    if (isDraftPreview && currentQuote) {
-      renderQuote({ ...currentQuote, quote_type: msg.quoteType || '가견적' });
+    if (isDraftPreview && (rootQuoteBundle || currentQuote)) {
+      renderQuote({ ...(rootQuoteBundle || currentQuote), quote_type: msg.quoteType || '가견적' }, { preferredVariant: activeVariantKey });
     } else if (previewProjectId) {
       await fetchAdminPreviewQuote(msg.quoteType || '', msg.quoteId || '');
     }

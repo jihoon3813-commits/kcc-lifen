@@ -273,24 +273,23 @@ export function buildRentalPlans(cashPrice, discountAmount = 0, originalPrice = 
   };
 }
 
-export function formatCustomerSafeQuote(quote, rawItems = []) {
-  const cashPrice = Number(quote.total_price) || 0;
-  const discountAmount = Math.max(0, Number(quote.discount_amount) || 0);
-  const originalPrice = Number(quote.original_price) > 0
-    ? Number(quote.original_price)
-    : cashPrice + discountAmount;
+function buildSafeItemsAndTotals(quoteLike, rawItems = []) {
+  const cashPrice = Number(quoteLike.total_price ?? quoteLike.totalPrice) || 0;
+  const discountAmount = Math.max(0, Number(quoteLike.discount_amount ?? quoteLike.discountAmount) || 0);
+  const rawOrig = Number(quoteLike.original_price ?? quoteLike.originalPrice) || 0;
+  const originalPrice = rawOrig > 0 ? rawOrig : cashPrice + discountAmount;
   const splitDeposit = Math.round(cashPrice / 2);
   const splitBalance = cashPrice - splitDeposit;
 
   let calcMaterialSub = 0;
   let calcExtraSub = 0;
   let runningVatInc = 0;
+  const baseSaleInput = Number(quoteLike.sale_price ?? quoteLike.salePrice) || 1;
 
-  // Map items strictly without cost/margin
   const safeItems = rawItems.map((it, idx) => {
     const { category, detail } = inferWindowDetail(it);
-    const saleTotal = Number(it.sale_total) || 0;
-    const saleUnitPrice = Number(it.sale_unit_price) || 0;
+    const saleTotal = Number(it.sale_total ?? it.saleTotal) || 0;
+    const saleUnitPrice = Number(it.sale_unit_price ?? it.saleUnitPrice) || 0;
 
     if (category === 'extra') {
       calcExtraSub += saleTotal;
@@ -298,8 +297,7 @@ export function formatCustomerSafeQuote(quote, rawItems = []) {
       calcMaterialSub += saleTotal;
     }
 
-    const baseTotalSale = Number(quote.sale_price) || 1;
-    let amountVatInc = Math.round((saleTotal / baseTotalSale) * originalPrice);
+    let amountVatInc = Math.round((saleTotal / baseSaleInput) * originalPrice);
     if (idx === rawItems.length - 1 && rawItems.length > 0 && originalPrice > 0) {
       const diff = originalPrice - (runningVatInc + amountVatInc);
       if (Math.abs(diff) <= 500) {
@@ -309,30 +307,86 @@ export function formatCustomerSafeQuote(quote, rawItems = []) {
     runningVatInc += amountVatInc;
 
     return {
-      sort_order: it.sort_order ?? idx + 1,
+      sort_order: it.sort_order ?? it.sortOrder ?? idx + 1,
       name: it.name,
       spec: it.spec || detail.size || '',
       category,
       detail,
-      quantity: Number(it.quantity) || 1,
+      quantity: Number(it.quantity ?? it.qty) || 1,
       sale_unit_price: saleUnitPrice,
       sale_total: saleTotal,
       amount_vat_inc: amountVatInc
     };
   });
 
+  const rawMatSub = Number(quoteLike.material_subtotal ?? quoteLike.materialSubtotal) || 0;
+  const rawExtSub = Number(quoteLike.extra_subtotal ?? quoteLike.extraSubtotal) || 0;
   const materialSubtotal =
-    Number(quote.material_subtotal) > 0 || (Number(quote.extra_subtotal) > 0 && calcMaterialSub === 0)
-      ? Number(quote.material_subtotal) || 0
-      : calcMaterialSub;
+    rawMatSub > 0 || (rawExtSub > 0 && calcMaterialSub === 0) ? rawMatSub : calcMaterialSub;
   const extraSubtotal =
-    Number(quote.extra_subtotal) > 0 || (Number(quote.material_subtotal) > 0 && calcExtraSub === 0)
-      ? Number(quote.extra_subtotal) || 0
-      : calcExtraSub;
+    rawExtSub > 0 || (rawMatSub > 0 && calcExtraSub === 0) ? rawExtSub : calcExtraSub;
 
-  const salePrice = Number(quote.sale_price) || (materialSubtotal + extraSubtotal);
-  const vat = Number(quote.vat) || Math.round(salePrice * 0.1);
+  const salePrice = Number(quoteLike.sale_price ?? quoteLike.salePrice) || (materialSubtotal + extraSubtotal);
+  const vat = Number(quoteLike.vat) || Math.round(salePrice * 0.1);
+
+  return {
+    cashPrice,
+    discountAmount,
+    originalPrice,
+    splitDeposit,
+    splitBalance,
+    materialSubtotal,
+    extraSubtotal,
+    salePrice,
+    vat,
+    safeItems,
+    plans: buildRentalPlans(cashPrice, discountAmount, originalPrice)
+  };
+}
+
+function parseRawQuoteVariants(rawMeta) {
+  if (!rawMeta) return [];
+  let parsed = rawMeta;
+  if (typeof rawMeta === 'string') {
+    try {
+      parsed = JSON.parse(rawMeta);
+    } catch {
+      return [];
+    }
+  }
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.quote_variants)) {
+    return [];
+  }
+  return parsed.quote_variants.filter(v => v && Array.isArray(v.items) && v.items.length > 0);
+}
+
+export function formatCustomerSafeQuote(quote, rawItems = []) {
+  const main = buildSafeItemsAndTotals(quote, rawItems);
   const safeMeta = sanitizeCustomerMeta(quote.meta_json || quote.meta);
+  const rawVariants = parseRawQuoteVariants(quote.meta_json || quote.meta);
+
+  const safeVariants = rawVariants.map(v => {
+    const vKey = v.key === 'value' ? 'value' : 'villaz';
+    const vCalc = buildSafeItemsAndTotals(v, v.items || []);
+    return {
+      key: vKey,
+      label: v.label || (vKey === 'value' ? '가성비 견적' : '빌라즈 견적'),
+      sub_label: v.subLabel || v.sub_label || (vKey === 'value' ? '합리적인 창호' : '프리미엄 창호'),
+      title: v.title || quote.title || '맞춤 창호 견적서',
+      material_subtotal: vCalc.materialSubtotal,
+      extra_subtotal: vCalc.extraSubtotal,
+      sale_price: vCalc.salePrice,
+      vat: vCalc.vat,
+      original_price: vCalc.originalPrice,
+      discount_amount: vCalc.discountAmount,
+      total_price: vCalc.cashPrice,
+      split_deposit: vCalc.splitDeposit,
+      split_balance: vCalc.splitBalance,
+      plans: vCalc.plans,
+      meta: sanitizeCustomerMeta(v.meta) || safeMeta,
+      items: vCalc.safeItems
+    };
+  });
 
   return {
     id: quote.id,
@@ -347,21 +401,27 @@ export function formatCustomerSafeQuote(quote, rawItems = []) {
     customer_address: quote.customer_address || safeMeta?.site_address || '',
     product: quote.product || '창호',
     drawing_url: quote.drawing_url || '',
-    material_subtotal: materialSubtotal,
-    extra_subtotal: extraSubtotal,
-    sale_price: salePrice,
-    vat,
-    original_price: originalPrice,
-    discount_amount: discountAmount,
-    total_price: cashPrice,
-    split_deposit: splitDeposit,
-    split_balance: splitBalance,
-    plans: buildRentalPlans(cashPrice, discountAmount, originalPrice),
+    material_subtotal: main.materialSubtotal,
+    extra_subtotal: main.extraSubtotal,
+    sale_price: main.salePrice,
+    vat: main.vat,
+    original_price: main.originalPrice,
+    discount_amount: main.discountAmount,
+    total_price: main.cashPrice,
+    split_deposit: main.splitDeposit,
+    split_balance: main.splitBalance,
+    plans: main.plans,
     meta: safeMeta,
     manager_name: quote.consult_manager_name || (quote.owner_name && quote.owner_name !== '미배정' ? quote.owner_name : '전담 상담사'),
     manager_phone: quote.consult_phone || quote.manager_phone || quote.org_phone || '1588-0000',
     partner_name: quote.partner_name || '(주)라이프앤조이',
     published_at: quote.published_at || new Date().toISOString(),
-    items: safeItems
+    items: main.safeItems,
+    ...(safeVariants.length > 0
+      ? {
+          variants: safeVariants,
+          active_variant: safeVariants[0].key
+        }
+      : {})
   };
 }
