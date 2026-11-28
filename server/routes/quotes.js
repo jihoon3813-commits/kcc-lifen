@@ -38,27 +38,34 @@ router.post('/parse-file', requireAuth, upload.single('file'), (req, res) => {
     const parsed = parseEstimateFile(req.file.buffer, req.file.originalname);
 
     if (projectId) {
-      const pId = parseInt(projectId, 10);
-      const ext = path.extname(req.file.originalname) || '.xlsx';
-      const savedFilename = `kcc_quote_${pId}_${Date.now()}${ext}`;
-      const savedPath = path.join(config.uploadsDir, 'quotes', savedFilename);
-      fs.writeFileSync(savedPath, req.file.buffer);
+      try {
+        const pId = parseInt(projectId, 10);
+        const ext = path.extname(req.file.originalname) || '.xlsx';
+        const savedFilename = `kcc_quote_${pId}_${Date.now()}${ext}`;
+        const savedPath = path.join(config.uploadsDir, 'quotes', savedFilename);
+        fs.writeFileSync(savedPath, req.file.buffer);
 
-      db.prepare(`
-        INSERT INTO estimate_sources (
-          project_id, filename, original_name, file_url, file_size, parsed_cost, items_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        pId, savedFilename, req.file.originalname, `/uploads/quotes/${savedFilename}`,
-        req.file.size, parsed.total_cost, JSON.stringify(parsed.items)
-      );
+        const localProj = db.prepare('SELECT id FROM projects WHERE id = ?').get(pId);
+        if (localProj) {
+          db.prepare(`
+            INSERT INTO estimate_sources (
+              project_id, filename, original_name, file_url, file_size, parsed_cost, items_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            pId, savedFilename, req.file.originalname, `/uploads/quotes/${savedFilename}`,
+            req.file.size, parsed.total_cost, JSON.stringify(parsed.items)
+          );
+        }
 
-      recordAuditLog({
-        projectId: pId,
-        action: '견적 원본 등록',
-        detail: `KCC 원본 파일 분석: ${req.file.originalname} (${parsed.item_count}개 품목, 원가 ${parsed.total_cost.toLocaleString()}원)`,
-        req
-      });
+        recordAuditLog({
+          projectId: pId,
+          action: '견적 원본 등록',
+          detail: `KCC 원본 파일 분석: ${req.file.originalname} (${parsed.item_count}개 품목, 원가 ${parsed.total_cost.toLocaleString()}원)`,
+          req
+        });
+      } catch (logErr) {
+        console.warn('[parse-file] local estimate_sources/audit log skipped:', logErr?.message || logErr);
+      }
     }
 
     res.json({
