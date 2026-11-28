@@ -7,6 +7,7 @@ import {
 } from "./_lib/authHelper.js";
 import { isPartnerAllowed, formatKstDateSlice, parseQuoteInquiry, resolveProjectAttribution, summarizeProjectNotes } from "./_lib/crmHelper.js";
 import { notifyNewCustomer } from "./_lib/discordHelper.js";
+import { sendCustomerReceiptNotification } from "../server/utils/messagingService.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -220,18 +221,31 @@ export default async function handler(req, res) {
         authorName: auth.user.name || "관리자",
       });
 
-      await notifyNewCustomer({
-        category: "신규 고객 직접 등록",
-        receiptId: result?.projectId,
-        customerName: String(name),
-        phone: String(phone),
-        address: String(address),
-        product: product ? String(product) : "창호",
-        channel: source ? String(source) : "직접등록",
-        partner: partnerName,
-        owner: owner ? String(owner) : "미배정",
-        note: note ? String(note) : "",
-      });
+      const resolvedProduct = product ? String(product) : "창호";
+      await Promise.allSettled([
+        notifyNewCustomer({
+          category: "신규 고객 직접 등록",
+          receiptId: result?.projectId,
+          customerName: String(name),
+          phone: String(phone),
+          address: String(address),
+          product: resolvedProduct,
+          channel: source ? String(source) : "직접등록",
+          partner: partnerName,
+          owner: owner ? String(owner) : "미배정",
+          note: note ? String(note) : "",
+        }),
+        sendCustomerReceiptNotification(
+          {
+            customerName: String(name),
+            phone: String(phone),
+            receiptId: result?.projectId,
+            product: resolvedProduct,
+            address: String(address),
+          },
+          { convexClient, api }
+        ),
+      ]);
 
       return res.status(201).json({
         id: result.projectId,

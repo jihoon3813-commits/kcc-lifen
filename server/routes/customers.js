@@ -3,6 +3,8 @@ import { convexClient, api } from '../convex.js';
 import { requireAuth, checkPartnerAccess } from '../middleware/auth.js';
 import { parseQuoteInquiry, resolveProjectAttribution, summarizeProjectNotes } from '../../api/_lib/crmHelper.js';
 import { notifyNewCustomer, notifyQuoteLinkRegistered } from '../../api/_lib/discordHelper.js';
+import { sendCustomerReceiptNotification } from '../utils/messagingService.js';
+import { db } from '../db/index.js';
 
 const router = express.Router();
 
@@ -343,18 +345,31 @@ router.post('/', requireAuth, checkPartnerAccess, async (req, res) => {
       authorName: req.user?.name || '관리자',
     });
 
-    await notifyNewCustomer({
-      category: '신규 고객 직접 등록',
-      receiptId: result?.projectId,
-      customerName: name,
-      phone,
-      address,
-      product: product || '창호',
-      channel: source || '직접등록',
-      partner: partnerName,
-      owner: owner || '미배정',
-      note: note || '',
-    });
+    const resolvedProduct = product || '창호';
+    await Promise.allSettled([
+      notifyNewCustomer({
+        category: '신규 고객 직접 등록',
+        receiptId: result?.projectId,
+        customerName: name,
+        phone,
+        address,
+        product: resolvedProduct,
+        channel: source || '직접등록',
+        partner: partnerName,
+        owner: owner || '미배정',
+        note: note || '',
+      }),
+      sendCustomerReceiptNotification(
+        {
+          customerName: name,
+          phone,
+          receiptId: result?.projectId,
+          product: resolvedProduct,
+          address,
+        },
+        { convexClient, api, sqliteDb: db }
+      ),
+    ]);
 
     res.status(201).json({ id: result.projectId, message: '고객이 Convex 운영 서버에 등록되었습니다.' });
   } catch (err) {
