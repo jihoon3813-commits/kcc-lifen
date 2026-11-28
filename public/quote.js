@@ -172,7 +172,8 @@ function renderVariantBookmarkBar(baseQ, selectedKey) {
   if (!bar || !tabsWrap) return;
 
   const variants = Array.isArray(baseQ?.variants) ? baseQ.variants : [];
-  if (!variants.length) {
+  // 견적이 1개만 생성된 경우에는 기존 단일 화면 그대로 표시, 2개 생성된 경우에만 책갈피 탭 표시
+  if (variants.length < 2) {
     bar.hidden = true;
     tabsWrap.innerHTML = '';
     return;
@@ -213,14 +214,38 @@ function renderVariantBookmarkBar(baseQ, selectedKey) {
 function renderQuote(q, opts = {}) {
   if (!opts.fromVariantSwitch) {
     rootQuoteBundle = q;
-    if (Array.isArray(q?.variants) && q.variants.length > 0) {
+    const vars = Array.isArray(q?.variants) ? q.variants : [];
+    if (vars.length >= 2) {
       const pref = opts.preferredVariant || q.active_variant || '';
-      activeVariantKey = q.variants.some(v => v.key === pref) ? pref : q.variants[0].key;
+      activeVariantKey = vars.some(v => v.key === pref) ? pref : vars[0].key;
       renderVariantBookmarkBar(q, activeVariantKey);
       q = buildVariantMergedQuote(q, activeVariantKey);
     } else {
       activeVariantKey = '';
       renderVariantBookmarkBar(null, '');
+      // 단일 견적(1개만 작성된 경우)은 기존 화면 그대로 표시하되 해당 단일 탭 데이터 반영
+      if (vars.length === 1) {
+        const only = vars[0];
+        q = {
+          ...q,
+          title: only.title || q.title,
+          material_subtotal: only.material_subtotal,
+          extra_subtotal: only.extra_subtotal,
+          sale_price: only.sale_price,
+          vat: only.vat,
+          original_price: only.original_price,
+          discount_amount: only.discount_amount,
+          total_price: only.total_price,
+          split_deposit: only.split_deposit,
+          split_balance: only.split_balance,
+          plans: only.plans || q.plans,
+          meta: only.meta || q.meta,
+          items: Array.isArray(only.items) ? only.items : q.items,
+          variant_key: '',
+          variant_label: '',
+          variant_sub_label: ''
+        };
+      }
     }
   }
   currentQuote = q;

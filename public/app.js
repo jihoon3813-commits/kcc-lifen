@@ -8521,7 +8521,7 @@ case'clear-quote-phone':{
   break;
 }case'new-quote':openEditor(id, el.dataset.type || '', el.dataset.quoteId ? Number(el.dataset.quoteId) : null);break;
   case'preview':openPreview(id, null, 'quote', el.dataset.type || '', el.dataset.quoteId || null);break;
-  case'editor-preview':openPreview(editor.cid, { ...editor, ...editorTotal() }, 'quote', el.dataset.type || editor.type || '가견적');break;
+  case'editor-preview':stashActiveEditorVariant();openPreview(editor.cid, { ...editor, ...editorTotal() }, 'quote', el.dataset.type || editor.type || '가견적');break;
   case'send-quote':openSendQuote(id, el.dataset.type || '', el.dataset.quoteId ? Number(el.dataset.quoteId) : null);break;
   case'prev-quote-type':{
     previewQuoteType = v === '최종견적' ? '최종견적' : '가견적';
