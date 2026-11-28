@@ -6142,23 +6142,15 @@ async function openCustomerAddressSearch() {
         const extra = extraParts.length ? ` (${extraParts.join(', ')})` : '';
         const roadFull = `${zone}${road}${extra}`.trim();
         const jibunFull = `${zone}${jibun}${extra}`.trim();
-        const primary = data.userSelectedType === 'J' ? (jibunFull || roadFull) : (roadFull || jibunFull);
-        const allCombined = (road && jibun && road !== jibun)
-          ? `${zone}${road}${extra} (지번: ${jibun})`
-          : primary;
+        const primary = roadFull || jibunFull;
 
         const baseInput = document.getElementById('cust-address-base');
         const detailInput = document.getElementById('cust-address-detail');
         const infoBox = document.getElementById('cust-addr-extra-info');
-        if (baseInput) baseInput.value = allCombined;
+        if (baseInput) baseInput.value = primary;
         if (infoBox) {
-          infoBox.hidden = false;
-          infoBox.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;font-size:11.5px;color:#475569">
-            <span>검색 결과 반영됨:</span>
-            ${allCombined ? `<button type="button" class="link-chip" data-action="use-cust-addr-variant" data-value="${esc(allCombined)}">전체(도로명+지번)</button>` : ''}
-            ${roadFull ? `<button type="button" class="link-chip" data-action="use-cust-addr-variant" data-value="${esc(roadFull)}">도로명만</button>` : ''}
-            ${jibunFull ? `<button type="button" class="link-chip" data-action="use-cust-addr-variant" data-value="${esc(jibunFull)}">지번만</button>` : ''}
-          </div>`;
+          infoBox.hidden = true;
+          infoBox.innerHTML = '';
         }
         wrap.hidden = true;
         if (detailInput) detailInput.focus();
