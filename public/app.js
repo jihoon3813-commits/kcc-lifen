@@ -8525,7 +8525,7 @@ case'clear-quote-phone':{
 case'open-customer-window':{
   const c = accessibleC(id);
   if (!c) break;
-  const reqType = el.dataset.type || previewQuoteType || '';
+  const reqType = previewQuoteType || el.dataset.type || '';
   const targetToken =
     (reqType === '최종견적' ? c.finalQuote?.token : c.roughQuote?.token) ||
     c.token ||
@@ -8579,7 +8579,7 @@ case'open-customer-window':{
       if (bannerEl) bannerEl.outerHTML = buildPreviewBannerHtml(cCur, activeDraftPreview, previewQuoteType);
       if (!activeDraftPreview) {
         const extLink = $('#preview-open-ext');
-        if (extLink) extLink.href = '/quote.html';
+        if (extLink) extLink.dataset.type = previewQuoteType;
         const copyBtn = $('#preview-copy-btn');
         if (copyBtn) {
           copyBtn.dataset.type = previewQuoteType;
