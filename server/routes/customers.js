@@ -456,6 +456,32 @@ router.post('/:id/notes', requireAuth, checkPartnerAccess, async (req, res) => {
   }
 });
 
+// 5b. Delete Consultation Note or Feedback
+router.delete('/:id/notes', requireAuth, checkPartnerAccess, async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    const noteId = String(req.query?.noteId || req.body?.noteId || '').trim();
+    if (!projectId || !noteId) {
+      return res.status(400).json({ error: '삭제할 상담 이력 ID가 올바르지 않습니다.' });
+    }
+
+    const result = await convexClient.mutation(api.crm.deleteConsultationNote, {
+      projectId,
+      noteId,
+      userName: req.user?.name || '관리자',
+    });
+
+    if (!result.found) {
+      return res.status(404).json({ error: '상담 이력을 찾을 수 없습니다.' });
+    }
+
+    res.json({ deleted: true, message: '상담 이력이 삭제되었습니다.' });
+  } catch (err) {
+    console.error('[Convex] DELETE /api/customers/:id/notes error:', err);
+    res.status(500).json({ error: '상담 이력 삭제 중 오류가 발생했습니다.' });
+  }
+});
+
 // 6. Bulk Delete Customers / Projects
 router.post('/bulk-delete', requireAuth, checkPartnerAccess, async (req, res) => {
   try {

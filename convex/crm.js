@@ -387,8 +387,41 @@ export const addConsultationNote = mutation({
   },
 });
 
-// ---------------------------------------------------------------------------
-// 2. Products & Landing Links & Events
+export const deleteConsultationNote = mutation({
+  args: {
+    projectId: v.number(),
+    noteId: v.id("consultations"),
+    userName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const note = await ctx.db.get(args.noteId);
+    if (!note || Number(note.projectId) !== Number(args.projectId)) {
+      return { found: false };
+    }
+
+    await ctx.db.delete(args.noteId);
+
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .first();
+
+    const now = new Date().toISOString();
+    if (project) {
+      await ctx.db.patch(project._id, { updatedAt: now });
+    }
+
+    await ctx.db.insert("auditLogs", {
+      projectId: args.projectId,
+      userName: args.userName || "관리자",
+      action: note.type === "feedback" ? "피드백 삭제" : "상담 이력 삭제",
+      detail: String(note.content || "").trim().slice(0, 50),
+      createdAt: now,
+    });
+
+    return { found: true };
+  },
+});
 // ---------------------------------------------------------------------------
 
 export const listProductsAndLinks = query({

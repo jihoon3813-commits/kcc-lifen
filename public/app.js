@@ -5737,7 +5737,10 @@ function renderCustomerNotesHtml(c, tab) {
   const shown = getShownCustomerLogs(c, tab);
   return shown.map(n => {
     const author = n.by || '관리자';
-    return `<div class="note"><div class="avatar">${esc(author.slice(-2))}</div><div class="note-body"><div class="note-meta"><b>${esc(author)}</b><span>${esc(n.date || '')}</span>${n.important ? badge('중요', 'orange') : ''}</div><p>${esc(n.text)}</p></div></div>`;
+    const delBtn = n.noteId
+      ? `<button type="button" class="btn sm ghost" data-action="delete-note" data-id="${c.id}" data-note-id="${esc(n.noteId)}" data-type="${esc(n.type || tab)}" title="삭제" style="margin-left:auto;padding:2px 6px;color:#94a3b8">${icon('trash')}</button>`
+      : '';
+    return `<div class="note"><div class="avatar">${esc(author.slice(-2))}</div><div class="note-body"><div class="note-meta"><b>${esc(author)}</b><span>${esc(n.date || '')}</span>${n.important ? badge('중요', 'orange') : ''}${delBtn}</div><p>${esc(n.text)}</p></div></div>`;
   }).join('') || `<div class="empty">${tab === 'feedback' ? '등록된 피드백이 없습니다.' : '등록된 상담 이력이 없습니다.'}</div>`;
 }
 
@@ -8149,7 +8152,35 @@ switch(a){case'toggle-nav':setMobileNav(!mobileNavOpen);break;case'close-nav':se
   window.scrollTo(0, 0);
   if (targetLink) toast(`[${targetLink.channel} · ${targetLink.name}] 유입 고객만 필터링하여 표시합니다.`);
   break;
-}case'detail-tab':openCustomer(id,v);break;case'quote-tab':quoteTab=v;selected.clear();selectedQuotes.clear();render();break;case'toggle-quote-inquiry':{const numId=Number(id);if(expandedQuoteInquiries.has(numId))expandedQuoteInquiries.delete(numId);else expandedQuoteInquiries.add(numId);const keepY=window.scrollY;render();window.scrollTo(0,keepY);break}case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();if(v==='integrations')refreshMessagingStatus(true);break;
+}case'detail-tab':openCustomer(id,v);break;
+case'delete-note':{
+  const c = accessibleC(id);
+  const noteId = el.dataset.noteId || '';
+  const nType = el.dataset.type || detailTab || 'notes';
+  if (!c || !noteId) break;
+  const label = nType === 'feedback' ? '피드백' : '상담 이력';
+  if (!confirm(`이 ${label}을 삭제하시겠습니까?`)) break;
+  el.disabled = true;
+  try {
+    const res = await apiFetch('/api/customers/' + c.id + '/notes?noteId=' + encodeURIComponent(noteId), {
+      method: 'DELETE'
+    });
+    const resData = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(resData.error || `${label} 삭제에 실패했습니다.`);
+    if (Array.isArray(c.notes)) c.notes = c.notes.filter(n => n.noteId !== noteId);
+    if (Array.isArray(db.notes[c.id])) db.notes[c.id] = db.notes[c.id].filter(n => n.noteId !== noteId);
+    save();
+    await loadCustomerDetail(c.id);
+    if (detailId === c.id) openCustomer(c.id, detailTab || 'notes');
+    render();
+    toast(`${label}이 삭제되었습니다.`);
+  } catch (err) {
+    toast(err?.message || `${label} 삭제 중 오류가 발생했습니다.`);
+  } finally {
+    el.disabled = false;
+  }
+  break;
+}case'quote-tab':quoteTab=v;selected.clear();selectedQuotes.clear();render();break;case'toggle-quote-inquiry':{const numId=Number(id);if(expandedQuoteInquiries.has(numId))expandedQuoteInquiries.delete(numId);else expandedQuoteInquiries.add(numId);const keepY=window.scrollY;render();window.scrollTo(0,keepY);break}case'contract-tab':contractTab=v;render();break;case'settings-tab':settingsTab=v;render();if(v==='integrations')refreshMessagingStatus(true);break;
 case'clear-quote-phone':{
   (async()=>{
     try{

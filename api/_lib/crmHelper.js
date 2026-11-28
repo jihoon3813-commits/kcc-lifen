@@ -76,6 +76,7 @@ export function mapConsultationNote(doc, idx = 0) {
   const createdAt = doc?.createdAt || "";
   return {
     id: idx + 1,
+    noteId: doc?._id ? String(doc._id) : "",
     by: doc?.authorName || "관리자",
     type,
     text: doc?.content || "",
