@@ -52,9 +52,9 @@ function buildEmbed({ title, description, color, fields }) {
 export async function sendDiscordWebhook(payload) {
   const targetUrl = isProductionEnv()
     ? DISCORD_WEBHOOK_URL
-    : process.env.DISCORD_DEV_WEBHOOK_URL || "";
+    : process.env.DISCORD_DEV_WEBHOOK_URL || DISCORD_WEBHOOK_URL;
   if (!targetUrl) {
-    console.log("[Discord Webhook][DEV skipped] 운영 채널 알림 발송 차단됨");
+    console.log("[Discord Webhook] 웹훅 URL이 설정되지 않아 알림 발송을 건너뜁니다.");
     return false;
   }
 
