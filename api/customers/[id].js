@@ -6,6 +6,7 @@ import {
   authenticateRequest,
 } from "../_lib/authHelper.js";
 import { isPartnerAllowed, formatKstDateSlice, formatShortKst, resolveProjectAttribution, summarizeProjectNotes } from "../_lib/crmHelper.js";
+import { notifyQuoteLinkRegistered } from "../_lib/discordHelper.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -147,6 +148,38 @@ export default async function handler(req, res) {
       if (!result.found) {
         return res.status(404).json({ error: "고객 공사건을 찾을 수 없습니다." });
       }
+
+      const proj = result.project || {};
+      const actorName = auth.user.name || "관리자";
+      if (result.roughQuoteRegistered && result.roughQuoteUrl) {
+        await notifyQuoteLinkRegistered({
+          projectId,
+          customerName: proj.customerName,
+          phone: proj.customerPhone,
+          address: proj.customerAddress,
+          product: proj.product,
+          partnerName: proj.partnerName,
+          ownerName: proj.ownerName,
+          quoteKind: "가견적",
+          quoteUrl: result.roughQuoteUrl,
+          userName: actorName,
+        });
+      }
+      if (result.finalQuoteRegistered && result.finalQuoteUrl) {
+        await notifyQuoteLinkRegistered({
+          projectId,
+          customerName: proj.customerName,
+          phone: proj.customerPhone,
+          address: proj.customerAddress,
+          product: proj.product,
+          partnerName: proj.partnerName,
+          ownerName: proj.ownerName,
+          quoteKind: "최종견적",
+          quoteUrl: result.finalQuoteUrl,
+          userName: actorName,
+        });
+      }
+
       return res.status(200).json({ message: "Convex 운영 서버에 성공적으로 저장되었습니다." });
     } catch (err) {
       console.error("Vercel PATCH /api/customers/[id] error:", err);

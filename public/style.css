@@ -1458,6 +1458,73 @@
   color: #3a4f6f;
   cursor: default;
 }
+.notify-pref-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.notify-pref-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.notify-pref-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  min-width: 54px;
+}
+.notify-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: pointer;
+  transition: all .14s ease;
+  white-space: nowrap;
+}
+.notify-toggle-btn:hover {
+  border-color: #94a3b8;
+  color: #334155;
+}
+.notify-toggle-btn .state-pill {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #64748b;
+}
+.notify-toggle-btn.is-on {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(22, 163, 74, 0.22);
+}
+.notify-toggle-btn.is-on:hover {
+  background: #15803d;
+  color: #ffffff;
+}
+.notify-toggle-btn.is-on .state-pill {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+.notify-toggle-btn.is-on.is-kakao {
+  background: #ca8a04;
+  border-color: #a16207;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(202, 138, 4, 0.22);
+}
+.notify-toggle-btn.is-on.is-kakao:hover {
+  background: #a16207;
+}
 .menu-perm-sub,
 .menu-perm-meta {
   display: flex;

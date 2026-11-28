@@ -1,3 +1,5 @@
+import { parseNotifyPrefs } from '../../api/_lib/notifyPrefsHelper.js';
+
 export const ALL_MENUS = [
   { key: 'customers', label: '고객관리' },
   { key: 'quotes', label: '견적관리' },
@@ -142,6 +144,7 @@ export function serializeUser(row) {
     sub_partner_count: subPartnerCount,
     has_sub_partners: subPartnerCount > 0,
     allowed_menus: allowedMenus,
+    notify_prefs: parseNotifyPrefs(row.notify_prefs, roleCode),
     created_at: row.created_at
   };
 }

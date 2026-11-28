@@ -315,7 +315,33 @@ export const updateProject = mutation({
       });
     }
 
-    return { found: true };
+    const prevRoughUrl = String(project.roughQuoteUrl || "").trim();
+    const nextRoughUrl =
+      args.roughQuoteUrl !== undefined ? String(args.roughQuoteUrl || "").trim() : prevRoughUrl;
+    const prevFinalUrl = String(project.finalQuoteUrl || "").trim();
+    const nextFinalUrl =
+      args.finalQuoteUrl !== undefined ? String(args.finalQuoteUrl || "").trim() : prevFinalUrl;
+
+    return {
+      found: true,
+      project: {
+        projectId: project.projectId,
+        customerName: project.customerName,
+        customerPhone: project.customerPhone,
+        customerAddress: project.customerAddress,
+        product: project.product,
+        partnerName: project.partnerName,
+        ownerName: patch.ownerName ?? project.ownerName,
+      },
+      roughQuoteRegistered: Boolean(
+        args.roughQuoteUrl !== undefined && nextRoughUrl && nextRoughUrl !== prevRoughUrl
+      ),
+      finalQuoteRegistered: Boolean(
+        args.finalQuoteUrl !== undefined && nextFinalUrl && nextFinalUrl !== prevFinalUrl
+      ),
+      roughQuoteUrl: nextRoughUrl,
+      finalQuoteUrl: nextFinalUrl,
+    };
   },
 });
 
@@ -357,7 +383,33 @@ export const addConsultationNote = mutation({
       createdAt: now,
     });
 
-    return { found: true };
+    const prevRoughUrl = String(project.roughQuoteUrl || "").trim();
+    const nextRoughUrl =
+      args.roughQuoteUrl !== undefined ? String(args.roughQuoteUrl || "").trim() : prevRoughUrl;
+    const prevFinalUrl = String(project.finalQuoteUrl || "").trim();
+    const nextFinalUrl =
+      args.finalQuoteUrl !== undefined ? String(args.finalQuoteUrl || "").trim() : prevFinalUrl;
+
+    return {
+      found: true,
+      project: {
+        projectId: project.projectId,
+        customerName: project.customerName,
+        customerPhone: project.customerPhone,
+        customerAddress: project.customerAddress,
+        product: project.product,
+        partnerName: project.partnerName,
+        ownerName: patch.ownerName ?? project.ownerName,
+      },
+      roughQuoteRegistered: Boolean(
+        args.roughQuoteUrl !== undefined && nextRoughUrl && nextRoughUrl !== prevRoughUrl
+      ),
+      finalQuoteRegistered: Boolean(
+        args.finalQuoteUrl !== undefined && nextFinalUrl && nextFinalUrl !== prevFinalUrl
+      ),
+      roughQuoteUrl: nextRoughUrl,
+      finalQuoteUrl: nextFinalUrl,
+    };
   },
 });
 

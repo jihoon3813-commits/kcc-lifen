@@ -90,6 +90,7 @@ export const createUser = mutation({
     orgId: v.optional(v.number()),
     orgName: v.optional(v.string()),
     allowedMenus: v.string(),
+    notifyPrefs: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -126,6 +127,7 @@ export const createUser = mutation({
       email: args.email || "",
       role: args.role,
       allowedMenus: args.allowedMenus,
+      notifyPrefs: args.notifyPrefs,
       active: true,
       createdAt: new Date().toISOString(),
     });
@@ -143,6 +145,7 @@ export const updateUser = mutation({
     orgId: v.optional(v.number()),
     orgName: v.optional(v.string()),
     allowedMenus: v.optional(v.string()),
+    notifyPrefs: v.optional(v.string()),
     active: v.optional(v.boolean()),
     passwordHash: v.optional(v.string()),
   },
@@ -160,6 +163,7 @@ export const updateUser = mutation({
     if (args.orgId !== undefined) patch.orgId = args.orgId;
     if (args.orgName !== undefined) patch.orgName = args.orgName;
     if (args.allowedMenus !== undefined) patch.allowedMenus = args.allowedMenus;
+    if (args.notifyPrefs !== undefined) patch.notifyPrefs = args.notifyPrefs;
     if (args.active !== undefined) patch.active = args.active;
     if (args.passwordHash !== undefined) patch.passwordHash = args.passwordHash;
 

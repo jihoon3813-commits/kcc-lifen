@@ -588,6 +588,9 @@ export function initDatabase() {
   if (!userCols.includes('allowed_menus')) {
     db.exec("ALTER TABLE users ADD COLUMN allowed_menus TEXT");
   }
+  if (!userCols.includes('notify_prefs')) {
+    db.exec("ALTER TABLE users ADD COLUMN notify_prefs TEXT");
+  }
 
   // Backfill allowed_menus for existing users that do not have explicit menu permissions yet
   const existingUsers = db.prepare('SELECT id, username, role, allowed_menus FROM users').all();

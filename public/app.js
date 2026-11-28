@@ -142,7 +142,31 @@ function normalizeUserRecord(raw, idx = 0) {
     role: roleCode,
     role_label: (raw.role_label && raw.role_label !== '상담사') ? raw.role_label : (ROLE_CODE_LABELS[roleCode] || '관리자'),
     allowed_menus: finalMenus,
+    notify_prefs: parseNotifyPrefsClient(raw.notify_prefs ?? raw.notifyPrefs, roleCode),
     active: raw.active !== false && raw.active !== 0
+  };
+}
+
+function parseNotifyPrefsClient(raw, roleCode = '') {
+  const empty = {
+    newCustomer: { sms: false, kakao: false },
+    newQuote: { sms: false, kakao: false }
+  };
+  if (roleCode === 'partner') return empty;
+  let obj = raw;
+  if (typeof obj === 'string') {
+    try { obj = JSON.parse(obj); } catch { obj = null; }
+  }
+  if (!obj || typeof obj !== 'object') return empty;
+  return {
+    newCustomer: {
+      sms: Boolean(obj.newCustomer?.sms),
+      kakao: Boolean(obj.newCustomer?.kakao)
+    },
+    newQuote: {
+      sms: Boolean(obj.newQuote?.sms),
+      kakao: Boolean(obj.newQuote?.kakao)
+    }
   };
 }
 
@@ -3595,12 +3619,46 @@ function renderUsersSettingsPanel() {
     const isCurrent = u.username === activeU.username;
     const isAdminLocked = u.username === 'admin';
     const roleColor = u.role === 'hq_admin' ? 'purple' : (u.role === 'partner' ? 'orange' : '');
-    const chipsHtml = ALL_MENU_KEYS.map(mKey => {
+    const visibleMenuKeys = ALL_MENU_KEYS.filter(k => k !== 'settings');
+    const chipsHtml = visibleMenuKeys.map(mKey => {
       const on = uMenus.includes(mKey);
-      const locked = isAdminLocked && mKey === 'settings';
       const meta = MENU_META[mKey];
-      return `<button type="button" class="menu-perm-chip ${on ? 'on' : ''} ${locked ? 'locked' : ''}" data-action="toggle-user-menu" data-id="${u.id}" data-menu="${mKey}" aria-pressed="${on}" title="${locked ? '최고관리자 계정의 설정 메뉴는 잠금 보호됩니다' : (meta.label + ' 메뉴 ' + (on ? '숨기기' : '표시 허용'))}">${icon(on ? 'check' : meta.icon)}${esc(meta.label)}</button>`;
+      return `<button type="button" class="menu-perm-chip ${on ? 'on' : ''}" data-action="toggle-user-menu" data-id="${u.id}" data-menu="${mKey}" aria-pressed="${on}" title="${meta.label} 메뉴 ${on ? '숨기기' : '표시 허용'}">${icon(on ? 'check' : meta.icon)}${esc(meta.label)}</button>`;
     }).join('');
+
+    const isPartner = u.role === 'partner';
+    const np = parseNotifyPrefsClient(u.notify_prefs, u.role);
+    const hasPhone = String(u.phone || '').replace(/\D/g, '').length >= 10;
+    const activeNotifyCount =
+      (np.newCustomer.sms ? 1 : 0) +
+      (np.newCustomer.kakao ? 1 : 0) +
+      (np.newQuote.sms ? 1 : 0) +
+      (np.newQuote.kakao ? 1 : 0);
+    const renderToggle = (ev, ch, chLabel) => {
+      const on = Boolean(np[ev]?.[ch]);
+      return `<button type="button" class="notify-toggle-btn ${on ? 'is-on' : ''} ${ch === 'kakao' ? 'is-kakao' : ''}" data-action="toggle-user-notify" data-id="${u.id}" data-event="${ev}" data-channel="${ch}" aria-pressed="${on}" title="${chLabel} 알림 ${on ? '해제하기' : '켜기'}"><span>${chLabel}</span><span class="state-pill">${on ? 'ON' : 'OFF'}</span></button>`;
+    };
+    const notifyHtml = isPartner
+      ? `<div class="menu-perm-wrap"><span class="badge gray">파트너 제외</span><small style="color:var(--muted)">본사 사용자만 수신</small></div>`
+      : `<div class="menu-perm-wrap">
+          <div class="notify-pref-grid">
+            <div class="notify-pref-row">
+              <span class="notify-pref-label">신규고객</span>
+              ${renderToggle('newCustomer', 'sms', '문자')}
+              ${renderToggle('newCustomer', 'kakao', '카톡')}
+            </div>
+            <div class="notify-pref-row">
+              <span class="notify-pref-label">견적생성</span>
+              ${renderToggle('newQuote', 'sms', '문자')}
+              ${renderToggle('newQuote', 'kakao', '카톡')}
+            </div>
+          </div>
+          <div class="menu-perm-meta">
+            <span>수신 <b>${activeNotifyCount}</b> / 4개 ${activeNotifyCount ? '활성' : '(전체 해제)'}</span>
+            <button type="button" class="menu-mini-link" data-action="test-user-notify" data-id="${u.id}" title="등록된 연락처로 테스트 알림 발송">테스트 발송</button>
+          </div>
+          ${!hasPhone ? '<div class="menu-perm-meta"><span style="color:#dc2626">연락처 미등록 (문자·카톡 수신 불가)</span></div>' : ''}
+        </div>`;
 
     return `<tr>
       <td class="card-primary">
@@ -3626,7 +3684,7 @@ function renderUsersSettingsPanel() {
         <div class="menu-perm-wrap">
           <div class="menu-perm-chips">${chipsHtml}</div>
           <div class="menu-perm-meta">
-            <span>표시 메뉴 <b>${uMenus.length}</b> / ${ALL_MENU_KEYS.length}개</span>
+            <span>표시 메뉴 <b>${uMenus.filter(k => k !== 'settings').length}</b> / ${visibleMenuKeys.length}개</span>
             <span style="display:inline-flex;gap:8px">
               <button type="button" class="menu-mini-link" data-action="user-menus-all" data-id="${u.id}">전체 선택</button>
               <button type="button" class="menu-mini-link" data-action="user-menus-default" data-id="${u.id}">역할 기본값</button>
@@ -3634,6 +3692,7 @@ function renderUsersSettingsPanel() {
           </div>
         </div>
       </td>
+      <td data-label="알림 수신 (문자·카톡)">${notifyHtml}</td>
       <td class="card-actions">
         <div class="actions">
           ${btn('메뉴·정보 편집', 'edit-user', 'edit', 'sm', `data-id="${u.id}"`)}
@@ -3648,9 +3707,12 @@ function renderUsersSettingsPanel() {
   return `<div class="panel-head">
       <div>
         <h3>사용자 관리 및 메뉴 권한</h3>
-        <p>사용자별로 좌측 사이드바와 모바일 메뉴에서 볼 수 있는 메뉴를 직접 선택합니다.</p>
+        <p>사용자별 메뉴 접근 권한(설정 접근 포함)과 신규고객·견적생성 문자/카톡 알림 수신 여부를 설정합니다.</p>
       </div>
-      ${btn('사용자 추가', 'new-user', 'plus', 'sm primary')}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${btn('문자·카톡 연동 설정', 'open-messaging-config', 'send', 'sm soft')}
+        ${btn('사용자 추가', 'new-user', 'plus', 'sm primary')}
+      </div>
     </div>
     <div class="user-perm-banner">
       ${icon('shield')}
@@ -3665,6 +3727,7 @@ function renderUsersSettingsPanel() {
             <th>사용자</th>
             <th>소속 · 역할</th>
             <th>볼 수 있는 메뉴 선택 (클릭하여 즉시 반영)</th>
+            <th>알림 수신 (신규고객 · 견적)</th>
             <th>관리</th>
           </tr>
         </thead>
@@ -3715,6 +3778,57 @@ async function saveUserMenusQuick(userId, nextMenus, customMsg = '') {
     toast(customMsg || (u.name + '님의 표시 메뉴가 저장되었습니다. (' + ordered.length + '개 메뉴)'));
   } catch {
     toast(customMsg || (u.name + '님의 표시 메뉴가 반영되었습니다.'));
+  }
+}
+
+async function saveUserNotifyPrefsQuick(userId, nextPrefs, customMsg = '') {
+  const idx = db.users.findIndex(x => Number(x.id) === Number(userId));
+  if (idx === -1) return;
+  const u = normalizeUserRecord(db.users[idx], idx);
+  if (u.role === 'partner') {
+    toast('파트너 계정은 관리자 알림 수신 대상에서 제외됩니다.');
+    return;
+  }
+  const hasAnyOn = Boolean(
+    nextPrefs?.newCustomer?.sms ||
+    nextPrefs?.newCustomer?.kakao ||
+    nextPrefs?.newQuote?.sms ||
+    nextPrefs?.newQuote?.kakao
+  );
+  if (hasAnyOn && String(u.phone || '').replace(/\D/g, '').length < 10) {
+    toast(`${u.name}님의 연락처(휴대폰 번호)를 먼저 등록해 주세요.`);
+    return;
+  }
+
+  const normalized = parseNotifyPrefsClient(nextPrefs, u.role);
+  db.users[idx] = { ...u, notify_prefs: normalized };
+  const rIdx = userRoster.findIndex(x => x.username === u.username || Number(x.id) === Number(u.id));
+  if (rIdx !== -1) userRoster[rIdx] = { ...userRoster[rIdx], notify_prefs: normalized };
+  save();
+  render();
+
+  try {
+    const res = await apiFetch('/api/auth/users/' + u.id, {
+      method: 'PATCH',
+      body: { notify_prefs: normalized }
+    });
+    const resData = await res.json();
+    if (!res.ok) {
+      toast(resData.error || '알림 설정 저장에 실패했습니다.');
+      await syncFromServer();
+      return;
+    }
+    if (resData.user) {
+      const updated = normalizeUserRecord(resData.user, idx);
+      db.users[idx] = updated;
+      if (rIdx !== -1) userRoster[rIdx] = updated;
+      else userRoster.push(updated);
+      save();
+      render();
+    }
+    toast(customMsg || `${u.name}님의 문자·카톡 알림 설정이 저장되었습니다.`);
+  } catch {
+    toast(customMsg || `${u.name}님의 알림 설정이 반영되었습니다.`);
   }
 }
 
@@ -3799,6 +3913,29 @@ function openUserDialog(userId = null) {
           </div>
         </div>
         <div class="menu-select-grid">${menuCardsHtml}</div>
+      </div>
+      <div class="divider"></div>
+      <div class="field" style="margin-bottom:0">
+        <div class="menu-select-head">
+          <div>
+            <label style="margin:0;font-size:13px">문자 · 카톡 알림 수신 설정 (파트너 제외)</label>
+            <p class="field-hint" style="margin:2px 0 0">신규 고객 접수 또는 견적 생성 시 등록된 연락처로 알림을 발송합니다. (파트너 역할은 수신 제외)</p>
+          </div>
+        </div>
+        ${(() => {
+          const np = parseNotifyPrefsClient(u?.notify_prefs, initRole);
+          const items = [
+            ['notify_newCustomer_sms', '신규고객 접수 · 문자', '고객정보 포함 문자(LMS) 발송', np.newCustomer.sms],
+            ['notify_newCustomer_kakao', '신규고객 접수 · 카톡', '카카오 알림톡 발송 (추후 템플릿 연동)', np.newCustomer.kakao],
+            ['notify_newQuote_sms', '견적 생성 · 문자', '고객정보·금액 포함 문자(LMS) 발송', np.newQuote.sms],
+            ['notify_newQuote_kakao', '견적 생성 · 카톡', '카카오 알림톡 발송 (추후 템플릿 연동)', np.newQuote.kakao]
+          ];
+          return `<div class="menu-select-grid">${items.map(([name, title, desc, checked]) => `
+            <label class="menu-check-card ${checked ? 'is-checked' : ''}">
+              <input type="checkbox" name="${name}" value="1" ${checked ? 'checked' : ''} ${initRole === 'partner' ? 'disabled' : ''}>
+              <div><b>${title}</b><small>${desc}</small></div>
+            </label>`).join('')}</div>`;
+        })()}
       </div>
     </div>
     <div class="dialog-footer">
@@ -9425,8 +9562,69 @@ case'toggle-user-menu':{
     await saveUserMenusQuick(u.id, next);
     break;
   }
+case'open-messaging-config':{
+    openMessagingIntegrationDialog();
+    break;
+  }
+case'test-user-notify':{
+    const idx = db.users.findIndex(x => Number(x.id) === Number(id));
+    if (idx === -1) break;
+    const u = normalizeUserRecord(db.users[idx], idx);
+    if (u.role === 'partner') {
+      toast('파트너 계정은 관리자 알림 수신 대상에서 제외됩니다.');
+      break;
+    }
+    const digits = String(u.phone || '').replace(/\D/g, '');
+    if (digits.length < 10) {
+      toast(`${u.name}님의 연락처(휴대폰 번호)를 먼저 등록해 주세요.`);
+      break;
+    }
+    const np = parseNotifyPrefsClient(u.notify_prefs, u.role);
+    const channel = (!np.newCustomer.sms && !np.newQuote.sms && (np.newCustomer.kakao || np.newQuote.kakao)) ? 'kakao' : 'sms';
+    const testMsg =
+      `[KCC홈씨씨] 관리자 알림 테스트 (${u.name})\n` +
+      `■ 고객명: 테스트고객\n` +
+      `■ 연락처: 010-0000-0000\n` +
+      `■ 관심상품: 창호\n` +
+      `■ 안내: 신규고객 접수 및 견적생성 알림 테스트 발송입니다.`;
+    el.disabled = true;
+    try {
+      const res = await apiFetch('/api/settings/integrations/messaging-test', {
+        method: 'POST',
+        body: { channel, phone: u.phone, message: testMsg }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resData.error || '테스트 발송에 실패했습니다.');
+      toast(`${u.name}(${u.phone})님께 ${channel === 'kakao' ? '카톡' : '문자'} 테스트 발송 완료: ${resData.message || ''}`);
+    } catch (err) {
+      toast(err?.message || '테스트 발송 중 오류가 발생했습니다.');
+    } finally {
+      el.disabled = false;
+    }
+    break;
+  }
+case'toggle-user-notify':{
+    const idx = db.users.findIndex(x => Number(x.id) === Number(id));
+    if (idx === -1) break;
+    const u = normalizeUserRecord(db.users[idx], idx);
+    const ev = el.dataset.event;
+    const ch = el.dataset.channel;
+    if (!ev || !ch) break;
+    const cur = parseNotifyPrefsClient(u.notify_prefs, u.role);
+    const next = {
+      ...cur,
+      [ev]: { ...cur[ev], [ch]: !cur[ev]?.[ch] }
+    };
+    await saveUserNotifyPrefsQuick(u.id, next);
+    break;
+  }
 case'user-menus-all':{
-    await saveUserMenusQuick(id, [...ALL_MENU_KEYS], '모든 메뉴(7개) 표시로 설정했습니다.');
+    const idx = db.users.findIndex(x => Number(x.id) === Number(id));
+    if (idx === -1) break;
+    const u = normalizeUserRecord(db.users[idx], idx);
+    const keepSettings = u.role === 'hq_admin' || u.username === 'admin' || getUserAllowedMenuKeys(u).includes('settings');
+    const next = keepSettings ? [...ALL_MENU_KEYS] : ALL_MENU_KEYS.filter(k => k !== 'settings');
+    await saveUserMenusQuick(id, next, '모든 업무 메뉴(6개) 표시로 설정했습니다.');
     break;
   }
 case'user-menus-default':{
@@ -10712,14 +10910,26 @@ case'edit-user':{
     }
 
     const isEdit = f.dataset.submit === 'edit-user';
+    const nextRole = d.role || 'consultant';
+    const notifyPrefs = parseNotifyPrefsClient({
+      newCustomer: {
+        sms: Boolean(fd.get('notify_newCustomer_sms')),
+        kakao: Boolean(fd.get('notify_newCustomer_kakao'))
+      },
+      newQuote: {
+        sms: Boolean(fd.get('notify_newQuote_sms')),
+        kakao: Boolean(fd.get('notify_newQuote_kakao'))
+      }
+    }, nextRole);
     const payload = {
       username: uname,
       name: uNameLabel,
       phone: (d.phone || '').trim(),
       email: (d.email || '').trim(),
       org: d.org || '라이프앤조이',
-      role: d.role || 'consultant',
-      allowed_menus: orderedMenus
+      role: nextRole,
+      allowed_menus: orderedMenus,
+      notify_prefs: notifyPrefs
     };
     if (d.password && String(d.password).trim()) {
       const cleanPw = String(d.password).trim();

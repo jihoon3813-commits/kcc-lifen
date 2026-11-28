@@ -13,6 +13,7 @@ import {
   validateRequestedMenus,
   serializeUser
 } from '../utils/menuPermissions.js';
+import { validateNotifyPrefs } from '../../api/_lib/notifyPrefsHelper.js';
 
 const router = express.Router();
 
@@ -235,7 +236,7 @@ router.get('/users', requireAuth, (req, res) => {
 
 // 5. Create User (with customizable allowed_menus)
 router.post('/users', requireAuth, requireMenu('settings'), (req, res) => {
-  const { username, password, name, phone, email, role, org_id, org, org_name, allowed_menus } = req.body || {};
+  const { username, password, name, phone, email, role, org_id, org, org_name, allowed_menus, notify_prefs } = req.body || {};
 
   const cleanUsername = String(username || '').trim();
   const cleanName = String(name || '').trim();
@@ -258,13 +259,14 @@ router.post('/users', requireAuth, requireMenu('settings'), (req, res) => {
     menusToSave = check.menus;
   }
 
+  const notifyCheck = validateNotifyPrefs(notify_prefs, roleCode);
   const rawPassword = String(password || '').trim() || 'user123!';
   const passwordHash = bcrypt.hashSync(rawPassword, 10);
   const targetOrgId = resolveOrgId({ org_id, org, org_name, fallbackOrgId: req.user.org_id });
 
   const result = db.prepare(`
-    INSERT INTO users (org_id, username, password_hash, name, phone, email, role, allowed_menus, active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+    INSERT INTO users (org_id, username, password_hash, name, phone, email, role, allowed_menus, notify_prefs, active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     targetOrgId,
     cleanUsername,
@@ -273,7 +275,8 @@ router.post('/users', requireAuth, requireMenu('settings'), (req, res) => {
     String(phone || '').trim(),
     String(email || '').trim(),
     roleCode,
-    JSON.stringify(menusToSave)
+    JSON.stringify(menusToSave),
+    JSON.stringify(notifyCheck.prefs)
   );
 
   const created = fetchUserById(result.lastInsertRowid);
@@ -304,10 +307,12 @@ function handleUpdateUser(req, res) {
     return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
   }
 
-  const { name, phone, email, role, org_id, org, org_name, active, password, allowed_menus } = req.body || {};
+  const { name, phone, email, role, org_id, org, org_name, active, password, allowed_menus, notify_prefs } = req.body || {};
 
   const nextRole = role !== undefined ? normalizeRoleCode(role) : current.role;
-  let nextMenus = serializeUser(current).allowed_menus;
+  const serializedCurrent = serializeUser(current);
+  let nextMenus = serializedCurrent.allowed_menus;
+  let nextNotifyPrefs = serializedCurrent.notify_prefs;
 
   if (allowed_menus !== undefined) {
     const check = validateRequestedMenus(allowed_menus, current.username);
@@ -315,6 +320,12 @@ function handleUpdateUser(req, res) {
       return res.status(400).json({ error: check.error });
     }
     nextMenus = check.menus;
+  }
+
+  if (notify_prefs !== undefined) {
+    nextNotifyPrefs = validateNotifyPrefs(notify_prefs, nextRole).prefs;
+  } else if (role !== undefined && nextRole === 'partner') {
+    nextNotifyPrefs = validateNotifyPrefs(null, 'partner').prefs;
   }
 
   const nextName = name !== undefined && String(name).trim() ? String(name).trim() : current.name;
@@ -336,15 +347,15 @@ function handleUpdateUser(req, res) {
     const passwordHash = bcrypt.hashSync(String(password).trim(), 10);
     db.prepare(`
       UPDATE users
-      SET org_id = ?, name = ?, phone = ?, email = ?, role = ?, allowed_menus = ?, active = ?, password_hash = ?
+      SET org_id = ?, name = ?, phone = ?, email = ?, role = ?, allowed_menus = ?, notify_prefs = ?, active = ?, password_hash = ?
       WHERE id = ?
-    `).run(nextOrgId, nextName, nextPhone, nextEmail, nextRole, JSON.stringify(nextMenus), nextActive, passwordHash, userId);
+    `).run(nextOrgId, nextName, nextPhone, nextEmail, nextRole, JSON.stringify(nextMenus), JSON.stringify(nextNotifyPrefs), nextActive, passwordHash, userId);
   } else {
     db.prepare(`
       UPDATE users
-      SET org_id = ?, name = ?, phone = ?, email = ?, role = ?, allowed_menus = ?, active = ?
+      SET org_id = ?, name = ?, phone = ?, email = ?, role = ?, allowed_menus = ?, notify_prefs = ?, active = ?
       WHERE id = ?
-    `).run(nextOrgId, nextName, nextPhone, nextEmail, nextRole, JSON.stringify(nextMenus), nextActive, userId);
+    `).run(nextOrgId, nextName, nextPhone, nextEmail, nextRole, JSON.stringify(nextMenus), JSON.stringify(nextNotifyPrefs), nextActive, userId);
   }
 
   const updated = fetchUserById(userId);

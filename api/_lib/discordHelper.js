@@ -1,4 +1,5 @@
 import { isProductionEnv } from "./authHelper.js";
+import { notifyStaffByMessaging } from "./staffNotificationHelper.js";
 
 export const DISCORD_WEBHOOK_URL =
   process.env.DISCORD_WEBHOOK_URL ||
@@ -92,23 +93,38 @@ export async function notifyNewCustomer({
   owner,
   note,
 }) {
-  return sendDiscordWebhook(
-    buildEmbed({
-      title: `👤 [고객관리] ${category}`,
-      color: 0x2563eb,
-      fields: [
-        { name: "고객명", value: customerName },
-        { name: "연락처", value: phone },
-        { name: "고객 ID / 접수번호", value: receiptId ? `#${receiptId}` : "-" },
-        { name: "관심 상품", value: product || "창호" },
-        { name: "유입 경로(채널)", value: channel || "직접등록" },
-        { name: "소속 / 파트너", value: partner || "직영" },
-        ...(owner ? [{ name: "담당자", value: owner }] : []),
-        { name: "설치 지역 / 주소", value: address || "-", inline: false },
-        ...(note ? [{ name: "메모", value: note, inline: false }] : []),
-      ],
-    })
-  );
+  const [discordRes] = await Promise.allSettled([
+    sendDiscordWebhook(
+      buildEmbed({
+        title: `👤 [고객관리] ${category}`,
+        color: 0x2563eb,
+        fields: [
+          { name: "고객명", value: customerName },
+          { name: "연락처", value: phone },
+          { name: "고객 ID / 접수번호", value: receiptId ? `#${receiptId}` : "-" },
+          { name: "관심 상품", value: product || "창호" },
+          { name: "유입 경로(채널)", value: channel || "직접등록" },
+          { name: "소속 / 파트너", value: partner || "직영" },
+          ...(owner ? [{ name: "담당자", value: owner }] : []),
+          { name: "설치 지역 / 주소", value: address || "-", inline: false },
+          ...(note ? [{ name: "메모", value: note, inline: false }] : []),
+        ],
+      })
+    ),
+    notifyStaffByMessaging("newCustomer", {
+      category,
+      receiptId,
+      customerName,
+      phone,
+      address,
+      product,
+      channel,
+      partner,
+      owner,
+      note,
+    }),
+  ]);
+  return discordRes.status === "fulfilled" ? discordRes.value : false;
 }
 
 export async function notifyNewQuote({
@@ -124,21 +140,36 @@ export async function notifyNewQuote({
   userName,
 }) {
   const isPublished = status === "published";
-  return sendDiscordWebhook(
-    buildEmbed({
-      title: `📄 [견적관리] 신규 ${quoteType || "견적"} ${isPublished ? "발행" : "등록"}`,
-      color: 0x059669,
-      fields: [
-        { name: "고객명", value: customerName || (projectId ? `고객 #${projectId}` : "-") },
-        ...(phone ? [{ name: "연락처", value: phone }] : []),
-        { name: "견적 구분 / 버전", value: `${quoteType || "가견적"} (v${version || 1})` },
-        { name: "최종 견적금액", value: formatWon(totalPrice) },
-        { name: "견적서명", value: title || "-", inline: false },
-        { name: "소속 / 파트너", value: partnerName || "직영" },
-        { name: "작성자", value: userName || "관리자" },
-      ],
-    })
-  );
+  const [discordRes] = await Promise.allSettled([
+    sendDiscordWebhook(
+      buildEmbed({
+        title: `📄 [견적관리] 신규 ${quoteType || "견적"} ${isPublished ? "발행" : "등록"}`,
+        color: 0x059669,
+        fields: [
+          { name: "고객명", value: customerName || (projectId ? `고객 #${projectId}` : "-") },
+          ...(phone ? [{ name: "연락처", value: phone }] : []),
+          { name: "견적 구분 / 버전", value: `${quoteType || "가견적"} (v${version || 1})` },
+          { name: "최종 견적금액", value: formatWon(totalPrice) },
+          { name: "견적서명", value: title || "-", inline: false },
+          { name: "소속 / 파트너", value: partnerName || "직영" },
+          { name: "작성자", value: userName || "관리자" },
+        ],
+      })
+    ),
+    notifyStaffByMessaging("newQuote", {
+      projectId,
+      customerName,
+      phone,
+      version,
+      title,
+      quoteType,
+      status,
+      totalPrice,
+      partnerName,
+      userName,
+    }),
+  ]);
+  return discordRes.status === "fulfilled" ? discordRes.value : false;
 }
 
 export async function notifyNewQuoteInquiry({
@@ -200,6 +231,38 @@ export async function notifyNewContract({
         ...(address ? [{ name: "설치 주소", value: address, inline: false }] : []),
         ...(summary ? [{ name: "상세 내용", value: summary, inline: false }] : []),
         { name: "소속 / 계약일", value: `${partnerName || "직영"} · ${contractDate || formatKstNow().slice(0, 10)}` },
+      ],
+    })
+  );
+}
+
+export async function notifyQuoteLinkRegistered({
+  projectId,
+  customerName,
+  phone,
+  address,
+  product,
+  partnerName,
+  ownerName,
+  quoteKind = "가견적",
+  quoteUrl,
+  userName,
+}) {
+  return sendDiscordWebhook(
+    buildEmbed({
+      title: `🔗 [견적링크] ${quoteKind} 링크 등록`,
+      color: 0x0284c7,
+      fields: [
+        { name: "고객명", value: customerName || (projectId ? `고객 #${projectId}` : "-") },
+        ...(phone ? [{ name: "연락처", value: phone }] : []),
+        { name: "고객 ID", value: projectId ? `#${projectId}` : "-" },
+        { name: "견적 구분", value: quoteKind },
+        { name: "관심 상품", value: product || "창호" },
+        { name: "소속 / 파트너", value: partnerName || "직영" },
+        ...(ownerName ? [{ name: "담당자", value: ownerName }] : []),
+        { name: "등록자", value: userName || "관리자" },
+        ...(address ? [{ name: "설치 지역 / 주소", value: address, inline: false }] : []),
+        { name: "등록된 견적 링크", value: quoteUrl || "-", inline: false },
       ],
     })
   );

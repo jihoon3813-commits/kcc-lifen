@@ -13,6 +13,7 @@ import {
   serializeConvexUser,
   ALL_MENUS,
 } from "../_lib/authHelper.js";
+import { validateNotifyPrefs } from "../_lib/notifyPrefsHelper.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -45,7 +46,7 @@ export default async function handler(req, res) {
     const body = parseBody(req);
     if (!body) return res.status(400).json({ error: "올바르지 않은 JSON 데이터입니다." });
 
-    const { username, password, name, phone, email, role, org_id, org, org_name, allowed_menus } = body;
+    const { username, password, name, phone, email, role, org_id, org, org_name, allowed_menus, notify_prefs } = body;
     const cleanUsername = String(username || "").trim();
     const cleanName = String(name || "").trim();
     if (!cleanUsername || !cleanName) {
@@ -59,6 +60,8 @@ export default async function handler(req, res) {
       if (!check.ok) return res.status(400).json({ error: check.error });
       menusToSave = check.menus;
     }
+
+    const notifyCheck = validateNotifyPrefs(notify_prefs, roleCode);
 
     const rawPassword = String(password || "").trim() || "user123!";
     const passwordHash = bcrypt.hashSync(rawPassword, 10);
@@ -74,6 +77,7 @@ export default async function handler(req, res) {
         orgId: org_id ? Number(org_id) : undefined,
         orgName: String(org_name || org || auth.user.org || "라이프앤조이").trim(),
         allowedMenus: JSON.stringify(menusToSave),
+        notifyPrefs: JSON.stringify(notifyCheck.prefs),
       });
       const hydrated = await convexClient.query(api.auth.getUserByUsername, { username: created.username });
       return res.status(201).json({

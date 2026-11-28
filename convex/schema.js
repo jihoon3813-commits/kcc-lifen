@@ -27,6 +27,7 @@ export default defineSchema({
     email: v.optional(v.string()),
     role: v.string(), // 'hq_admin' | 'consultant' | 'estimator' | 'partner' | 'accountant'
     allowedMenus: v.optional(v.string()),
+    notifyPrefs: v.optional(v.string()),
     active: v.boolean(),
     createdAt: v.optional(v.string()),
   }).index("by_username", ["username"]),

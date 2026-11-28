@@ -11,6 +11,7 @@ import {
   authenticateRequest,
   serializeConvexUser,
 } from "../../_lib/authHelper.js";
+import { validateNotifyPrefs } from "../../_lib/notifyPrefsHelper.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -33,13 +34,14 @@ export default async function handler(req, res) {
     const current = await convexClient.query(api.auth.getUserByUserId, { userId });
     if (!current) return res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
 
-    const { name, phone, email, role, org_id, org, org_name, active, password, allowed_menus } = body;
+    const { name, phone, email, role, org_id, org, org_name, active, password, allowed_menus, notify_prefs } = body;
     const patch = { userId };
 
     if (name !== undefined && String(name).trim()) patch.name = String(name).trim();
     if (phone !== undefined) patch.phone = String(phone).trim();
     if (email !== undefined) patch.email = String(email).trim();
-    if (role !== undefined) patch.role = normalizeRoleCode(role);
+    const effectiveRole = role !== undefined ? normalizeRoleCode(role) : current.role;
+    if (role !== undefined) patch.role = effectiveRole;
     if (org_id !== undefined) patch.orgId = Number(org_id);
     if (org_name !== undefined || org !== undefined) {
       patch.orgName = String(org_name || org || "").trim();
@@ -54,6 +56,12 @@ export default async function handler(req, res) {
       const check = validateRequestedMenus(allowed_menus, current.username);
       if (!check.ok) return res.status(400).json({ error: check.error });
       patch.allowedMenus = JSON.stringify(check.menus);
+    }
+    if (notify_prefs !== undefined) {
+      const notifyCheck = validateNotifyPrefs(notify_prefs, effectiveRole);
+      patch.notifyPrefs = JSON.stringify(notifyCheck.prefs);
+    } else if (role !== undefined && effectiveRole === "partner") {
+      patch.notifyPrefs = JSON.stringify(validateNotifyPrefs(null, "partner").prefs);
     }
     if (password && String(password).trim()) {
       patch.passwordHash = bcrypt.hashSync(String(password).trim(), 10);

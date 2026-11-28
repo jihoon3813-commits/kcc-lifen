@@ -2,7 +2,7 @@ import express from 'express';
 import { convexClient, api } from '../convex.js';
 import { requireAuth, checkPartnerAccess } from '../middleware/auth.js';
 import { parseQuoteInquiry, resolveProjectAttribution, summarizeProjectNotes } from '../../api/_lib/crmHelper.js';
-import { notifyNewCustomer } from '../../api/_lib/discordHelper.js';
+import { notifyNewCustomer, notifyQuoteLinkRegistered } from '../../api/_lib/discordHelper.js';
 
 const router = express.Router();
 
@@ -387,6 +387,37 @@ router.patch('/:id', requireAuth, checkPartnerAccess, async (req, res) => {
 
     if (!result.found) {
       return res.status(404).json({ error: '고객 공사건을 찾을 수 없습니다.' });
+    }
+
+    const proj = result.project || {};
+    const actorName = req.user?.name || '관리자';
+    if (result.roughQuoteRegistered && result.roughQuoteUrl) {
+      await notifyQuoteLinkRegistered({
+        projectId,
+        customerName: proj.customerName,
+        phone: proj.customerPhone,
+        address: proj.customerAddress,
+        product: proj.product,
+        partnerName: proj.partnerName,
+        ownerName: proj.ownerName,
+        quoteKind: '가견적',
+        quoteUrl: result.roughQuoteUrl,
+        userName: actorName,
+      });
+    }
+    if (result.finalQuoteRegistered && result.finalQuoteUrl) {
+      await notifyQuoteLinkRegistered({
+        projectId,
+        customerName: proj.customerName,
+        phone: proj.customerPhone,
+        address: proj.customerAddress,
+        product: proj.product,
+        partnerName: proj.partnerName,
+        ownerName: proj.ownerName,
+        quoteKind: '최종견적',
+        quoteUrl: result.finalQuoteUrl,
+        userName: actorName,
+      });
     }
 
     res.json({ message: 'Convex 운영 서버에 성공적으로 저장되었습니다.' });

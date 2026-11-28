@@ -6,6 +6,7 @@ import {
   ROLE_LABELS,
   parseAllowedMenus,
 } from "../../server/utils/menuPermissions.js";
+import { parseNotifyPrefs } from "./notifyPrefsHelper.js";
 
 export const PROD_CONVEX_URL = "https://savory-hedgehog-927.convex.cloud";
 export const DEV_CONVEX_URL = "https://pleasant-grouse-295.convex.cloud";
@@ -66,6 +67,7 @@ export function serializeConvexUser(u) {
     level: u.level ?? (role === "partner" ? 1 : 0),
     sub_partner_count: u.subPartnerCount || 0,
     allowed_menus: parseAllowedMenus(u.allowedMenus, role, u.username),
+    notify_prefs: parseNotifyPrefs(u.notifyPrefs, role),
     active: Boolean(u.active),
   };
 }
