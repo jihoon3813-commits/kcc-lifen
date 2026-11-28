@@ -11,6 +11,7 @@ import {
   resolveCustomerViewer
 } from '../utils/rentalSecurity.js';
 import { notifyNewQuoteInquiry } from '../../api/_lib/discordHelper.js';
+import { formatBundleSafeQuote } from '../../api/_lib/publicQuoteHelper.js';
 
 const router = express.Router();
 
@@ -51,13 +52,42 @@ router.get('/portal/info', (req, res) => {
 });
 
 // 0b. Restore Authenticated Customer Session via HttpOnly Cookie (no localStorage/sessionStorage PII needed)
-router.get('/session/current', (req, res) => {
+router.get('/session/current', async (req, res) => {
   const viewer = resolveCustomerViewer(req);
   if (!viewer) {
     return res.status(401).json({ authenticated: false });
   }
   const reqToken = String(req.query.token || '').trim();
-  const quote = db.prepare(getPublishedQuoteQuery('q.id = ?')).get(viewer.decoded.quoteId);
+
+  if (viewer.decoded.accessToken) {
+    try {
+      const bundle = await convexClient.query(api.quotes.getPublicBundleByToken, {
+        accessToken: viewer.decoded.accessToken
+      });
+      if (bundle) {
+        if (reqToken && bundle.quote.accessToken !== reqToken) {
+          return res.status(401).json({ authenticated: false, reason: 'token_mismatch' });
+        }
+        const safeQuote = formatBundleSafeQuote(bundle);
+        res.setHeader('Cache-Control', 'no-store');
+        return res.json({
+          authenticated: true,
+          verified: true,
+          viewer_token: viewer.token,
+          csrf_token: deriveCsrfToken(viewer.token),
+          quote: safeQuote,
+          available_quotes:
+            bundle.availableQuotes && bundle.availableQuotes.length > 1
+              ? bundle.availableQuotes
+              : undefined
+        });
+      }
+    } catch {}
+  }
+
+  const quote = viewer.decoded.quoteId
+    ? db.prepare(getPublishedQuoteQuery('q.id = ?')).get(viewer.decoded.quoteId)
+    : null;
   if (!quote) {
     clearCustomerSessionCookie(res);
     return res.status(401).json({ authenticated: false });
@@ -100,7 +130,7 @@ router.get('/session/current', (req, res) => {
 });
 
 // 0c. Switch between multiple quotes owned by the already-authenticated customer session
-router.post('/session/switch', (req, res) => {
+router.post('/session/switch', async (req, res) => {
   const viewer = resolveCustomerViewer(req);
   if (!viewer) {
     return res.status(401).json({ error: '로그인이 만료되었습니다. 다시 본인확인을 진행해 주세요.' });
@@ -109,6 +139,42 @@ router.post('/session/switch', (req, res) => {
   if (!nextToken) {
     return res.status(400).json({ error: '전환할 견적 토큰이 필요합니다.' });
   }
+
+  try {
+    const targetBundle = await convexClient.query(api.quotes.getPublicBundleByToken, {
+      accessToken: nextToken
+    });
+    if (targetBundle) {
+      const sameOwner =
+        String(targetBundle.project.customerName || '').trim().replace(/\s+/g, '') ===
+          String(viewer.decoded.customerName || '').trim().replace(/\s+/g, '');
+      if (!sameOwner) {
+        return res.status(403).json({ error: '본인 소유의 견적서만 열람할 수 있습니다.' });
+      }
+      const newViewerToken = jwt.sign(
+        {
+          scope: 'customer_quote_viewer',
+          quoteVersion: targetBundle.quote.version,
+          projectId: targetBundle.project.projectId,
+          accessToken: targetBundle.quote.accessToken,
+          customerName: targetBundle.project.customerName,
+          customerPhone: targetBundle.project.customerPhone
+        },
+        config.jwtSecret,
+        { expiresIn: '6h' }
+      );
+      issueCustomerSessionCookie(res, req, newViewerToken);
+      const safeQuote = formatBundleSafeQuote(targetBundle);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json({
+        verified: true,
+        viewer_token: newViewerToken,
+        csrf_token: deriveCsrfToken(newViewerToken),
+        quote: safeQuote
+      });
+    }
+  } catch {}
+
   const currentQuote = db.prepare(getPublishedQuoteQuery('q.id = ?')).get(viewer.decoded.quoteId);
   const targetQuote = db.prepare(getPublishedQuoteQuery('q.access_token = ?')).get(nextToken);
   if (!currentQuote || !targetQuote) {
@@ -151,8 +217,26 @@ router.post('/logout', (req, res) => {
 });
 
 // 1. Get Public Quote Info by Token (Check token and prompt Customer Login)
-router.get('/:token', (req, res) => {
+router.get('/:token', async (req, res) => {
   const { token } = req.params;
+
+  try {
+    const bundle = await convexClient.query(api.quotes.getPublicBundleByToken, {
+      accessToken: String(token || '').trim()
+    });
+    if (bundle) {
+      return res.json({
+        requires_login: true,
+        requires_verification: true,
+        masked_name: maskName(bundle.project.customerName),
+        masked_phone: maskPhone(bundle.project.customerPhone),
+        title: bundle.quote.title,
+        quote_type: bundle.quote.quoteType || '가견적',
+        product: bundle.project.product || '창호',
+        published_at: bundle.quote.publishedAt || bundle.quote.createdAt
+      });
+    }
+  } catch {}
 
   const quote = db.prepare(`
     SELECT q.id, q.access_token, q.version, q.title, q.quote_type, q.status, q.published_at,
@@ -180,7 +264,7 @@ router.get('/:token', (req, res) => {
 });
 
 // 2. Customer Login by Name + Mobile Phone Number (with or without token)
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { token, name, phone } = req.body || {};
 
   if (!name || !String(name).trim() || !phone || !String(phone).trim()) {
@@ -192,6 +276,63 @@ router.post('/login', (req, res) => {
 
   if (cleanInputPhone.length < 10 || cleanInputPhone.length > 11) {
     return res.status(400).json({ error: '올바른 휴대폰 번호(10~11자리)를 입력해 주세요.' });
+  }
+
+  try {
+    let bundle = null;
+    if (token && String(token).trim()) {
+      bundle = await convexClient.query(api.quotes.getPublicBundleByToken, {
+        accessToken: String(token).trim()
+      });
+      if (bundle) {
+        const cleanDbName = String(bundle.project.customerName || '').trim().replace(/\s+/g, '');
+        const cleanDbPhone = String(bundle.project.customerPhone || '').replace(/\D/g, '');
+        if (cleanInputName !== cleanDbName || cleanInputPhone !== cleanDbPhone) {
+          return res.status(401).json({ error: '입력하신 이름 또는 휴대폰 번호가 견적서 고객 정보와 일치하지 않습니다.' });
+        }
+      }
+    } else {
+      bundle = await convexClient.query(api.quotes.findPublishedQuotesByCustomer, {
+        customerName: String(name).trim(),
+        customerPhone: String(phone).trim()
+      });
+    }
+
+    if (bundle) {
+      await convexClient.mutation(api.quotes.recordPublicQuoteView, {
+        projectId: bundle.project.projectId,
+        quoteVersion: bundle.quote.version,
+        accessToken: bundle.quote.accessToken || ''
+      }).catch(() => {});
+
+      const viewerToken = jwt.sign(
+        {
+          scope: 'customer_quote_viewer',
+          quoteVersion: bundle.quote.version,
+          projectId: bundle.project.projectId,
+          accessToken: bundle.quote.accessToken,
+          customerName: bundle.project.customerName,
+          customerPhone: bundle.project.customerPhone
+        },
+        config.jwtSecret,
+        { expiresIn: '6h' }
+      );
+      const safeQuote = formatBundleSafeQuote(bundle);
+      issueCustomerSessionCookie(res, req, viewerToken);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json({
+        verified: true,
+        viewer_token: viewerToken,
+        csrf_token: deriveCsrfToken(viewerToken),
+        quote: safeQuote,
+        available_quotes:
+          bundle.availableQuotes && bundle.availableQuotes.length > 1
+            ? bundle.availableQuotes
+            : undefined
+      });
+    }
+  } catch (convexErr) {
+    console.warn('[Convex] /api/public/quotes/login fallback to SQLite:', convexErr?.message || convexErr);
   }
 
   let quote = null;
