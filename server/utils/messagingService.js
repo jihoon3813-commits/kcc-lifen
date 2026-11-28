@@ -23,6 +23,26 @@ export const DEFAULT_QUOTE_MESSAGE_TEMPLATES = {
     '※ 열람 시 고객님 본인 성함(#{고객명})과 휴대폰 번호로 로그인해 주세요.',
 };
 
+export const DEFAULT_CUSTOMER_RECEIPT_TEMPLATE =
+  '[KCC홈씨씨] #{고객명} 고객님, 상담 신청이 정상 접수되었습니다.\n\n' +
+  '■ 접수번호: ##{접수번호}\n' +
+  '■ 관심상품: #{관심상품}\n' +
+  '■ 설치지역: #{설치지역}\n\n' +
+  '담당 전문 상담사가 접수 내용을 확인한 뒤, 영업시간 기준 순차적으로 연락드리겠습니다.\n' +
+  '빠른 상담이 필요하시면 아래 대표번호로 연락 부탁드립니다.\n\n' +
+  '■ 대표문의: #{대표번호}\n' +
+  '감사합니다.';
+
+export function renderCustomerReceiptTemplate(template, vars = {}) {
+  const tpl = String(template || '').trim() || DEFAULT_CUSTOMER_RECEIPT_TEMPLATE;
+  return tpl
+    .replace(/#\{고객명\}/g, String(vars.customerName ?? '고객'))
+    .replace(/#\{접수번호\}/g, String(vars.receiptId ?? '-'))
+    .replace(/#\{관심상품\}/g, String(vars.product ?? '창호'))
+    .replace(/#\{설치지역\}/g, String(vars.address ?? '-'))
+    .replace(/#\{대표번호\}/g, String(vars.senderPhone ?? '1588-0000'));
+}
+
 export function renderQuoteMessageTemplate(template, vars = {}) {
   const tpl = String(template || '').trim();
   if (!tpl) return '';
@@ -194,6 +214,12 @@ export function normalizeMessagingConfig(raw = {}, env = process.env) {
     // 문자·카톡 공통 발송 문구 템플릿 (어드민 편집)
     msgTemplateBasic: String(safeRaw.msgTemplateBasic || '').trim(),
     msgTemplateFinal: String(safeRaw.msgTemplateFinal || '').trim(),
+
+    // 고객 상담신청 자동 접수 안내 설정
+    customerReceiptSmsEnabled: Boolean(safeRaw.customerReceiptSmsEnabled),
+    customerReceiptKakaoEnabled: Boolean(safeRaw.customerReceiptKakaoEnabled),
+    kakaoTemplateNameReceipt: String(safeRaw.kakaoTemplateNameReceipt || '').trim(),
+    msgTemplateCustomerReceipt: String(safeRaw.msgTemplateCustomerReceipt || '').trim(),
   };
 }
 
@@ -284,6 +310,10 @@ export function sanitizeMessagingConfigForClient(cfg) {
     hasWebhookApiKey: Boolean(cfg.webhookApiKey),
     msgTemplateBasic: cfg.msgTemplateBasic || '',
     msgTemplateFinal: cfg.msgTemplateFinal || '',
+    customerReceiptSmsEnabled: Boolean(cfg.customerReceiptSmsEnabled),
+    customerReceiptKakaoEnabled: Boolean(cfg.customerReceiptKakaoEnabled),
+    kakaoTemplateNameReceipt: cfg.kakaoTemplateNameReceipt || '',
+    msgTemplateCustomerReceipt: cfg.msgTemplateCustomerReceipt || '',
     status,
   };
 }
@@ -340,6 +370,22 @@ export function mergeMessagingConfigUpdate(existingRaw = {}, incoming = {}) {
       incoming.msgTemplateFinal !== undefined
         ? String(incoming.msgTemplateFinal).trim()
         : String(prev.msgTemplateFinal || '').trim(),
+    customerReceiptSmsEnabled:
+      incoming.customerReceiptSmsEnabled !== undefined
+        ? Boolean(incoming.customerReceiptSmsEnabled)
+        : Boolean(prev.customerReceiptSmsEnabled),
+    customerReceiptKakaoEnabled:
+      incoming.customerReceiptKakaoEnabled !== undefined
+        ? Boolean(incoming.customerReceiptKakaoEnabled)
+        : Boolean(prev.customerReceiptKakaoEnabled),
+    kakaoTemplateNameReceipt:
+      incoming.kakaoTemplateNameReceipt !== undefined
+        ? String(incoming.kakaoTemplateNameReceipt).trim()
+        : String(prev.kakaoTemplateNameReceipt || '').trim(),
+    msgTemplateCustomerReceipt:
+      incoming.msgTemplateCustomerReceipt !== undefined
+        ? String(incoming.msgTemplateCustomerReceipt).trim()
+        : String(prev.msgTemplateCustomerReceipt || '').trim(),
   };
 
   const keepSecret = (incomingVal, prevVal) => {
@@ -854,5 +900,76 @@ export async function dispatchMessage(cfg, payload, context = {}) {
       provider: channel === 'kakao' ? cfg.kakaoProvider : cfg.smsProvider,
       error: err?.message || '외부 발송 서버 연결 중 오류가 발생했습니다.',
     };
+  }
+}
+
+export async function sendCustomerReceiptNotification(
+  { customerName, phone, receiptId, product, address } = {},
+  { convexClient, api, sqliteDb = null } = {}
+) {
+  try {
+    const digits = cleanDigits(phone);
+    if (digits.length < 10) return { sent: 0 };
+
+    const cfg = await resolveMessagingConfig(convexClient, api, sqliteDb);
+    if (!cfg.customerReceiptSmsEnabled && !cfg.customerReceiptKakaoEnabled) {
+      return { sent: 0 };
+    }
+
+    const message = renderCustomerReceiptTemplate(cfg.msgTemplateCustomerReceipt, {
+      customerName: customerName || '고객',
+      receiptId: receiptId || '-',
+      product: product || '창호',
+      address: address || '-',
+      senderPhone: cfg.senderPhone || '1588-0000',
+    });
+
+    const tasks = [];
+    if (cfg.customerReceiptSmsEnabled) {
+      tasks.push(
+        dispatchMessage(
+          cfg,
+          {
+            channel: 'sms',
+            to: phone,
+            recipientName: customerName || '고객',
+            message,
+            projectId: receiptId || 0,
+            quoteType: '상담접수안내',
+            product: product || '창호',
+            sentBy: '시스템자동발송',
+          },
+          { convexClient, api }
+        )
+      );
+    }
+    if (cfg.customerReceiptKakaoEnabled) {
+      const kakaoCfg = cfg.kakaoTemplateNameReceipt
+        ? { ...cfg, kakaoTemplateName: cfg.kakaoTemplateNameReceipt }
+        : cfg;
+      tasks.push(
+        dispatchMessage(
+          kakaoCfg,
+          {
+            channel: 'kakao',
+            to: phone,
+            recipientName: customerName || '고객',
+            message,
+            projectId: receiptId || 0,
+            quoteType: '상담접수안내',
+            product: product || '창호',
+            sentBy: '시스템자동발송',
+          },
+          { convexClient, api }
+        )
+      );
+    }
+
+    const results = await Promise.allSettled(tasks);
+    const sent = results.filter((r) => r.status === 'fulfilled' && r.value?.ok).length;
+    return { sent, attempted: tasks.length };
+  } catch (err) {
+    console.warn('[Customer Receipt Messaging] error:', err?.message || err);
+    return { sent: 0 };
   }
 }

@@ -1161,6 +1161,16 @@ const DEFAULT_QUOTE_MESSAGE_TEMPLATES = {
     '※ 열람 시 고객님 본인 성함(#{고객명})과 휴대폰 번호로 로그인해 주세요.'
 };
 
+const DEFAULT_CUSTOMER_RECEIPT_TEMPLATE =
+  '[KCC홈씨씨] #{고객명} 고객님, 상담 신청이 정상 접수되었습니다.\n\n' +
+  '■ 접수번호: ##{접수번호}\n' +
+  '■ 관심상품: #{관심상품}\n' +
+  '■ 설치지역: #{설치지역}\n\n' +
+  '담당 전문 상담사가 접수 내용을 확인한 뒤, 영업시간 기준 순차적으로 연락드리겠습니다.\n' +
+  '빠른 상담이 필요하시면 아래 대표번호로 연락 부탁드립니다.\n\n' +
+  '■ 대표문의: #{대표번호}\n' +
+  '감사합니다.';
+
 function renderQuoteMessageTemplate(template, vars = {}) {
   const tpl = String(template || '').trim();
   if (!tpl) return '';
@@ -1589,6 +1599,10 @@ async function openMessagingIntegrationDialog() {
     webhookApiKey: '',
     msgTemplateBasic: '',
     msgTemplateFinal: '',
+    customerReceiptSmsEnabled: false,
+    customerReceiptKakaoEnabled: false,
+    kakaoTemplateNameReceipt: '',
+    msgTemplateCustomerReceipt: '',
     status: null
   };
   try {
@@ -1717,6 +1731,26 @@ async function openMessagingIntegrationDialog() {
         '<div class="field" style="margin-bottom:0">' +
           '<label for="msgTemplateFinal">최종견적 공통 문구 (문자 · 카톡)</label>' +
           '<textarea class="input" id="msgTemplateFinal" name="msgTemplateFinal" style="min-height:145px;line-height:1.6;font-size:12px">' + esc(cfg.msgTemplateFinal || DEFAULT_QUOTE_MESSAGE_TEMPLATES.final) + '</textarea>' +
+        '</div>' +
+      '</div>' +
+
+      '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:14px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">' +
+          '<b style="font-size:12.5px;color:#166534">4. 고객 상담신청 자동 접수 안내 (문자 · 카톡)</b>' +
+          '<button type="button" class="btn sm soft" data-action="reset-customer-receipt-template">기본 문구 복원</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">' +
+          '<label class="checkline"><input type="checkbox" name="customerReceiptSmsEnabled" ' + (cfg.customerReceiptSmsEnabled ? 'checked' : '') + '> <b>접수 시 고객에게 문자(LMS) 자동 발송</b></label>' +
+          '<label class="checkline"><input type="checkbox" name="customerReceiptKakaoEnabled" ' + (cfg.customerReceiptKakaoEnabled ? 'checked' : '') + '> <b>접수 시 고객에게 카카오 알림톡 자동 발송</b></label>' +
+        '</div>' +
+        field('접수 안내 알림톡 템플릿명 (카톡 발송 시 선택)', 'kakaoTemplateNameReceipt', cfg.kakaoTemplateNameReceipt || '') +
+        '<div class="notice-text" style="margin:0 0 10px;font-size:11.5px;line-height:1.55">' +
+          '랜딩페이지에서 고객이 상담을 신청하면 고객 휴대폰으로 자동 발송됩니다. ' +
+          '사용 가능한 치환 변수: <code>#{고객명}</code> <code>#{접수번호}</code> <code>#{관심상품}</code> <code>#{설치지역}</code> <code>#{대표번호}</code>' +
+        '</div>' +
+        '<div class="field" style="margin-bottom:0">' +
+          '<label for="msgTemplateCustomerReceipt">상담신청 접수 완료 안내 문구 (수정 가능)</label>' +
+          '<textarea class="input" id="msgTemplateCustomerReceipt" name="msgTemplateCustomerReceipt" style="min-height:165px;line-height:1.6;font-size:12px">' + esc(cfg.msgTemplateCustomerReceipt || DEFAULT_CUSTOMER_RECEIPT_TEMPLATE) + '</textarea>' +
         '</div>' +
       '</div>' +
 
@@ -8347,6 +8381,15 @@ case'clear-quote-phone':{
     }
     break;
   }
+  case'reset-customer-receipt-template':{
+    const form = $('#edit-form[data-submit="messaging-config"]');
+    if (form) {
+      const elTpl = form.querySelector('[name="msgTemplateCustomerReceipt"]');
+      if (elTpl) elTpl.value = DEFAULT_CUSTOMER_RECEIPT_TEMPLATE;
+      toast('기본 상담신청 접수 안내 문구로 복원했습니다. 하단의 [연동 설정 저장]을 눌러 반영하세요.');
+    }
+    break;
+  }
   case'test-messaging-send':{
     const form = $('#edit-form[data-submit="messaging-config"]');
     const testPhone = ($('#test-msg-phone')?.value || '').trim();
@@ -11113,7 +11156,11 @@ case'messaging-config':{
           smsWebhookUrl: (d.smsWebhookUrl || '').trim(),
           webhookApiKey: (d.webhookApiKey || '').trim(),
           msgTemplateBasic: (d.msgTemplateBasic || '').trim(),
-          msgTemplateFinal: (d.msgTemplateFinal || '').trim()
+          msgTemplateFinal: (d.msgTemplateFinal || '').trim(),
+          customerReceiptSmsEnabled: Boolean(formEl?.querySelector('[name="customerReceiptSmsEnabled"]')?.checked),
+          customerReceiptKakaoEnabled: Boolean(formEl?.querySelector('[name="customerReceiptKakaoEnabled"]')?.checked),
+          kakaoTemplateNameReceipt: (d.kakaoTemplateNameReceipt || '').trim(),
+          msgTemplateCustomerReceipt: (d.msgTemplateCustomerReceipt || '').trim()
         }
       });
       const resData = await res.json().catch(() => ({}));

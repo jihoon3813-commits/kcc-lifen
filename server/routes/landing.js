@@ -1,6 +1,8 @@
 import express from 'express';
 import { convexClient, api, isProductionConvex } from '../convex.js';
 import { notifyNewCustomer } from '../../api/_lib/discordHelper.js';
+import { sendCustomerReceiptNotification } from '../utils/messagingService.js';
+import { db } from '../db/index.js';
 import {
   DEFAULT_DAANGN_SHEET_ID,
   DEFAULT_DAANGN_GID,
@@ -114,16 +116,29 @@ router.post('/submit', async (req, res) => {
       .map((s) => String(s || '').trim())
       .filter(Boolean);
     const isGreen = product === '그린리모델링' || ch === 'green_remodeling' || String(scope || '').includes('[그린리모델링]');
-    await notifyNewCustomer({
-      category: purpose === 'measure' ? '무료 방문실측 예약' : (isGreen ? '그린리모델링 상담' : '월 납입금 견적상담'),
-      receiptId: result?.receiptId,
-      customerName: result?.customerName || cleanName,
-      phone: String(phone || ''),
-      address: addrParts.join(' '),
-      product: scope ? String(scope).trim() : (isGreen ? '그린리모델링' : '창호'),
-      channel: result?.channel || ch || link || utm_source || '기본 랜딩(직접유입)',
-      partner: result?.partnerName || partner || '직영',
-    });
+    const resolvedProduct = scope ? String(scope).trim() : (isGreen ? '그린리모델링' : '창호');
+    await Promise.allSettled([
+      notifyNewCustomer({
+        category: purpose === 'measure' ? '무료 방문실측 예약' : (isGreen ? '그린리모델링 상담' : '월 납입금 견적상담'),
+        receiptId: result?.receiptId,
+        customerName: result?.customerName || cleanName,
+        phone: String(phone || ''),
+        address: addrParts.join(' '),
+        product: resolvedProduct,
+        channel: result?.channel || ch || link || utm_source || '기본 랜딩(직접유입)',
+        partner: result?.partnerName || partner || '직영',
+      }),
+      sendCustomerReceiptNotification(
+        {
+          customerName: result?.customerName || cleanName,
+          phone: String(phone || ''),
+          receiptId: result?.receiptId,
+          product: resolvedProduct,
+          address: addrParts.join(' '),
+        },
+        { convexClient, api, sqliteDb: db }
+      ),
+    ]);
 
     res.status(result.alreadySubmitted ? 200 : 201).json({ ...result, persisted: true });
   } catch (err) {
