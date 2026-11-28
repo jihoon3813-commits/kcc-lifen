@@ -138,6 +138,7 @@ export const createUser = mutation({
 export const updateUser = mutation({
   args: {
     userId: v.number(),
+    username: v.optional(v.string()),
     name: v.optional(v.string()),
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
@@ -150,8 +151,17 @@ export const updateUser = mutation({
     passwordHash: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const users = await ctx.db.query("users").collect();
-    const target = users.find((u) => Number(u.userId) === Number(args.userId));
+    let target = null;
+    if (args.username) {
+      target = await ctx.db
+        .query("users")
+        .withIndex("by_username", (q) => q.eq("username", args.username))
+        .first();
+    }
+    if (!target) {
+      const users = await ctx.db.query("users").collect();
+      target = users.find((u) => Number(u.userId) === Number(args.userId));
+    }
     if (!target) {
       throw new Error("사용자를 찾을 수 없습니다.");
     }

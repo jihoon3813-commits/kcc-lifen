@@ -31,11 +31,14 @@ export default async function handler(req, res) {
   if (!body) return res.status(400).json({ error: "올바르지 않은 JSON 데이터입니다." });
 
   try {
-    const current = await convexClient.query(api.auth.getUserByUserId, { userId });
+    const bodyUsername = body.username ? String(body.username).trim() : "";
+    const current = bodyUsername
+      ? await convexClient.query(api.auth.getUserByUsername, { username: bodyUsername })
+      : await convexClient.query(api.auth.getUserByUserId, { userId });
     if (!current) return res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
 
     const { name, phone, email, role, org_id, org, org_name, active, password, allowed_menus, notify_prefs } = body;
-    const patch = { userId };
+    const patch = { userId, username: current.username };
 
     if (name !== undefined && String(name).trim()) patch.name = String(name).trim();
     if (phone !== undefined) patch.phone = String(phone).trim();

@@ -3623,7 +3623,7 @@ function renderUsersSettingsPanel() {
     const chipsHtml = visibleMenuKeys.map(mKey => {
       const on = uMenus.includes(mKey);
       const meta = MENU_META[mKey];
-      return `<button type="button" class="menu-perm-chip ${on ? 'on' : ''}" data-action="toggle-user-menu" data-id="${u.id}" data-menu="${mKey}" aria-pressed="${on}" title="${meta.label} 메뉴 ${on ? '숨기기' : '표시 허용'}">${icon(on ? 'check' : meta.icon)}${esc(meta.label)}</button>`;
+      return `<button type="button" class="menu-perm-chip ${on ? 'on' : ''}" data-action="toggle-user-menu" data-id="${u.id}" data-username="${esc(u.username)}" data-menu="${mKey}" aria-pressed="${on}" title="${meta.label} 메뉴 ${on ? '숨기기' : '표시 허용'}">${icon(on ? 'check' : meta.icon)}${esc(meta.label)}</button>`;
     }).join('');
 
     const isPartner = u.role === 'partner';
@@ -3636,7 +3636,7 @@ function renderUsersSettingsPanel() {
       (np.newQuote.kakao ? 1 : 0);
     const renderToggle = (ev, ch, chLabel) => {
       const on = Boolean(np[ev]?.[ch]);
-      return `<button type="button" class="notify-toggle-btn ${on ? 'is-on' : ''} ${ch === 'kakao' ? 'is-kakao' : ''}" data-action="toggle-user-notify" data-id="${u.id}" data-event="${ev}" data-channel="${ch}" aria-pressed="${on}" title="${chLabel} 알림 ${on ? '해제하기' : '켜기'}"><span>${chLabel}</span><span class="state-pill">${on ? 'ON' : 'OFF'}</span></button>`;
+      return `<button type="button" class="notify-toggle-btn ${on ? 'is-on' : ''} ${ch === 'kakao' ? 'is-kakao' : ''}" data-action="toggle-user-notify" data-id="${u.id}" data-username="${esc(u.username)}" data-event="${ev}" data-channel="${ch}" aria-pressed="${on}" title="${chLabel} 알림 ${on ? '해제하기' : '켜기'}"><span>${chLabel}</span><span class="state-pill">${on ? 'ON' : 'OFF'}</span></button>`;
     };
     const notifyHtml = isPartner
       ? `<div class="menu-perm-wrap"><span class="badge gray">파트너 제외</span><small style="color:var(--muted)">본사 사용자만 수신</small></div>`
@@ -3655,7 +3655,7 @@ function renderUsersSettingsPanel() {
           </div>
           <div class="menu-perm-meta">
             <span>수신 <b>${activeNotifyCount}</b> / 4개 ${activeNotifyCount ? '활성' : '(전체 해제)'}</span>
-            <button type="button" class="menu-mini-link" data-action="test-user-notify" data-id="${u.id}" title="등록된 연락처로 테스트 알림 발송">테스트 발송</button>
+            <button type="button" class="menu-mini-link" data-action="test-user-notify" data-id="${u.id}" data-username="${esc(u.username)}" title="등록된 연락처로 테스트 알림 발송">테스트 발송</button>
           </div>
           ${!hasPhone ? '<div class="menu-perm-meta"><span style="color:#dc2626">연락처 미등록 (문자·카톡 수신 불가)</span></div>' : ''}
         </div>`;
@@ -3736,8 +3736,10 @@ function renderUsersSettingsPanel() {
     </div>`;
 }
 
-async function saveUserMenusQuick(userId, nextMenus, customMsg = '') {
-  const idx = db.users.findIndex(x => Number(x.id) === Number(userId));
+async function saveUserMenusQuick(userId, nextMenus, customMsg = '', targetUsername = '') {
+  const idx = targetUsername
+    ? db.users.findIndex(x => x.username === targetUsername)
+    : db.users.findIndex(x => Number(x.id) === Number(userId));
   if (idx === -1) return;
   const u = normalizeUserRecord(db.users[idx], idx);
   if (u.username === 'admin' && !nextMenus.includes('settings')) {
@@ -3759,7 +3761,7 @@ async function saveUserMenusQuick(userId, nextMenus, customMsg = '') {
   try {
     const res = await apiFetch('/api/auth/users/' + u.id + '/menus', {
       method: 'PATCH',
-      body: { allowed_menus: ordered }
+      body: { username: u.username, allowed_menus: ordered }
     });
     const resData = await res.json();
     if (!res.ok) {
@@ -3781,8 +3783,10 @@ async function saveUserMenusQuick(userId, nextMenus, customMsg = '') {
   }
 }
 
-async function saveUserNotifyPrefsQuick(userId, nextPrefs, customMsg = '') {
-  const idx = db.users.findIndex(x => Number(x.id) === Number(userId));
+async function saveUserNotifyPrefsQuick(userId, nextPrefs, customMsg = '', targetUsername = '') {
+  const idx = targetUsername
+    ? db.users.findIndex(x => x.username === targetUsername)
+    : db.users.findIndex(x => Number(x.id) === Number(userId));
   if (idx === -1) return;
   const u = normalizeUserRecord(db.users[idx], idx);
   if (u.role === 'partner') {
@@ -3810,7 +3814,7 @@ async function saveUserNotifyPrefsQuick(userId, nextPrefs, customMsg = '') {
   try {
     const res = await apiFetch('/api/auth/users/' + u.id, {
       method: 'PATCH',
-      body: { notify_prefs: normalized }
+      body: { username: u.username, notify_prefs: normalized }
     });
     const resData = await res.json();
     if (!res.ok) {
@@ -9552,14 +9556,17 @@ case'new-user':openUserDialog(null);break;
 case'edit-user':openUserDialog(id);break;
 case'logout':logoutSession(false);break;
 case'toggle-user-menu':{
-    const idx = db.users.findIndex(x => Number(x.id) === Number(id));
+    const uname = el.dataset.username || '';
+    const idx = uname
+      ? db.users.findIndex(x => x.username === uname)
+      : db.users.findIndex(x => Number(x.id) === Number(id));
     if (idx === -1) break;
     const u = normalizeUserRecord(db.users[idx], idx);
     const mKey = el.dataset.menu;
     const cur = getUserAllowedMenuKeys(u);
     const has = cur.includes(mKey);
     const next = has ? cur.filter(k => k !== mKey) : [...cur, mKey];
-    await saveUserMenusQuick(u.id, next);
+    await saveUserMenusQuick(u.id, next, '', u.username);
     break;
   }
 case'open-messaging-config':{
@@ -9567,7 +9574,10 @@ case'open-messaging-config':{
     break;
   }
 case'test-user-notify':{
-    const idx = db.users.findIndex(x => Number(x.id) === Number(id));
+    const uname = el.dataset.username || '';
+    const idx = uname
+      ? db.users.findIndex(x => x.username === uname)
+      : db.users.findIndex(x => Number(x.id) === Number(id));
     if (idx === -1) break;
     const u = normalizeUserRecord(db.users[idx], idx);
     if (u.role === 'partner') {
@@ -9604,7 +9614,10 @@ case'test-user-notify':{
     break;
   }
 case'toggle-user-notify':{
-    const idx = db.users.findIndex(x => Number(x.id) === Number(id));
+    const uname = el.dataset.username || '';
+    const idx = uname
+      ? db.users.findIndex(x => x.username === uname)
+      : db.users.findIndex(x => Number(x.id) === Number(id));
     if (idx === -1) break;
     const u = normalizeUserRecord(db.users[idx], idx);
     const ev = el.dataset.event;
@@ -9615,7 +9628,7 @@ case'toggle-user-notify':{
       ...cur,
       [ev]: { ...cur[ev], [ch]: !cur[ev]?.[ch] }
     };
-    await saveUserNotifyPrefsQuick(u.id, next);
+    await saveUserNotifyPrefsQuick(u.id, next, '', u.username);
     break;
   }
 case'user-menus-all':{
