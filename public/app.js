@@ -3720,8 +3720,8 @@ function renderUsersSettingsPanel() {
           <div class="menu-perm-meta">
             <span>표시 메뉴 <b>${uMenus.filter(k => k !== 'settings').length}</b> / ${visibleMenuKeys.length}개</span>
             <span style="display:inline-flex;gap:8px">
-              <button type="button" class="menu-mini-link" data-action="user-menus-all" data-id="${u.id}">전체 선택</button>
-              <button type="button" class="menu-mini-link" data-action="user-menus-default" data-id="${u.id}">역할 기본값</button>
+              <button type="button" class="menu-mini-link" data-action="user-menus-all" data-id="${u.id}" data-username="${esc(u.username)}">전체 선택</button>
+              <button type="button" class="menu-mini-link" data-action="user-menus-default" data-id="${u.id}" data-username="${esc(u.username)}">역할 기본값</button>
             </span>
           </div>
         </div>
@@ -3729,7 +3729,7 @@ function renderUsersSettingsPanel() {
       <td data-label="알림 수신 (문자·카톡)">${notifyHtml}</td>
       <td class="card-actions">
         <div class="actions">
-          ${btn('메뉴·정보 편집', 'edit-user', 'edit', 'sm', `data-id="${u.id}"`)}
+          ${btn('메뉴·정보 편집', 'edit-user', 'edit', 'sm', `data-id="${u.id}" data-username="${esc(u.username)}"`)}
           ${isCurrent
             ? `<button type="button" class="btn sm soft" disabled>${icon('check')}적용 중</button>`
             : btn('화면 전환', 'switch-user-view', 'eye', 'sm soft', `data-username="${esc(u.username)}"`)}
@@ -3884,8 +3884,10 @@ function syncDialogMenuCards() {
   if (countEl) countEl.textContent = checkedCount + ' / ' + ALL_MENU_KEYS.length + '개 선택됨';
 }
 
-function openUserDialog(userId = null) {
-  const existingIdx = userId !== null ? db.users.findIndex(x => Number(x.id) === Number(userId)) : -1;
+function openUserDialog(userId = null, targetUsername = '') {
+  const existingIdx = targetUsername
+    ? db.users.findIndex(x => x.username === targetUsername)
+    : (userId !== null ? db.users.findIndex(x => Number(x.id) === Number(userId)) : -1);
   const u = existingIdx !== -1 ? normalizeUserRecord(db.users[existingIdx], existingIdx) : null;
   const isEdit = Boolean(u);
   const initRole = u ? u.role : 'consultant';
@@ -9627,7 +9629,7 @@ case'preview-landing':{const p=db.products[id];const u=productURL(id)||p?.url||'
 case'new-product':case'edit-product':{const p=a==='edit-product'?db.products[id]:null;formDialog('상품페이지 '+(p?'수정':'등록'),`${field('상품명','name',p?.name||'','text',true)}${selectField('상품군','category',['창호','그린리모델링','주방','욕실'],p?.category||'창호')}${field('랜딩페이지 URL','url',p?.url||'','url')}${field('간단 소개','desc',p?.desc||'')}`,'product','상품 판매 페이지의 링크를 관리합니다.',p?`data-id="${id}"`:'');break}
 case'new-label':formDialog('진행라벨 추가',field('라벨명','name','','text',true)+field('색상','color','#7396dd','color'),'label');break;
 case'new-user':openUserDialog(null);break;
-case'edit-user':openUserDialog(id);break;
+case'edit-user':openUserDialog(id, el.dataset.username || '');break;
 case'logout':logoutSession(false);break;
 case'toggle-user-menu':{
     const uname = el.dataset.username || '';
@@ -9706,20 +9708,26 @@ case'toggle-user-notify':{
     break;
   }
 case'user-menus-all':{
-    const idx = db.users.findIndex(x => Number(x.id) === Number(id));
+    const uname = el.dataset.username || '';
+    const idx = uname
+      ? db.users.findIndex(x => x.username === uname)
+      : db.users.findIndex(x => Number(x.id) === Number(id));
     if (idx === -1) break;
     const u = normalizeUserRecord(db.users[idx], idx);
     const keepSettings = u.role === 'hq_admin' || u.username === 'admin' || getUserAllowedMenuKeys(u).includes('settings');
     const next = keepSettings ? [...ALL_MENU_KEYS] : ALL_MENU_KEYS.filter(k => k !== 'settings');
-    await saveUserMenusQuick(id, next, '모든 업무 메뉴(6개) 표시로 설정했습니다.');
+    await saveUserMenusQuick(u.id, next, '모든 업무 메뉴(6개) 표시로 설정했습니다.', u.username);
     break;
   }
 case'user-menus-default':{
-    const idx = db.users.findIndex(x => Number(x.id) === Number(id));
+    const uname = el.dataset.username || '';
+    const idx = uname
+      ? db.users.findIndex(x => x.username === uname)
+      : db.users.findIndex(x => Number(x.id) === Number(id));
     if (idx === -1) break;
     const u = normalizeUserRecord(db.users[idx], idx);
     const defMenus = getDefaultMenusByRole(u.role);
-    await saveUserMenusQuick(u.id, defMenus, `${u.name}님의 역할(${u.role_label}) 기본 메뉴로 복원했습니다.`);
+    await saveUserMenusQuick(u.id, defMenus, `${u.name}님의 역할(${u.role_label}) 기본 메뉴로 복원했습니다.`, u.username);
     break;
   }
 case'switch-user-view':{
