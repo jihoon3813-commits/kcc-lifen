@@ -1538,9 +1538,8 @@ function renderSendDialog() {
       ).join('')
     : '<div class="notice-text">아직 발송한 내역이 없습니다. 위에서 채널을 선택해 첫 견적 안내를 발송해보세요.</div>';
 
-    const availList = Array.isArray(pData.available_quotes) ? pData.available_quotes : [];
-    const displayVer = (qObj) => qObj ? (qObj.type_version || qObj.typeVersion || qObj.version || 1) : 1;
-    const roughCardHtml = '<button type="button" class="quote-type-card rough ' + (s.quoteType === '가견적' ? 'active' : '') + '" data-action="switch-send-quote-type" data-value="가견적">' +
+  const displayVer = (qObj) => qObj ? (qObj.type_version || qObj.typeVersion || qObj.version || 1) : 1;
+  const roughCardHtml = '<button type="button" class="quote-type-card rough ' + (s.quoteType === '가견적' ? 'active' : '') + '" data-action="switch-send-quote-type" data-value="가견적">' +
     '<div class="qt-top"><b>가견적 (실측 전)</b>' + (s.roughQuote ? badge('v' + displayVer(s.roughQuote) + ' 발행됨', 'orange') : badge('미발행', 'gray')) + '</div>' +
     '<strong>' + (s.roughQuote ? won(s.roughQuote.total_price) : '발행 전 · 예시 미리보기') + '</strong>' +
     '<small>' + (s.roughQuote ? '클릭 시 가견적 링크·문구로 전환' : '클릭 시 우측에 가견적 예시 화면 표시') + '</small>' +
