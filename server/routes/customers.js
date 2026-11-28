@@ -105,6 +105,14 @@ router.get('/', requireAuth, checkPartnerAccess, async (req, res) => {
       });
     }
     for (const arr of quotesByProj.values()) {
+      const asc = [...arr].sort((a, b) => (Number(a.version) || 0) - (Number(b.version) || 0));
+      const counts = new Map();
+      for (const qt of asc) {
+        const t = qt.quoteType || '가견적';
+        const tv = (counts.get(t) || 0) + 1;
+        counts.set(t, tv);
+        qt.typeVersion = tv;
+      }
       arr.sort((a, b) => b.version - a.version);
     }
 

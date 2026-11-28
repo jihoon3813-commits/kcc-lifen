@@ -1538,14 +1538,16 @@ function renderSendDialog() {
       ).join('')
     : '<div class="notice-text">아직 발송한 내역이 없습니다. 위에서 채널을 선택해 첫 견적 안내를 발송해보세요.</div>';
 
-  const roughCardHtml = '<button type="button" class="quote-type-card rough ' + (s.quoteType === '가견적' ? 'active' : '') + '" data-action="switch-send-quote-type" data-value="가견적">' +
-    '<div class="qt-top"><b>가견적 (실측 전)</b>' + (s.roughQuote ? badge('v' + s.roughQuote.version + ' 발행됨', 'orange') : badge('미발행', 'gray')) + '</div>' +
+    const availList = Array.isArray(pData.available_quotes) ? pData.available_quotes : [];
+    const displayVer = (qObj) => qObj ? (qObj.type_version || qObj.typeVersion || qObj.version || 1) : 1;
+    const roughCardHtml = '<button type="button" class="quote-type-card rough ' + (s.quoteType === '가견적' ? 'active' : '') + '" data-action="switch-send-quote-type" data-value="가견적">' +
+    '<div class="qt-top"><b>가견적 (실측 전)</b>' + (s.roughQuote ? badge('v' + displayVer(s.roughQuote) + ' 발행됨', 'orange') : badge('미발행', 'gray')) + '</div>' +
     '<strong>' + (s.roughQuote ? won(s.roughQuote.total_price) : '발행 전 · 예시 미리보기') + '</strong>' +
     '<small>' + (s.roughQuote ? '클릭 시 가견적 링크·문구로 전환' : '클릭 시 우측에 가견적 예시 화면 표시') + '</small>' +
   '</button>';
 
   const finalCardHtml = '<button type="button" class="quote-type-card final ' + (s.quoteType === '최종견적' ? 'active' : '') + '" data-action="switch-send-quote-type" data-value="최종견적">' +
-    '<div class="qt-top"><b>최종견적 (실측 확정)</b>' + (s.finalQuote ? badge('v' + s.finalQuote.version + ' 발행됨', 'green') : badge('미발행', 'gray')) + '</div>' +
+    '<div class="qt-top"><b>최종견적 (실측 확정)</b>' + (s.finalQuote ? badge('v' + displayVer(s.finalQuote) + ' 발행됨', 'green') : badge('미발행', 'gray')) + '</div>' +
     '<strong>' + (s.finalQuote ? won(s.finalQuote.total_price) : '발행 전 · 예시 미리보기') + '</strong>' +
     '<small>' + (s.finalQuote ? '클릭 시 최종견적 링크·문구로 전환' : '클릭 시 우측에 최종견적 예시 화면 표시') + '</small>' +
   '</button>';
@@ -2174,6 +2176,21 @@ function filteredCustomers() {
     return b.date.localeCompare(a.date) || b.id - a.id;
   });
 }
+function displayQuoteVer(pq, list = null) {
+  if (!pq) return 1;
+  const tv = Number(pq.typeVersion || pq.type_version);
+  if (tv > 0) return tv;
+  if (Array.isArray(list) && list.length) {
+    const t = pq.quoteType || '가견적';
+    const sameType = list
+      .filter(q => (q.quoteType || '가견적') === t)
+      .slice()
+      .sort((a, b) => (Number(a.version) || 0) - (Number(b.version) || 0));
+    const idx = sameType.findIndex(q => (pq.id && q.id === pq.id) || Number(q.version) === Number(pq.version));
+    if (idx >= 0) return idx + 1;
+  }
+  return Number(pq.version) || 1;
+}
 function renderCustomerRowQuoteChips(c) {
   if (!c || !c.quote) return '';
   const list = Array.isArray(c.publishedQuotes) && c.publishedQuotes.length ? c.publishedQuotes : [];
@@ -2188,9 +2205,9 @@ function renderCustomerRowQuoteChips(c) {
     const visible = list.slice(0, 4);
     const chips = visible.map(pq => {
       const t = pq.quoteType || '가견적';
-      const v = pq.version || 1;
+      const v = displayQuoteVer(pq, list);
       const isFinal = t === '최종견적';
-      const isLatest = v === latestByType[t];
+      const isLatest = (Number(pq.version) || 0) === latestByType[t];
       const style = isFinal
         ? (isLatest ? 'background:#eef8f4;border-color:#a8dac6;color:#1f6853' : 'background:#f8fafc;border-color:#cbd5e1;color:#475569')
         : (isLatest ? '' : 'background:#f8fafc;border-color:#cbd5e1;color:#475569');
@@ -2353,7 +2370,7 @@ function quotesPage() {
       const hasQuote = Boolean(pq || c.quote > 0);
       const activeTotal = Number(activeQ?.totalPrice || (!pq ? c.quote : 0) || 0);
       const activeType = activeQ?.quoteType || (c.finalQuote ? '최종견적' : (c.roughQuote ? '가견적' : (c.quoteType || '가견적')));
-      const activeVer = Number(activeQ?.version || 1);
+      const activeVer = displayQuoteVer(activeQ, c.publishedQuotes);
       const origPrice = Number(activeQ?.originalPrice || (activeTotal + Number(activeQ?.discountAmount || 0)) || activeTotal);
       const discAmt = Math.max(0, Number(activeQ?.discountAmount || (origPrice > activeTotal ? origPrice - activeTotal : 0)));
       const matSub = Number(activeQ?.materialSubtotal || 0);
@@ -6061,7 +6078,7 @@ if(['notes','feedback'].includes(tab))content=renderCustomerNotesHtml(c,tab);
 if(tab==='quotes')content=`
     <div class="quote-stage-grid">
       <div class="quote-stage-card is-rough">
-        <div class="qs-head"><b>가견적 (실측 전 예상안)</b>${c.roughQuote?badge('v'+c.roughQuote.version+' 발행완료','orange'):badge('미발행','gray')}</div>
+        <div class="qs-head"><b>가견적 (실측 전 예상안)</b>${c.roughQuote?badge('v'+displayQuoteVer(c.roughQuote,c.publishedQuotes)+' 발행완료','orange'):badge('미발행','gray')}</div>
         <div class="qs-price ${c.roughQuote?'':'empty-price'}">${c.roughQuote?won(c.roughQuote.totalPrice):'아직 발행된 가견적이 없습니다'}</div>
         <div class="qs-meta">${c.roughQuote?('발행일 '+esc(c.roughQuote.date)+' · '+(c.roughQuote.viewed?'고객 열람완료':'미열람')):'견적관리 메뉴에서 가견적을 작성해 발행하세요'}</div>
         <div class="qs-actions">
@@ -6071,7 +6088,7 @@ if(tab==='quotes')content=`
         </div>
       </div>
       <div class="quote-stage-card is-final">
-        <div class="qs-head"><b>최종견적 (실측 확정안)</b>${c.finalQuote?badge('v'+c.finalQuote.version+' 발행완료','green'):badge('실측 후 확정 대기','gray')}</div>
+        <div class="qs-head"><b>최종견적 (실측 확정안)</b>${c.finalQuote?badge('v'+displayQuoteVer(c.finalQuote,c.publishedQuotes)+' 발행완료','green'):badge('실측 후 확정 대기','gray')}</div>
         <div class="qs-price ${c.finalQuote?'':'empty-price'}">${c.finalQuote?won(c.finalQuote.totalPrice):'아직 발행된 최종견적이 없습니다'}</div>
         <div class="qs-meta">${c.finalQuote?('발행일 '+esc(c.finalQuote.date)+' · '+(c.finalQuote.viewed?'고객 열람완료':'미열람')):'견적관리 메뉴에서 최종견적을 확정 발행하세요'}</div>
         <div class="qs-actions">
@@ -6087,7 +6104,7 @@ if(tab==='quotes')content=`
       ${c.quote?btn('문자·카톡 발송창 열기','send-quote','send','sm soft',`data-id="${id}"`)+btn('대표 링크 복사','copy-quote','copy','sm',`data-id="${id}"`):''}
     </div>
     ${(Array.isArray(c.quoteInquiries) && c.quoteInquiries.length) ? `<div style="margin-bottom:14px">${renderQuoteInquiryBox(c, { showCustomerBtn: false })}</div>` : ''}
-    ${(c.publishedQuotes&&c.publishedQuotes.length)?`<h4 style="margin:8px 0 10px;font-size:12px">발행 견적 버전 히스토리 (${c.publishedQuotes.length}건)</h4>`+c.publishedQuotes.map(pq=>`<div class="file-card" style="flex-wrap:wrap">${icon('file')}<div style="flex:1;min-width:160px"><b>[v${pq.version} · ${esc(pq.quoteType)}] ${esc(pq.title)}</b><small>${won(pq.totalPrice)} · 발행일 ${esc(pq.date)} · ${pq.viewed?'고객 열람완료':'미열람'}</small></div><div class="actions">${btn('미리보기','preview','eye','sm soft',`data-id="${id}" data-type="${esc(pq.quoteType)}" data-quote-id="${pq.id}"`)}${isHqAdminUser()?btn('견적 수정','go-quote-editor','edit','sm',`data-id="${id}" data-type="${esc(pq.quoteType)}" data-quote-id="${pq.id}"`):''}${btn('발송','send-quote','send','sm',`data-id="${id}" data-type="${esc(pq.quoteType)}" data-quote-id="${pq.id}"`)}</div></div>`).join(''):(c.quote?'':'<div class="notice-text">아직 발행된 견적이 없습니다. 견적관리 메뉴에서 가견적 또는 최종견적을 작성하세요.</div>')}
+    ${(c.publishedQuotes&&c.publishedQuotes.length)?`<h4 style="margin:8px 0 10px;font-size:12px">발행 견적 버전 히스토리 (${c.publishedQuotes.length}건)</h4>`+c.publishedQuotes.map(pq=>`<div class="file-card" style="flex-wrap:wrap">${icon('file')}<div style="flex:1;min-width:160px"><b>[v${displayQuoteVer(pq,c.publishedQuotes)} · ${esc(pq.quoteType)}] ${esc(pq.title)}</b><small>${won(pq.totalPrice)} · 발행일 ${esc(pq.date)} · ${pq.viewed?'고객 열람완료':'미열람'}</small></div><div class="actions">${btn('미리보기','preview','eye','sm soft',`data-id="${id}" data-type="${esc(pq.quoteType)}" data-quote-id="${pq.id}"`)}${isHqAdminUser()?btn('견적 수정','go-quote-editor','edit','sm',`data-id="${id}" data-type="${esc(pq.quoteType)}" data-quote-id="${pq.id}"`):''}${btn('발송','send-quote','send','sm',`data-id="${id}" data-type="${esc(pq.quoteType)}" data-quote-id="${pq.id}"`)}</div></div>`).join(''):(c.quote?'':'<div class="notice-text">아직 발행된 견적이 없습니다. 견적관리 메뉴에서 가견적 또는 최종견적을 작성하세요.</div>')}
   `;
 if(tab==='contract')content=`${custContracts.map(k=>{
   const isRental = k.type === '렌탈';
@@ -6581,7 +6598,7 @@ async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
           margin: Number(sv.marginRate ?? 100),
           marginScope: sv.marginScope === 'all' ? 'all' : 'material',
           discount: Number(sv.discountAmount || 0),
-          source: sv.sourceFileName ? `${sv.sourceFileName} (v${eq.version} 불러옴)` : `기존 ${def.label} (v${eq.version}) 불러옴`,
+          source: sv.sourceFileName ? `${sv.sourceFileName} (v${eq.type_version || eq.version} 불러옴)` : `기존 ${def.label} (v${eq.type_version || eq.version}) 불러옴`,
           meta: sv.meta || null,
           excelGrandTotal: Number(sv.supplyCost) > 0 ? Number(sv.supplyCost) : null,
           excelSubtotal: Number(sv.totalCost) > 0 ? Number(sv.totalCost) : null,
@@ -6606,7 +6623,7 @@ async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
       editor.loadingExisting = false;
       stashActiveEditorVariant();
       renderEditor();
-      toast(`기존 [${editor.type} v${eq.version}] 견적(${eq.variants.map(v => v.label).join(' · ')})을 불러왔습니다.`);
+      toast(`기존 [${editor.type} v${eq.type_version || eq.version}] 견적(${eq.variants.map(v => v.label).join(' · ')})을 불러왔습니다.`);
       return true;
     }
 
@@ -6624,8 +6641,8 @@ async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
       editor.memo = eq.memo || '';
       editor.meta = eq.meta || null;
       editor.source = savedSource
-        ? `${savedSource} (v${eq.version} ${eq.status === 'draft' ? '임시저장본' : eq.quote_type || '가견적'} 불러옴)`
-        : `기존 ${eq.status === 'draft' ? '임시저장' : '발행'} 견적 v${eq.version} (${eq.quote_type || '가견적'}) 불러옴`;
+        ? `${savedSource} (v${eq.type_version || eq.version} ${eq.status === 'draft' ? '임시저장본' : eq.quote_type || '가견적'} 불러옴)`
+        : `기존 ${eq.status === 'draft' ? '임시저장' : '발행'} 견적 v${eq.type_version || eq.version} (${eq.quote_type || '가견적'}) 불러옴`;
       editor.excelGrandTotal = eq.supply_cost > 0 ? Number(eq.supply_cost) : null;
       editor.excelSubtotal = eq.total_cost > 0 ? Number(eq.total_cost) : null;
       editor.items = eq.items.map(it => ({
@@ -6642,7 +6659,7 @@ async function loadQuoteIntoEditor(cid, targetType = '', targetQuoteId = null) {
       editor.loadingExisting = false;
       stashActiveEditorVariant();
       renderEditor();
-      toast(`기존 [${editor.type} v${eq.version}] 견적과 마진·세부 조건을 불러왔습니다.`);
+      toast(`기존 [${editor.type} v${eq.type_version || eq.version}] 견적과 마진·세부 조건을 불러왔습니다.`);
       return true;
     }
 
@@ -9067,7 +9084,7 @@ case'publish-quote':{
         if (isDraftSave) {
           save();
           await syncFromServer();
-          toast(`견적서(${varDesc})가 Convex 서버에 임시저장되었습니다. (v${qData.version})`);
+          toast(`견적서(${varDesc})가 Convex 서버에 임시저장되었습니다. (${editor.type} v${qData.type_version || qData.version})`);
           break;
         }
         c.quote = t.total;
@@ -9077,7 +9094,7 @@ case'publish-quote':{
         if (!['계약진행', '계약완료', '시공예정', '시공완료'].includes(c.status)) {
           c.status = publishedType === '최종견적' ? '최종견적 생성함' : '가견적 생성함';
         }
-        audit(c.id, `견적서 v${qData.version} 발행 (${varDesc})`);
+        audit(c.id, `${publishedType} v${qData.type_version || qData.version} 발행 (${varDesc})`);
         save();
         await syncFromServer();
         if (page !== 'customers') {

@@ -233,6 +233,15 @@ export async function createQuoteInConvex(convexClient, api, { body, user, partn
     return { status: 404, data: { error: '공사건을 찾을 수 없습니다.' } };
   }
 
+  let typeVersion = 1;
+  try {
+    const existingQuotes = await convexClient.query(api.quotes.listByProject, { projectId: pId }).catch(() => []);
+    const sameTypeCount = (existingQuotes || []).filter(
+      (q) => (q.quoteType || '가견적') === (result.quoteType || safeType) && Number(q.version) <= Number(result.version)
+    ).length;
+    if (sameTypeCount > 0) typeVersion = sameTypeCount;
+  } catch {}
+
   try {
     const detail = await convexClient.query(api.crm.getCustomerDetail, { projectId: pId }).catch(() => null);
     const proj = detail?.project || null;
@@ -240,13 +249,13 @@ export async function createQuoteInConvex(convexClient, api, { body, user, partn
       storedVariants.length > 1
         ? `${result.title || title || safeType} (${storedVariants.map((v) => `${v.label} ${Math.round(v.totalPrice).toLocaleString('ko-KR')}원`).join(' / ')})`
         : storedVariants.length === 1
-          ? `[${storedVariants[0].label}] ${result.title || title || `${safeType} v${result.version}`}`
-          : result.title || title || `${safeType} v${result.version}`;
+          ? `[${storedVariants[0].label}] ${result.title || title || `${safeType} v${typeVersion}`}`
+          : result.title || title || `${safeType} v${typeVersion}`;
     await notifyNewQuote({
       projectId: pId,
       customerName: proj?.customerName,
       phone: proj?.customerPhone,
-      version: result.version,
+      version: typeVersion,
       title: variantSummaryTitle,
       quoteType: result.quoteType || safeType,
       status,
@@ -261,6 +270,7 @@ export async function createQuoteInConvex(convexClient, api, { body, user, partn
     data: {
       quote_id: result.version,
       version: result.version,
+      type_version: typeVersion,
       quote_type: result.quoteType,
       access_token: result.accessToken,
       public_url: result.publicUrl,
@@ -377,9 +387,19 @@ export async function getProjectQuotePreviewFromConvex(
     safeQuote.is_simulated_type = true;
   }
 
+  const typeVersionMap = new Map();
+  const typeCounts = new Map();
+  for (const q of [...allQuotes].sort((a, b) => (Number(a.version) || 0) - (Number(b.version) || 0))) {
+    const qt = q.quoteType || '가견적';
+    const next = (typeCounts.get(qt) || 0) + 1;
+    typeCounts.set(qt, next);
+    typeVersionMap.set(Number(q.version), next);
+  }
+
   const availableQuotes = allQuotes.map((q) => ({
     id: q.version,
     version: q.version,
+    type_version: typeVersionMap.get(Number(q.version)) || 1,
     title: q.title,
     quote_type: q.quoteType || '가견적',
     total_price: q.totalPrice,
@@ -443,6 +463,7 @@ export async function getProjectQuotePreviewFromConvex(
     adminEditorQuote = {
       id: quote.version,
       version: quote.version,
+      type_version: typeVersionMap.get(Number(quote.version)) || 1,
       status: quote.status || 'published',
       quote_type: quote.quoteType || '가견적',
       title: quote.title || '',
