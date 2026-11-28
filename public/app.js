@@ -10390,7 +10390,30 @@ if(el.dataset.select){const n=Number(el.dataset.select);el.checked?selected.add(
     toast(`${selectedLabel} 화면을 새 창으로 열었습니다.`);
   }
   return;
-}if(id==='filter-product'){productFilter=el.value;render()}if(id==='filter-stage'){stageFilter=el.value;render()}if(id==='filter-partner'){partnerFilter=el.value;render()}if(id==='filter-source'){sourceFilter=el.value;linkFilter='';render()}if(id==='filter-period'){periodFilter=el.value;render()}if(id==='sort-order'){sortOrder=el.value;render()}if(id==='stats-period'){statsPeriod=el.value;render();refreshAnalytics(statsPeriod);}if(el.closest('#clone-link-form')){syncCloneLinkUrlPreview();}if(id==='quote-customer'){editor.cid=Number(el.value);renderEditor()}if(id==='quote-type'&&editor){const nextType=el.value;editor.type=nextType;const qc=accessibleC(editor.cid);const hasTargetQuote=Boolean((nextType==='가견적'&&qc?.roughQuote)||(nextType==='최종견적'&&qc?.finalQuote));if(hasTargetQuote&&(editor.loadedFromExisting||!editor.items.length)){loadQuoteIntoEditor(editor.cid,nextType,null);}else{syncEditorLivePreview();}}if(id==='quote-file'){const file=el.files[0];if(!file)return;editor.source=file.name;editor.loadedFromExisting=false;{
+}if(id==='filter-product'){productFilter=el.value;render()}if(id==='filter-stage'){stageFilter=el.value;render()}if(id==='filter-partner'){partnerFilter=el.value;render()}if(id==='filter-source'){sourceFilter=el.value;linkFilter='';render()}if(id==='filter-period'){periodFilter=el.value;render()}if(id==='sort-order'){sortOrder=el.value;render()}if(id==='stats-period'){statsPeriod=el.value;render();refreshAnalytics(statsPeriod);}if(el.closest('#clone-link-form')){syncCloneLinkUrlPreview();}if(id==='quote-customer'){editor.cid=Number(el.value);renderEditor()}if(id==='quote-type'&&editor){
+  const nextType=el.value;
+  editor.type=nextType;
+  const qc=accessibleC(editor.cid);
+  const hasTargetQuote=Boolean((nextType==='가견적'&&qc?.roughQuote)||(nextType==='최종견적'&&qc?.finalQuote));
+  if(hasTargetQuote){
+    editor.loadedFromExisting=false;
+    editor.loadingExisting=true;
+    editor.variants={villaz:createEmptyVariantState('villaz'),value:createEmptyVariantState('value')};
+    applyVariantStateToEditor('villaz');
+    renderEditor();
+    loadQuoteIntoEditor(editor.cid,nextType,null);
+  }else{
+    editor.loadedFromExisting=false;
+    editor.loadingExisting=false;
+    editor.title=nextType==='최종견적'?`${qc?.product||'창호'} 방문실측 확정 견적서`:`${qc?.product||'창호'} 교체 견적서`;
+    editor.memo='';
+    editor.variants={villaz:createEmptyVariantState('villaz'),value:createEmptyVariantState('value')};
+    applyVariantStateToEditor('villaz');
+    renderEditor();
+    toast(`[${nextType}] 새 견적서 양식으로 전환했습니다.`);
+  }
+  return;
+}if(id==='quote-file'){const file=el.files[0];if(!file)return;editor.source=file.name;editor.loadedFromExisting=false;{
     const upNameEl = $('#upload-name');
     if (upNameEl) upNameEl.textContent = file.name;
     const formData = new FormData();
