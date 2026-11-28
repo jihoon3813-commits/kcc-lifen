@@ -7178,7 +7178,7 @@ function openPreview(id, q = null, viewMode = 'quote', preferredType = '', quote
         '<button type="button" class="seg-btn ' + (previewDeviceWidth === 'wide' ? 'active' : '') + '" data-action="prev-width" data-value="wide">PC 와이드</button>' +
       '</div>' +
       (!q ? '<button type="button" class="btn sm purple-btn" data-action="new-contract" data-id="' + c.id + '" data-quote-type="' + esc(previewQuoteType) + '" data-from="preview">' + icon('contract') + '계약 등록</button>' : '') +
-      (!q ? '<a class="btn sm" id="preview-open-ext" href="' + publicLink + '" target="_blank" rel="noopener noreferrer">' + icon('external') + '고객창 열기</a>' : '') +
+      (!q ? '<button type="button" class="btn sm" id="preview-open-ext" data-action="open-customer-window" data-id="' + c.id + '" data-type="' + esc(previewQuoteType) + '"' + (previewQuoteId ? ' data-quote-id="' + previewQuoteId + '"' : '') + '>' + icon('external') + '고객창 열기</button>' : '') +
     '</div>' +
   '</div>' + buildPreviewBannerHtml(c, q, previewQuoteType);
 
@@ -8522,6 +8522,47 @@ case'clear-quote-phone':{
 }case'new-quote':openEditor(id, el.dataset.type || '', el.dataset.quoteId ? Number(el.dataset.quoteId) : null);break;
   case'preview':openPreview(id, null, 'quote', el.dataset.type || '', el.dataset.quoteId || null);break;
   case'editor-preview':stashActiveEditorVariant();openPreview(editor.cid, { ...editor, ...editorTotal() }, 'quote', el.dataset.type || editor.type || '가견적');break;
+case'open-customer-window':{
+  const c = accessibleC(id);
+  if (!c) break;
+  const reqType = el.dataset.type || previewQuoteType || '';
+  const targetToken =
+    (reqType === '최종견적' ? c.finalQuote?.token : c.roughQuote?.token) ||
+    c.token ||
+    c.finalQuote?.token ||
+    c.roughQuote?.token ||
+    '';
+  const win = window.open('about:blank', '_blank');
+  try {
+    const res = await fetch('/api/public/quotes/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(targetToken ? { token: targetToken } : {}),
+        name: c.name,
+        phone: c.phone
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (win && !win.closed) win.close();
+      toast(data.error || '고객 화면 자동 로그인에 실패했습니다.');
+      break;
+    }
+    const finalTok = data?.quote?.access_token || targetToken;
+    const targetUrl = finalTok ? (`/quote.html?token=${encodeURIComponent(finalTok)}`) : '/quote.html';
+    if (win && !win.closed) {
+      win.location.href = targetUrl;
+    } else {
+      window.open(targetUrl, '_blank', 'noopener');
+    }
+  } catch {
+    if (win && !win.closed) win.close();
+    toast('고객 화면을 여는 중 오류가 발생했습니다.');
+  }
+  break;
+}
   case'send-quote':openSendQuote(id, el.dataset.type || '', el.dataset.quoteId ? Number(el.dataset.quoteId) : null);break;
   case'prev-quote-type':{
     previewQuoteType = v === '최종견적' ? '최종견적' : '가견적';
