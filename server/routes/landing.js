@@ -110,22 +110,20 @@ router.post('/submit', async (req, res) => {
       }
     }
 
-    if (!result?.alreadySubmitted) {
-      const addrParts = [cleanRegion, district, apartment, size ? `${size}평` : '']
-        .map((s) => String(s || '').trim())
-        .filter(Boolean);
-      const isGreen = product === '그린리모델링' || ch === 'green_remodeling' || String(scope || '').includes('[그린리모델링]');
-      await notifyNewCustomer({
-        category: purpose === 'measure' ? '무료 방문실측 예약' : (isGreen ? '그린리모델링 상담' : '월 납입금 견적상담'),
-        receiptId: result?.receiptId,
-        customerName: result?.customerName || cleanName,
-        phone: String(phone || ''),
-        address: addrParts.join(' '),
-        product: scope ? String(scope).trim() : (isGreen ? '그린리모델링' : '창호'),
-        channel: result?.channel || ch || link || utm_source || '기본 랜딩(직접유입)',
-        partner: result?.partnerName || partner || '직영',
-      });
-    }
+    const addrParts = [cleanRegion, district, apartment, size ? `${size}평` : '']
+      .map((s) => String(s || '').trim())
+      .filter(Boolean);
+    const isGreen = product === '그린리모델링' || ch === 'green_remodeling' || String(scope || '').includes('[그린리모델링]');
+    await notifyNewCustomer({
+      category: purpose === 'measure' ? '무료 방문실측 예약' : (isGreen ? '그린리모델링 상담' : '월 납입금 견적상담'),
+      receiptId: result?.receiptId,
+      customerName: result?.customerName || cleanName,
+      phone: String(phone || ''),
+      address: addrParts.join(' '),
+      product: scope ? String(scope).trim() : (isGreen ? '그린리모델링' : '창호'),
+      channel: result?.channel || ch || link || utm_source || '기본 랜딩(직접유입)',
+      partner: result?.partnerName || partner || '직영',
+    });
 
     res.status(result.alreadySubmitted ? 200 : 201).json({ ...result, persisted: true });
   } catch (err) {
